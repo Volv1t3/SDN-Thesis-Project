@@ -1,0 +1,46 @@
+name: xrv-diamond-four-node-test
+
+mgmt:
+  network: xrv-mgmt
+  ipv4-subnet: 172.20.30.0/24
+
+topology:
+  kinds:
+    cisco_xrv:
+      image: vrnetlab/cisco_xrv:6.6.3
+      env:
+        QEMU_MEMORY: 3072
+        QEMU_SMP: 1
+      startup-config: ../../configurations/test/diamond-four-node-test/__clabNodeName__.cfg
+
+  nodes:
+    xr1:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.20.30.11
+
+    xr2:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.20.30.12
+
+    xr3:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.20.30.13
+
+    xr4:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.20.30.14
+
+  links:
+    # Upper path: xr1 -> xr2 -> xr4
+    - endpoints: ["xr1:Gi0/0/0/0", "xr2:Gi0/0/0/0"]
+      mtu: 1500
+
+    - endpoints: ["xr2:Gi0/0/0/1", "xr4:Gi0/0/0/0"]
+      mtu: 1500
+
+    # Lower path: xr1 -> xr3 -> xr4
+    - endpoints: ["xr1:Gi0/0/0/1", "xr3:Gi0/0/0/0"]
+      mtu: 1500
+
+    - endpoints: ["xr3:Gi0/0/0/1", "xr4:Gi0/0/0/1"]
+      mtu: 1500

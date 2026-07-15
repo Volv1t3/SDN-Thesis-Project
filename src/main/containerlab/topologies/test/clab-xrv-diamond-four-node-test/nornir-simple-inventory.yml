@@ -1,0 +1,21 @@
+---
+xr1:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.20.30.11
+xr2:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.20.30.12
+xr3:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.20.30.13
+xr4:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.20.30.14
