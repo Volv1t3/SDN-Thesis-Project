@@ -1,0 +1,25 @@
+all:
+  vars:
+    # The generated inventory is assumed to be used from the clab host.
+    # Hence no http proxy should be used. Therefore we make sure the http
+    # module does not attempt using any global http proxy.
+    ansible_httpapi_use_proxy: false
+  children:
+    cisco_xrv:
+      vars:
+        # ansible_connection: set ansible_connection variable if required
+        ansible_user: clab
+        ansible_password: clab@123
+      hosts:
+        clab-xrv-odl-rhombus-xr1:
+          ansible_host: 172.20.30.11
+        clab-xrv-odl-rhombus-xr2:
+          ansible_host: 172.20.30.12
+        clab-xrv-odl-rhombus-xr3:
+          ansible_host: 172.20.30.13
+        clab-xrv-odl-rhombus-xr4:
+          ansible_host: 172.20.30.14
+    linux:
+      hosts:
+        clab-xrv-odl-rhombus-odl:
+          ansible_host: 172.20.30.100
