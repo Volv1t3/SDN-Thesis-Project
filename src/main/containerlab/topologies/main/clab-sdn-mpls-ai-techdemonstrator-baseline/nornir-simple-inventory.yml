@@ -1,0 +1,46 @@
+---
+sma-xrv-lsr1-alpha:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.21.121.11
+sma-xrv-lsr2-bravo:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.21.121.12
+sma-xrv-lsr3-charlie:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.21.121.13
+sma-xrv-lsr4-delta:
+    username: clab
+    password: clab@123
+    platform: cisco_xrv
+    hostname: 172.21.121.14
+sma-odl-controller-india:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.100
+sma-ovs-pe1-echo:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.15
+sma-ovs-pe2-foxtrot:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.16
+sma-ubuntu-edge-golf:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.17
+sma-ubuntu-edge-hotel:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.18

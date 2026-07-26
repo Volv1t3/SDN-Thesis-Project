@@ -21,14 +21,29 @@ ENV JAVA_OPTS="-Djava.awt.headless=true \
 # Install required runtime tools.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-       bash \
-       ca-certificates \
-       curl \
-       tini \
-       tar \
-       gzip \
-       procps \
-       coreutils \
+        bash \
+        ca-certificates \
+        curl \
+        tini \
+        tar \
+        gzip \
+        procps \
+        coreutils \
+        iproute2 \
+        iputils-ping \
+        net-tools \
+        curl \
+        wget \
+        tcpdump \
+        iperf3 \
+        netcat-openbsd \
+        openssh-server \
+        python3 \
+        python3-pip \
+        vim \
+        procps \
+        ca-certificates \
+        sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and extract ODL.

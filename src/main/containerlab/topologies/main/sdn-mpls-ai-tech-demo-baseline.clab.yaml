@@ -1,0 +1,216 @@
+name: sdn-mpls-ai-techdemonstrator-baseline
+
+mgmt:
+  network: sma-mgmt
+  ipv4-subnet: 172.21.121.0/24
+
+topology:
+  kinds:
+    cisco_xrv:
+      image: vrnetlab/cisco_xrv:6.6.3
+      startup-config: ../../configurations/tech-demonstrator/__clabNodeName__.cfg
+      env:
+        QEMU_MEMORY: 3072
+        QEMU_SMP: 1
+
+    linux:
+      image: ubuntu:22.04
+
+  nodes:
+    sma-xrv-lsr1-alpha:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.21.121.11
+
+    sma-xrv-lsr2-bravo:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.21.121.12
+
+    sma-xrv-lsr3-charlie:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.21.121.13
+
+    sma-xrv-lsr4-delta:
+      kind: cisco_xrv
+      mgmt-ipv4: 172.21.121.14
+
+    sma-ovs-pe1-echo:
+      kind: linux
+      image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ovs-edge-tools:0.23.1-baseline
+      mgmt-ipv4: 172.21.121.15
+      image-pull-policy: Always
+      cap-add:
+        - NET_ADMIN
+        - SYS_ADMIN
+        - SYS_MODULE
+      exec:
+        - mkdir -p /usr/local/etc/openvswitch
+        - mkdir -p /usr/local/var/run/openvswitch
+        - sh -lc '[ -f /usr/local/etc/openvswitch/conf.db ] || ovsdb-tool create /usr/local/etc/openvswitch/conf.db /usr/local/share/openvswitch/vswitch.ovsschema'
+        - ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock --remote=db:Open_vSwitch,Open_vSwitch,manager_options --pidfile --detach
+        - ovs-vsctl --no-wait init
+        - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile --detach
+        - ovs-vsctl --may-exist add-br sma-ovs-pe1-echo
+        - ovs-vsctl set bridge sma-ovs-pe1-echo datapath_type=netdev
+        - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo host-golf
+        - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo core-lsr1
+        - ovs-vsctl set-manager tcp:172.21.121.100:6640
+        - ovs-vsctl set-controller sma-ovs-pe1-echo tcp:172.21.121.100:6653
+        - ovs-vsctl set bridge sma-ovs-pe1-echo protocols=OpenFlow13
+
+    sma-ovs-pe2-foxtrot:
+      kind: linux
+      image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ovs-edge-tools:0.23.1-baseline
+      mgmt-ipv4: 172.21.121.16
+      image-pull-policy: Always
+      cap-add:
+        - NET_ADMIN
+        - SYS_ADMIN
+        - SYS_MODULE
+      exec:
+        - mkdir -p /usr/local/etc/openvswitch
+        - mkdir -p /usr/local/var/run/openvswitch
+        - sh -lc '[ -f /usr/local/etc/openvswitch/conf.db ] || ovsdb-tool create /usr/local/etc/openvswitch/conf.db /usr/local/share/openvswitch/vswitch.ovsschema'
+        - ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock --remote=db:Open_vSwitch,Open_vSwitch,manager_options --pidfile --detach
+        - ovs-vsctl --no-wait init
+        - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile --detach
+        - ovs-vsctl --may-exist add-br sma-ovs-pe2-foxtrot
+        - ovs-vsctl set bridge sma-ovs-pe2-foxtrot datapath_type=netdev
+        - ovs-vsctl --may-exist add-port sma-ovs-pe2-foxtrot host-hotel
+        - ovs-vsctl --may-exist add-port sma-ovs-pe2-foxtrot core-lsr4
+        - ovs-vsctl set-manager tcp:172.21.121.100:6640
+        - ovs-vsctl set-controller sma-ovs-pe2-foxtrot tcp:172.21.121.100:6653
+        - ovs-vsctl set bridge sma-ovs-pe2-foxtrot protocols=OpenFlow13
+
+      
+
+    sma-ubuntu-edge-golf:
+      kind: linux
+      image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ubuntu-edge-tools:0.23.1-baseline
+      mgmt-ipv4: 172.21.121.17
+      image-pull-policy: Always
+      cap-add:
+        - NET_ADMIN
+        - SYS_ADMIN
+      exec: 
+        - sudo ip addr add 192.168.10.10/24 dev eth1
+        - sudo ip link set eth1 up
+        - sudo ip route add 192.168.20.0/24 via 192.168.10.1 dev eth1
+        - sudo ip route add 10.0.0.0/8 via 192.168.10.1 dev eth1
+        - sudo ip route add 10.100.0.0/16 via 192.168.10.1 dev eth1
+
+    sma-ubuntu-edge-hotel:
+      kind: linux
+      image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ubuntu-edge-tools:0.23.1-baseline
+      mgmt-ipv4: 172.21.121.18
+      image-pull-policy: Always
+      cap-add:
+        - NET_ADMIN
+        - SYS_ADMIN
+      exec:
+        - sudo ip addr add 192.168.20.10/24 dev eth1
+        - sudo ip link set eth1 up
+        - sudo ip route add 192.168.10.0/24 via 192.168.20.1 dev eth1
+        - sudo ip route add 10.0.0.0/8 via 192.168.20.1 dev eth1
+        - sudo ip route add 10.100.0.0/16 via 192.168.20.1 dev eth1
+
+
+    sma-odl-controller-india:
+      kind: linux
+      image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-opendaylight:0.23.1-baseline
+      mgmt-ipv4: 172.21.121.100
+      env:
+        JAVA_MIN_MEM: 1G
+        JAVA_MAX_MEM: 4G
+      image-pull-policy: Always
+      cap-add:
+        - NET_ADMIN
+        - SYS_ADMIN
+      exec:
+        - sudo ip link set dev eth1 up
+        - sudo ip address replace 10.100.10.2/30 dev eth1
+        - sudo ip link set dev eth2 up
+        - sudo ip address replace 10.100.20.2/30 dev eth2
+        - sudo ip link set dev eth3 up
+        - sudo ip address replace 10.100.30.2/30 dev eth3
+        - sudo ip link set dev eth4 up
+        - sudo ip address replace 10.100.40.2/30 dev eth4
+
+  links:
+    # ---------------------------------------------------------
+    # Left host edge: Ubuntu host Golf -> OVS Echo -> LSR1 Alpha
+    # ---------------------------------------------------------
+    - endpoints:
+        - sma-ubuntu-edge-golf:eth1
+        - sma-ovs-pe1-echo:host-golf
+
+    - endpoints:
+        - sma-ovs-pe1-echo:core-lsr1
+        - sma-xrv-lsr1-alpha:Gi0/0/0/0
+
+    # ---------------------------------------------------------
+    # Right host edge: LSR4 Delta -> OVS Foxtrot -> Ubuntu host Hotel
+    # ---------------------------------------------------------
+    - endpoints:
+        - sma-xrv-lsr4-delta:Gi0/0/0/0
+        - sma-ovs-pe2-foxtrot:core-lsr4
+
+    - endpoints:
+        - sma-ovs-pe2-foxtrot:host-hotel
+        - sma-ubuntu-edge-hotel:eth1
+
+    # ---------------------------------------------------------
+    # MPLS LSR Core: LSR1 Alpha, LSR2 Bravo, LSR3 Charlie and LSR4 Delta
+    # ---------------------------------------------------------
+    - endpoints:
+        - sma-xrv-lsr1-alpha:Gi0/0/0/1
+        - sma-xrv-lsr2-bravo:Gi0/0/0/1
+
+    - endpoints:
+        - sma-xrv-lsr1-alpha:Gi0/0/0/2
+        - sma-xrv-lsr3-charlie:Gi0/0/0/2
+
+    - endpoints:
+        - sma-xrv-lsr2-bravo:Gi0/0/0/0
+        - sma-xrv-lsr4-delta:Gi0/0/0/2
+
+    - endpoints:
+        - sma-xrv-lsr3-charlie:Gi0/0/0/1
+        - sma-xrv-lsr4-delta:Gi0/0/0/1
+
+    # ---------------------------------------------------------
+    # BGP-LS & PCE/PCC Links: LSR1, LSR2, LSR3, LSR4 to ODL India
+    # ---------------------------------------------------------
+    - endpoints:
+        - sma-xrv-lsr1-alpha:Gi0/0/0/3
+        - sma-odl-controller-india:eth1
+
+    - endpoints:
+        - sma-xrv-lsr2-bravo:Gi0/0/0/3
+        - sma-odl-controller-india:eth2
+
+    - endpoints:
+        - sma-xrv-lsr3-charlie:Gi0/0/0/3
+        - sma-odl-controller-india:eth3
+
+    - endpoints:
+        - sma-xrv-lsr4-delta:Gi0/0/0/3
+        - sma-odl-controller-india:eth4
+
+    # ---------------------------------------------------------
+    # Extended Topology Links: Additional constrainted bandwidth links
+    # ---------------------------------------------------------
+    - endpoints:
+        - sma-xrv-lsr1-alpha:Gi0/0/0/4
+        - sma-xrv-lsr2-bravo:Gi0/0/0/2
+    - endpoints:
+        - sma-xrv-lsr1-alpha:Gi0/0/0/5
+        - sma-xrv-lsr4-delta:Gi0/0/0/6
+    - endpoints: 
+        - sma-xrv-lsr2-bravo:Gi0/0/0/5
+        - sma-xrv-lsr3-charlie:Gi0/0/0/4
+    - endpoints:
+        - sma-xrv-lsr2-bravo:Gi0/0/0/4
+        - sma-xrv-lsr4-delta:Gi0/0/0/4
+    - endpoints: 
+        - sma-xrv-lsr3-charlie:Gi0/0/0/0
+        - sma-xrv-lsr4-delta:Gi0/0/0/5

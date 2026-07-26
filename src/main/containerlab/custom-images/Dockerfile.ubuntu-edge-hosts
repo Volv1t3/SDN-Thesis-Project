@@ -1,0 +1,35 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 \
+    iputils-ping \
+    net-tools \
+    curl \
+    wget \
+    tcpdump \
+    iperf3 \
+    netcat-openbsd \
+    openssh-server \
+    python3 \
+    python3-pip \
+    vim \
+    procps \
+    ca-certificates \
+    sudo \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /var/run/sshd
+
+RUN useradd -m -s /bin/bash -G sudo clab \
+    && echo 'clab:clab@123' | chpasswd \
+    && echo 'clab ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/clab \
+    && chmod 440 /etc/sudoers.d/clab
+
+RUN sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && printf '\nUsePAM yes\n' >> /etc/ssh/sshd_config
+
+CMD ["bash", "-lc", "mkdir -p /var/run/sshd && /usr/sbin/sshd || true; sleep infinity"]
