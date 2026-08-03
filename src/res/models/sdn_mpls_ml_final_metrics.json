@@ -1,0 +1,276 @@
+{
+  "created_at_utc": "2026-08-03T21:48:35.576670+00:00",
+  "dataset": {
+    "data_path": "../../../res/data/processed/SDNFlow_Training_Sample_Dataset.csv",
+    "rows_after_preparation": 221564,
+    "feature_columns": [
+      "eth_type",
+      "ip_proto",
+      "src_port",
+      "dst_port"
+    ],
+    "target_column": "Category"
+  },
+  "split": {
+    "train_rows": 155094,
+    "test_rows": 66470,
+    "test_size": 0.3,
+    "random_state": 42
+  },
+  "optimization": {
+    "n_trials": 75,
+    "n_splits": 5,
+    "best_cv_macro_f1": 0.892986459628629,
+    "best_trial_number": 51,
+    "best_params": {
+      "max_depth": 3,
+      "learning_rate": 0.2372833090616284,
+      "min_child_weight": 2.687999601846242,
+      "subsample": 0.7592168054493101,
+      "colsample_bytree": 0.7137871020296106,
+      "gamma": 0.20187059814092126,
+      "reg_alpha": 0.10738404679294579,
+      "reg_lambda": 0.005727698573355097,
+      "max_delta_step": 4.147987470155511
+    },
+    "best_trial_user_attrs": {
+      "fold_macro_f1_scores": [
+        0.8805757746969209,
+        0.9007253858505717,
+        0.9040507004811279,
+        0.9011832976871809,
+        0.8783971394273431
+      ],
+      "fold_best_iterations": [
+        548,
+        318,
+        437,
+        309,
+        475
+      ],
+      "mean_macro_f1": 0.892986459628629,
+      "std_macro_f1": 0.012413399245157193,
+      "median_best_iteration": 437
+    },
+    "optimization_seconds": 1245.4283550828695
+  },
+  "final_training": {
+    "final_n_estimators": 437,
+    "final_training_seconds": 2.594808916794136,
+    "class_weighting": "compute_sample_weight(class_weight='balanced')"
+  },
+  "final_test_metrics": {
+    "accuracy": 0.9996539792387543,
+    "macro_f1": 0.8796472109891694,
+    "weighted_f1": 0.9997234952102224
+  },
+  "classification_report": {
+    "DNS": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 16065.0
+    },
+    "FTP": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 27.0
+    },
+    "HTTP": {
+      "precision": 0.9998989490703315,
+      "recall": 0.9996363122057664,
+      "f1-score": 0.9997676133895103,
+      "support": 49493.0
+    },
+    "ICMP": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 92.0
+    },
+    "NTP": {
+      "precision": 0.1111111111111111,
+      "recall": 0.2857142857142857,
+      "f1-score": 0.16,
+      "support": 7.0
+    },
+    "SSH": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 340.0
+    },
+    "STREAMING": {
+      "precision": 0.9955357142857143,
+      "recall": 1.0,
+      "f1-score": 0.9977628635346756,
+      "support": 446.0
+    },
+    "accuracy": 0.9996539792387543,
+    "macro avg": {
+      "precision": 0.8723636820667366,
+      "recall": 0.8979072282742931,
+      "f1-score": 0.8796472109891694,
+      "support": 66470.0
+    },
+    "weighted avg": {
+      "precision": 0.9998011944138278,
+      "recall": 0.9996539792387543,
+      "f1-score": 0.9997234952102224,
+      "support": 66470.0
+    }
+  },
+  "confusion_matrix": {
+    "DNS": {
+      "DNS": 16065,
+      "FTP": 0,
+      "HTTP": 0,
+      "ICMP": 0,
+      "NTP": 0,
+      "SSH": 0,
+      "STREAMING": 0
+    },
+    "FTP": {
+      "DNS": 0,
+      "FTP": 27,
+      "HTTP": 0,
+      "ICMP": 0,
+      "NTP": 0,
+      "SSH": 0,
+      "STREAMING": 0
+    },
+    "HTTP": {
+      "DNS": 0,
+      "FTP": 0,
+      "HTTP": 49475,
+      "ICMP": 0,
+      "NTP": 5,
+      "SSH": 0,
+      "STREAMING": 0
+    },
+    "ICMP": {
+      "DNS": 0,
+      "FTP": 0,
+      "HTTP": 0,
+      "ICMP": 92,
+      "NTP": 0,
+      "SSH": 0,
+      "STREAMING": 0
+    },
+    "NTP": {
+      "DNS": 0,
+      "FTP": 0,
+      "HTTP": 16,
+      "ICMP": 0,
+      "NTP": 2,
+      "SSH": 0,
+      "STREAMING": 0
+    },
+    "SSH": {
+      "DNS": 0,
+      "FTP": 0,
+      "HTTP": 0,
+      "ICMP": 0,
+      "NTP": 0,
+      "SSH": 340,
+      "STREAMING": 0
+    },
+    "STREAMING": {
+      "DNS": 0,
+      "FTP": 0,
+      "HTTP": 2,
+      "ICMP": 0,
+      "NTP": 0,
+      "SSH": 0,
+      "STREAMING": 446
+    }
+  },
+  "confusion_matrix_normalized": {
+    "DNS": {
+      "DNS": 1.0,
+      "FTP": 0.0,
+      "HTTP": 0.0,
+      "ICMP": 0.0,
+      "NTP": 0.0,
+      "SSH": 0.0,
+      "STREAMING": 0.0
+    },
+    "FTP": {
+      "DNS": 0.0,
+      "FTP": 1.0,
+      "HTTP": 0.0,
+      "ICMP": 0.0,
+      "NTP": 0.0,
+      "SSH": 0.0,
+      "STREAMING": 0.0
+    },
+    "HTTP": {
+      "DNS": 0.0,
+      "FTP": 0.0,
+      "HTTP": 0.9996363122057664,
+      "ICMP": 0.0,
+      "NTP": 0.7142857142857143,
+      "SSH": 0.0,
+      "STREAMING": 0.0
+    },
+    "ICMP": {
+      "DNS": 0.0,
+      "FTP": 0.0,
+      "HTTP": 0.0,
+      "ICMP": 1.0,
+      "NTP": 0.0,
+      "SSH": 0.0,
+      "STREAMING": 0.0
+    },
+    "NTP": {
+      "DNS": 0.0,
+      "FTP": 0.0,
+      "HTTP": 0.0003232780393186915,
+      "ICMP": 0.0,
+      "NTP": 0.2857142857142857,
+      "SSH": 0.0,
+      "STREAMING": 0.0
+    },
+    "SSH": {
+      "DNS": 0.0,
+      "FTP": 0.0,
+      "HTTP": 0.0,
+      "ICMP": 0.0,
+      "NTP": 0.0,
+      "SSH": 1.0,
+      "STREAMING": 0.0
+    },
+    "STREAMING": {
+      "DNS": 0.0,
+      "FTP": 0.0,
+      "HTTP": 4.040975491483644e-05,
+      "ICMP": 0.0,
+      "NTP": 0.0,
+      "SSH": 0.0,
+      "STREAMING": 1.0
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "ip_proto",
+      "gain": 944.1231079101562,
+      "weight": 224.0
+    },
+    {
+      "feature": "dst_port",
+      "gain": 520.1329956054688,
+      "weight": 737.0
+    },
+    {
+      "feature": "src_port",
+      "gain": 263.0968017578125,
+      "weight": 1752.0
+    },
+    {
+      "feature": "eth_type",
+      "gain": 0.0,
+      "weight": 0.0
+    }
+  ]
+}
