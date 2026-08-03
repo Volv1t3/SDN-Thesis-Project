@@ -1,0 +1,111 @@
+{
+  "created_at_utc": "2026-08-03T21:20:18.015082+00:00",
+  "random_state": 42,
+  "test_size": 0.3,
+  "train_rows": 155094,
+  "test_rows": 66470,
+  "feature_columns": [
+    "eth_type",
+    "ip_proto",
+    "src_port",
+    "dst_port"
+  ],
+  "target_column": "Category",
+  "class_to_id": {
+    "DNS": 0,
+    "FTP": 1,
+    "HTTP": 2,
+    "ICMP": 3,
+    "NTP": 4,
+    "SSH": 5,
+    "STREAMING": 6
+  },
+  "train_distribution": [
+    {
+      "class_name": "HTTP",
+      "count": 115481,
+      "percentage": 74.45871535971733,
+      "rank": 1
+    },
+    {
+      "class_name": "DNS",
+      "count": 37486,
+      "percentage": 24.169858279495017,
+      "rank": 2
+    },
+    {
+      "class_name": "STREAMING",
+      "count": 1041,
+      "percentage": 0.6712058493558745,
+      "rank": 3
+    },
+    {
+      "class_name": "SSH",
+      "count": 793,
+      "percentage": 0.5113028228042349,
+      "rank": 4
+    },
+    {
+      "class_name": "ICMP",
+      "count": 213,
+      "percentage": 0.13733606715927116,
+      "rank": 5
+    },
+    {
+      "class_name": "FTP",
+      "count": 64,
+      "percentage": 0.04126529717461668,
+      "rank": 6
+    },
+    {
+      "class_name": "NTP",
+      "count": 16,
+      "percentage": 0.01031632429365417,
+      "rank": 7
+    }
+  ],
+  "test_distribution": [
+    {
+      "class_name": "HTTP",
+      "count": 49493,
+      "percentage": 74.45915450579209,
+      "rank": 1
+    },
+    {
+      "class_name": "DNS",
+      "count": 16065,
+      "percentage": 24.168797953964194,
+      "rank": 2
+    },
+    {
+      "class_name": "STREAMING",
+      "count": 446,
+      "percentage": 0.6709793891981345,
+      "rank": 3
+    },
+    {
+      "class_name": "SSH",
+      "count": 340,
+      "percentage": 0.5115089514066496,
+      "rank": 4
+    },
+    {
+      "class_name": "ICMP",
+      "count": 92,
+      "percentage": 0.13840830449826988,
+      "rank": 5
+    },
+    {
+      "class_name": "FTP",
+      "count": 27,
+      "percentage": 0.04061982849405747,
+      "rank": 6
+    },
+    {
+      "class_name": "NTP",
+      "count": 7,
+      "percentage": 0.010531066646607492,
+      "rank": 7
+    }
+  ]
+}

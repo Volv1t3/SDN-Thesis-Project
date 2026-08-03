@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "model_name": "sdnflow_xgboost_first_packet",
+  "target_name": "Category",
+  "model_format": "xgboost_booster_json",
+  "created_at_utc": "2026-08-03T21:48:21.844833+00:00",
+  "python_version": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 21.0.0 (clang-2100.0.123.102)]",
+  "xgboost_version": "3.3.0",
+  "optuna_version": "4.9.0",
+  "feature_order": [
+    "eth_type",
+    "ip_proto",
+    "src_port",
+    "dst_port"
+  ],
+  "feature_types": {
+    "eth_type": "integer",
+    "ip_proto": "integer",
+    "src_port": "integer",
+    "dst_port": "integer"
+  },
+  "class_to_id": {
+    "DNS": 0,
+    "FTP": 1,
+    "HTTP": 2,
+    "ICMP": 3,
+    "NTP": 4,
+    "SSH": 5,
+    "STREAMING": 6
+  },
+  "id_to_class": {
+    "0": "DNS",
+    "1": "FTP",
+    "2": "HTTP",
+    "3": "ICMP",
+    "4": "NTP",
+    "5": "SSH",
+    "6": "STREAMING"
+  },
+  "training_plan": {
+    "holdout_split": "stratified_70_30",
+    "test_size": 0.3,
+    "optimization_metric": "macro_f1",
+    "cv_strategy": "StratifiedKFold",
+    "cv_folds": 5,
+    "optuna_trials": 75,
+    "imbalance_strategy": "balanced_sample_weight",
+    "final_n_estimators": 437
+  },
+  "best_params": {
+    "max_depth": 3,
+    "learning_rate": 0.2372833090616284,
+    "min_child_weight": 2.687999601846242,
+    "subsample": 0.7592168054493101,
+    "colsample_bytree": 0.7137871020296106,
+    "gamma": 0.20187059814092126,
+    "reg_alpha": 0.10738404679294579,
+    "reg_lambda": 0.005727698573355097,
+    "max_delta_step": 4.147987470155511
+  },
+  "best_cv_macro_f1": 0.892986459628629
+}
