@@ -23,6 +23,8 @@ all:
       hosts:
         clab-sdn-mpls-ai-techdemonstrator-baseline-sma-odl-controller-india:
           ansible_host: 172.21.121.100
+        clab-sdn-mpls-ai-techdemonstrator-baseline-sma-odl-ml-api-kilo:
+          ansible_host: 172.21.121.200
         clab-sdn-mpls-ai-techdemonstrator-baseline-sma-ovs-pe1-echo:
           ansible_host: 172.21.121.15
         clab-sdn-mpls-ai-techdemonstrator-baseline-sma-ovs-pe2-foxtrot:

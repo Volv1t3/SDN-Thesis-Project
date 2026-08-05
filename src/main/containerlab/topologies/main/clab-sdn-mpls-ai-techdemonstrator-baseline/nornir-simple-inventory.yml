@@ -24,6 +24,11 @@ sma-odl-controller-india:
     password: 
     platform: linux
     hostname: 172.21.121.100
+sma-odl-ml-api-kilo:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.200
 sma-ovs-pe1-echo:
     username: 
     password: 

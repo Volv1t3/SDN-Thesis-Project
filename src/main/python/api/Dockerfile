@@ -1,32 +1,23 @@
-FROM python:3.12.10-slim
+FROM python:3.14-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    MODEL_DIR=/models \
-    CONFIG_DIR=/configs \
-    HOST=0.0.0.0 \
-    PORT=8000
-
-WORKDIR /app
+WORKDIR /api
 
 RUN groupadd --system appgroup \
     && useradd --system --gid appgroup --create-home appuser
 
-COPY requirements.txt .
+COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --requirement requirements.txt
 
-COPY app ./app
-COPY configs /configs
+COPY ./app ./app
+COPY ./configs ./configs
+COPY ./models ./models
 
-RUN mkdir -p /models /configs \
-    && chown -R appuser:appgroup /app /models /configs
+RUN chown -R appuser:appgroup /api/app /api/configs /api/models
 
 USER appuser
 
-EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"
+    CMD sh -c "python -c \"import os, urllib.request; port = os.getenv('PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health/live', timeout=2)\""
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["sh", "-c", "uvicorn app.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000} --workers 1"]

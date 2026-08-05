@@ -134,6 +134,38 @@ topology:
         - sudo ip address replace 10.100.30.2/30 dev eth3
         - sudo ip link set dev eth4 up
         - sudo ip address replace 10.100.40.2/30 dev eth4
+    
+    sma-odl-ml-api-kilo:
+      kind: linux
+      image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-python-inference-api:0.23.1-baseline
+      image-pull-policy: Always
+      ports:
+        - 33761:33761
+      cap-add:
+        - NET_ADMIN
+        - SYS_ADMIN
+      mgmt-ipv4: 172.21.121.200
+      env:
+        APP_NAME: sma-ml-api-kilo
+        APP_VERSION: 0.1.0
+        CLASSIFICATION_MODE: MODEL 
+        CONFIG_DIR: configs
+        DETERMINISTIC_RULE_FILENAME: deterministic_rules.json 
+        POLICY_FILENAME: default_policy.json
+        ENABLE_POLICY_MAPPING: true
+        HOST: 0.0.0.0
+        PORT: 33761
+        LOG_LEVEL: INFO 
+        MAX_REQUEST_BODY_BYTES: 16384 
+        MAX_TUNNEL_BANDWIDTH_KBPS: 100000
+        MIN_TUNNEL_BANDWIDTH_KBPS: 10000
+        MIN_POLICY_CONFIDENCE: 0.75 
+        MODEL_DIR: models 
+        MODEL_FILENAME: sdn_mpls_ml_model.json
+        MODEL_METADATA_FILENAME: sdn_mpls_ml_model_meta.json
+        PROBABILITY_TOLERANCE: 0.001
+        REQUEST_TIMEOUT_SECONDS: 10
+
 
   links:
     # ---------------------------------------------------------
