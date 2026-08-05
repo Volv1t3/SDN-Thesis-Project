@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM eclipse-temurin:21-jre-jammy
 
 # OpenDaylight version and download source.

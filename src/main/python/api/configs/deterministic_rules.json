@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "well_known_port_threshold": 1023,
+  "icmp_ip_protocol": 1,
+  "destination_port_class_map": {
+    "20": "FTP",
+    "21": "FTP",
+    "22": "SSH",
+    "53": "DNS",
+    "80": "HTTP",
+    "123": "NTP",
+    "443": "HTTP",
+    "8080": "HTTP"
+  },
+  "source_port_class_map": {
+    "20": "FTP",
+    "21": "FTP",
+    "22": "SSH",
+    "53": "DNS",
+    "80": "HTTP",
+    "123": "NTP",
+    "443": "HTTP",
+    "8080": "HTTP"
+  },
+  "streaming_class_name": "STREAMING"
+}

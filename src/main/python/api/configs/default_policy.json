@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "default_profile": {
+    "profile_name": "best_effort",
+    "dscp": 0,
+    "mpls_tc": 0,
+    "path_constraints": {
+      "requested_bandwidth_kbps": 0,
+      "setup_priority": 7,
+      "hold_priority": 7
+    }
+  },
+  "class_policies": {
+    "DNS": {
+      "profile_name": "dns_control",
+      "dscp": 18,
+      "mpls_tc": 2,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 10000,
+        "setup_priority": 4,
+        "hold_priority": 4
+      }
+    },
+    "FTP": {
+      "profile_name": "ftp_bulk",
+      "dscp": 10,
+      "mpls_tc": 1,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 25000,
+        "setup_priority": 6,
+        "hold_priority": 6
+      }
+    },
+    "HTTP": {
+      "profile_name": "http_standard",
+      "dscp": 0,
+      "mpls_tc": 0,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 25000,
+        "setup_priority": 5,
+        "hold_priority": 5
+      }
+    },
+    "ICMP": {
+      "profile_name": "icmp_control",
+      "dscp": 16,
+      "mpls_tc": 2,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 10000,
+        "setup_priority": 4,
+        "hold_priority": 4
+      }
+    },
+    "NTP": {
+      "profile_name": "ntp_control",
+      "dscp": 16,
+      "mpls_tc": 2,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 10000,
+        "setup_priority": 4,
+        "hold_priority": 4
+      }
+    },
+    "SSH": {
+      "profile_name": "ssh_interactive",
+      "dscp": 26,
+      "mpls_tc": 3,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 10000,
+        "setup_priority": 3,
+        "hold_priority": 3
+      }
+    },
+    "STREAMING": {
+      "profile_name": "streaming_default",
+      "dscp": 34,
+      "mpls_tc": 4,
+      "path_constraints": {
+        "requested_bandwidth_kbps": 75000,
+        "setup_priority": 3,
+        "hold_priority": 3
+      }
+    }
+  }
+}
