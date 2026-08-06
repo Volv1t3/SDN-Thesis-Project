@@ -19,6 +19,16 @@ sma-xrv-lsr4-delta:
     password: clab@123
     platform: cisco_xrv
     hostname: 172.21.121.14
+sma-obs-grafana-lima:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.201
+sma-obs-prometheus-mike:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.21.121.202
 sma-odl-controller-india:
     username: 
     password: 

@@ -165,6 +165,12 @@ topology:
         MODEL_METADATA_FILENAME: sdn_mpls_ml_model_meta.json
         PROBABILITY_TOLERANCE: 0.001
         REQUEST_TIMEOUT_SECONDS: 10
+        LOG_DIRECTORY: logs
+        LOG_FILE_BACKUP_COUNT: 5 
+        LOG_FILE_MAX_BYTES: 10485760
+        LOG_FILENAME: sdn_mpls_ml_api.log
+      binds:
+        - ../../data-folders/ml-api-logs:/api/logs
 
     sma-obs-grafana-lima:
       kind: linux
@@ -179,8 +185,9 @@ topology:
         GF_SECURITY_ADMIN_PASSWORD: clab@123
         GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
       binds:
-        - grafana-data:/var/lib/grafana
-        - ../../../configurations/tech-demonstrator/services/provisioning:/etc/grafana/provisioning:ro
+        - ../../data-folders/grafana-data:/var/lib/grafana
+        - ../../configurations/tech-demonstrator/services/provisioning:/etc/grafana/provisioning:ro
+
 
     sma-obs-prometheus-mike:
       kind: linux
@@ -195,10 +202,10 @@ topology:
         --web.console.libraries=/usr/share/prometheus/console_libraries
         --web.console.templates=/usr/share/prometheus/consoles
         --storage.tsdb.retention.time=5d
-        --web.listen-address=172.21.121.202:33762
+        --web.listen-address=0.0.0.0:34762
       binds:
-        - ../../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-        - prometheus-data:/prometheus
+        - ../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        - ../../data-folders/prometheus-data:/prometheus
 
 
   links:

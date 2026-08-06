@@ -21,6 +21,10 @@ all:
           ansible_host: 172.21.121.14
     linux:
       hosts:
+        clab-sdn-mpls-ai-techdemonstrator-baseline-sma-obs-grafana-lima:
+          ansible_host: 172.21.121.201
+        clab-sdn-mpls-ai-techdemonstrator-baseline-sma-obs-prometheus-mike:
+          ansible_host: 172.21.121.202
         clab-sdn-mpls-ai-techdemonstrator-baseline-sma-odl-controller-india:
           ansible_host: 172.21.121.100
         clab-sdn-mpls-ai-techdemonstrator-baseline-sma-odl-ml-api-kilo:

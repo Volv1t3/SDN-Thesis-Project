@@ -2,25 +2,27 @@ FROM python:3.14-slim
 
 WORKDIR /api
 
-ENV LOG_LEVEL=INFO \
-    LOG_DIRECTORY=/logs \
-    LOG_FILENAME=sdn_mpls_ml_api.log \
-    LOG_FILE_MAX_BYTES=10485760 \
-    LOG_FILE_BACKUP_COUNT=5 \
-    CLASSIFIER_POOL_SIZE=5
+ARG APP_UID=10001
+ARG APP_GID=10001
 
-RUN groupadd --system appgroup \
-    && useradd --system --gid appgroup --create-home appuser
+RUN groupadd --system --gid ${APP_GID} appgroup \
+    && useradd --system \
+        --uid ${APP_UID} \
+        --gid appgroup \
+        --create-home \
+        appuser
 
 COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --requirement requirements.txt
 
+#Copiamos todos los archivos de configuraciones, modelos y la api
 COPY ./app ./app
 COPY ./configs ./configs
 COPY ./models ./models
+#Creamos el directorio de logs a donde vamos a crear un symlink directo hacia el host para guardar los logs reales
+RUN mkdir -p ./logs
 
-RUN mkdir -p /logs \
-    && chown -R appuser:appgroup /api/app /api/configs /api/models /logs
+RUN chown -R appuser:appgroup /api/app /api/configs /api/models /api/logs
 
 USER appuser
 
