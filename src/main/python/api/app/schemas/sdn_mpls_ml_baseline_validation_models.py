@@ -1,4 +1,7 @@
-"""Define esquemas base y de error reutilizados por la API.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
+Define esquemas base y de error reutilizados por la API.
 
 Pasos:
 - Establece una base estricta para modelos Pydantic.
@@ -12,7 +15,11 @@ from pydantic import BaseModel, ConfigDict
 
 
 class StrictBaseModel(BaseModel):
-    """Provee un modelo base estricto para contratos externos.
+    """
+    Provee un modelo de validacion estricto de Pydantic mediante una configuracion de un modelo en donde
+    no se tolera campos adicionales y los campos se poblan por nombre. Esto sirve para manejar que las entradas
+    de JSON enviadas por clientes a la aplicacion no contengan campos adicionales fuera de los definidos estrictamente
+    por los resultados de schemas/sdn_mpls_ml_inference.py
 
     Pasos:
     - Deshabilita campos no declarados mediante `extra="forbid"`.
@@ -26,7 +33,12 @@ class StrictBaseModel(BaseModel):
 
 
 class ErrorBody(StrictBaseModel):
-    """Representa el bloque `error` de una respuesta fallida.
+    """
+    Modelo de validacion de Pydantic para los cuerpos de error HTTP. Contiene un codigo de error, un mensaje de alto
+    nivel y metadatos opcionales de diagnostico. Esta informacion se usa en las respuestas HTTP dentro de las llamadas
+    para registrar errores en donde el cuerpo de cualquier error registrado se transforma
+    a un ErrorBody para ser enviado en una ErrorResponse comunicando el error de validacion o el error registrado
+    internamente
 
     Pasos:
     - Conserva el codigo y mensaje de alto nivel.
@@ -42,7 +54,8 @@ class ErrorBody(StrictBaseModel):
 
 
 class ErrorResponse(StrictBaseModel):
-    """Envuelve una respuesta de error con correlacion opcional.
+    """
+    Envuelve una respuesta de error con correlacion opcional.
 
     Pasos:
     - Incluye `request_id` cuando la operacion ya fue correlacionada.

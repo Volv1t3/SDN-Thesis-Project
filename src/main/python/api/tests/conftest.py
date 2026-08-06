@@ -20,9 +20,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.config import get_raw_settings  # noqa: E402
+from app.sdn_mpls_ml_config import get_raw_settings  # noqa: E402
 from app.sdn_mpls_ml_main import app  # noqa: E402
-from app.model.metadata import EXPECTED_CLASS_TO_ID  # noqa: E402
+from app.model.sdn_mpls_ml_metadata import EXPECTED_CLASS_TO_ID, EXPECTED_MODEL_NAME  # noqa: E402
 
 
 class DummyBooster:
@@ -98,7 +98,7 @@ def metadata_payload():
 
     return {
         "schema_version": "1.0",
-        "model_name": "sdnflow_xgboost_first_packet",
+        "model_name": EXPECTED_MODEL_NAME,
         "target_name": "Category",
         "model_format": "xgboost_booster_json",
         "feature_order": ["eth_type", "ip_proto", "src_port", "dst_port"],

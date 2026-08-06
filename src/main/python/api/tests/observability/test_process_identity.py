@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 
-from app.observability.identity import (
+from app.observability.sdn_mpls_ml_identity import (
     _reset_process_identity_for_tests,
     initialize_process_identity,
 )

@@ -61,7 +61,7 @@ def test_readiness_not_loaded(monkeypatch, config_dir_path, policy_filename, det
 
     from fastapi.testclient import TestClient
 
-    from app.config import get_raw_settings
+    from app.sdn_mpls_ml_config import get_raw_settings
     from app.sdn_mpls_ml_main import app
 
     monkeypatch.setenv("CLASSIFICATION_MODE", "MODEL")

@@ -14,9 +14,11 @@ from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
+
+from app.model.sdn_mpls_ml_metadata import EXPECTED_MODEL_NAME
 from fastapi.testclient import TestClient
 
-from app.config import get_raw_settings
+from app.sdn_mpls_ml_config import get_raw_settings
 from app.sdn_mpls_ml_main import app
 
 
@@ -67,7 +69,7 @@ def test_real_model_classify_dns_returns_policy_mapping(real_model_client):
     body = response.json()
     assert body["request_id"] == response.headers["X-Request-ID"]
     UUID(body["request_id"])
-    assert body["model_name"] == "sdnflow_xgboost_first_packet"
+    assert body["model_name"] == EXPECTED_MODEL_NAME
     assert body["prediction"]["class_id"] == 0
     assert body["prediction"]["class_name"] == "DNS"
     assert body["policy"]["profile_name"] == "dns_tunnel_policy"
@@ -96,7 +98,7 @@ def test_real_model_classify_returns_full_response_shape(real_model_client):
     body = response.json()
     assert body["request_id"] == response.headers["X-Request-ID"]
     UUID(body["request_id"])
-    assert body["model_name"] == "sdnflow_xgboost_first_packet"
+    assert body["model_name"] == EXPECTED_MODEL_NAME
     assert body["prediction"]["class_id"] == 2
     assert body["prediction"]["class_name"] == "HTTP"
     assert body["prediction"]["confidence"] == pytest.approx(0.9999786615371704, abs=1e-6)

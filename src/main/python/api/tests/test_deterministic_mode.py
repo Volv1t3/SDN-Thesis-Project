@@ -8,7 +8,7 @@ Pasos:
 
 from fastapi.testclient import TestClient
 
-from app.config import get_raw_settings
+from app.sdn_mpls_ml_config import get_raw_settings
 from app.sdn_mpls_ml_main import app
 
 

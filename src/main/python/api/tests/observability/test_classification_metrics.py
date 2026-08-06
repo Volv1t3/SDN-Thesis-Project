@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.observability.classification_metrics import (
+from app.observability.sdn_mpls_ml_classification_metrics import (
     CLASSIFICATION_REQUESTS_TOTAL,
     CLASSIFICATION_RESULTS_TOTAL,
     INFERENCE_DURATION_SECONDS,

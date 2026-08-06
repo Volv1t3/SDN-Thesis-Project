@@ -15,9 +15,10 @@ from uuid import UUID
 from anyio import CapacityLimiter
 import pytest
 
-from app.api import inference as inference_api
-from app.model.pool import ClassifierPool
-from app.model.predictor import PredictionResult
+from app.api import sdn_mpls_ml_inference_route as inference_api
+from app.model.sdn_mpls_ml_classifier_pool import ClassifierPool
+from app.model.sdn_mpls_ml_model_predictor import PredictionResult
+from app.model.sdn_mpls_ml_metadata import EXPECTED_MODEL_NAME
 from app.sdn_mpls_ml_exceptions import ModelInferenceFailedError, ModelOutputInvalidError
 from app.sdn_mpls_ml_main import app
 
@@ -27,7 +28,7 @@ def test_model_endpoint(client):
 
     response = client.get("/api/v1/model")
     assert response.status_code == 200
-    assert response.json()["model_name"] == "sdnflow_xgboost_first_packet"
+    assert response.json()["model_name"] == EXPECTED_MODEL_NAME
     assert response.headers["X-Request-ID"]
 
 

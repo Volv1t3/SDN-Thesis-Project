@@ -3,7 +3,7 @@ SDN-MPLS-ML Tech Demonstrator
 Santiago Arellano 00328370
 
 Archivo que centraliza la funcion general utilizada para construir una respuesta de error a una llamda a la API basada en
-el esquema definido en schemas/common.py que determina los campos concretos a contener, incluyendo el campo de request ID,
+el esquema definido en schemas/sdn_mpls_ml_baseline_validation_models.py que determina los campos concretos a contener, incluyendo el campo de request ID,
 y  los campos de detalles adicionales para luego retornar la respuuesta armada completamente
 
 Pasos:
@@ -13,7 +13,7 @@ Pasos:
 
 from __future__ import annotations
 from fastapi.responses import JSONResponse
-from app.schemas.common import ErrorBody, ErrorResponse
+from app.schemas.sdn_mpls_ml_baseline_validation_models import ErrorBody, ErrorResponse
 
 
 def build_error_response(
@@ -30,7 +30,7 @@ def build_error_response(
 ) -> JSONResponse:
     """
     Construye una respuesta de error uniforme para la API basandose en el schema
-    ErrorResponse definido en ./schemas/common.py.
+    ErrorResponse definido en ./schemas/sdn_mpls_ml_baseline_validation_models.py.
 
     Pasos:
     - Arma el cuerpo principal con `ErrorResponse`.

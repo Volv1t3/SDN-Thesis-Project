@@ -1,20 +1,21 @@
-"""Centraliza constantes y carga de configuracion de la aplicacion.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
 
-Pasos:
-- Declara valores por defecto para runtime, artefactos y limites.
-- Modela configuracion cruda leida desde variables de entorno.
-- Expone un contenedor validado para consumo interno.
+Clase que describe dos diferentes tipos de configuraciones base para la aplicacion, RawSettings corresponde a un objeto
+de configuracion de Pydantic que contiene las configuraciones registradas sea desde el entorno o en base a la
+configuracion base definida como DEFAULT_* dentro de este documento. Ademas define la clase ValidatedSettings que
+corresponde a un objeto de Pydantic creado dentro de sdn_mpls_ml_dependencies.py que define la configuracion final
+validad que se ha cargado dentro de la aplicacion
 
 Notas:
 - Este modulo no ejecuta validaciones complejas.
 """
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -49,12 +50,11 @@ MODEL_SUPPORTED_ETHERTYPES = frozenset({IPV4_ETHERTYPE})
 SUPPORTED_LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
 
-class ClassificationMode(StrEnum):
-    """Enumera los modos de clasificacion soportados.
 
-    Pasos:
-    - Define el modo con modelo XGBoost real.
-    - Define el modo deterministico usado como simulador.
+class ClassificationMode(StrEnum):
+    """
+    Clase que define un Enum de todos los tipos de clasificacion definidos en el sistema (MODEL y DETERMINISTIC_TEST) que
+    se usan para identificar el mecanismo de inicio de los pools de clasificadores, etc.
     """
 
     MODEL = "MODEL"
@@ -62,40 +62,35 @@ class ClassificationMode(StrEnum):
 
     @property
     def response_value(self) -> str:
-        """Convierte el valor del enum al formato de respuesta HTTP.
-
-        Pasos:
-        - Toma el valor del enum en mayusculas.
-        - Lo normaliza a minusculas para respuestas externas.
-
-        Retorna:
-        - str: representacion publica del modo.
         """
+        Convierte el valor del enum al formato de respuesta HTTP.
 
+        Returns:
+            str: representacion publica del modo.
+        """
         return self.value.lower()
 
 
 class RawSettings(BaseSettings):
-    """Representa variables de entorno sin validacion semantica completa. Las variables declaradas en esta clase
+    """
+    Representa variables de entorno sin validacion semantica completa. Las variables declaradas en esta clase
     se registran automaticamente desde el entorno de ejecucion de la aplicacion, pero mantienen valores por defecto que pueden ser usados
     en el caso de no tener un registro de variables. En este caso, las variables por defecto pueden servir como una advertencia dado que
     el puerto registrado 8000 puede no ser el puerto abierto por el contenedor o el host, y esto podria llevar a que el
     servicio no sea accesible desde el exterior, sirviendo como advertencia de que no esta configurado correctamente el sistema
-
-    Pasos:
-    - Declara cada variable admitida por la API.
-    - Conserva los valores como texto cuando la validacion posterior lo requiere.
-
-    Notas:
-    - La transformacion a tipos finales ocurre en `app.dependencies`.
     """
 
+    #? Configuramos el mecanismo interno del objeto de Pydantic para que intente leer un archivo
+    #? .env si existe, si no existe el sistema seguira con la lectura de las variables desde el
+    #? entorno del proceso en ejecucion (Containerlab, etc.)
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
     )
 
+    #? Definimos todas las variables que debemos tener en el entorno y sus posibles valores default
+    #? para evitar errores por falta de una variable
     app_name: str = Field(default=DEFAULT_APP_NAME, alias="APP_NAME")
     app_version: str = Field(default=DEFAULT_APP_VERSION, alias="APP_VERSION")
     host: str = Field(default=DEFAULT_HOST, alias="HOST")
@@ -149,11 +144,9 @@ class RawSettings(BaseSettings):
 
 @dataclass(slots=True)
 class ValidatedSettings:
-    """Agrupa configuracion ya parseada y lista para el runtime.
-
-    Pasos:
-    - Almacena valores convertidos a tipos concretos.
-    - Se usa como contrato interno entre startup y endpoints.
+    """
+    Struct que contiene las configuraciones finales validades por el sistema. Esta se genera durante
+    la validacion de componentes de entrada y configuraciones a la aplicacion en sdn_mpls_ml_dependencies.py
     """
 
     app_name: str
@@ -183,32 +176,28 @@ class ValidatedSettings:
 
 @lru_cache(maxsize=1)
 def get_raw_settings() -> RawSettings:
-    """Carga y cachea la configuracion cruda desde el entorno.
-
-    Pasos:
-    - Instancia `RawSettings` una sola vez por proceso.
-    - Reutiliza el resultado en llamadas posteriores.
-
-    Retorna:
-    - RawSettings: configuracion cruda cacheada.
+    """
+    Carga y cachea la configuracion cruda desde el entorno. EN este caso usamos el lru_cache para mantener una
+    instancia unica de configuracion en memoria durante la ejecucion del programa.
     """
 
     return RawSettings()
 
 
 def get_safe_log_level(raw_log_level: str) -> str:
-    """Normaliza un nivel de log y aplica fallback seguro.
+    """
+    Normaliza un nivel de log y aplica fallback seguro.
 
     Pasos:
     - Elimina espacios y transforma el nivel a mayusculas.
     - Devuelve el nivel normalizado si esta soportado.
     - Usa el valor por defecto cuando el nivel no es valido.
 
-    Argumentos:
-    - raw_log_level: valor recibido desde configuracion externa.
+    Args:
+        raw_log_level: valor recibido desde configuracion externa.
 
-    Retorna:
-    - str: nivel de logging seguro para inicializar el root logger.
+    Returns:
+        str: nivel de logging seguro para inicializar el root logger.
     """
 
     candidate = raw_log_level.strip().upper()

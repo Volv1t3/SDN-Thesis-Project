@@ -26,7 +26,7 @@ from pydantic import ValidationError
 
 
 #? Importes de la API
-from app.config import (
+from app.sdn_mpls_ml_config import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
     MAX_CLASSIFIER_POOL_SIZE,
     MODEL_SUPPORTED_ETHERTYPES,
@@ -37,19 +37,20 @@ from app.config import (
     get_raw_settings,
 )
 from app.sdn_mpls_ml_messages import Messages
-from app.model.deterministic import DeterministicClassifier, DeterministicRuleFile, load_deterministic_rules
-from app.model.metadata import EXPECTED_CLASS_TO_ID, EXPECTED_FEATURE_ORDER, ModelMetadata
-from app.model.pool import ClassifierPool
-from app.model.predictor import PredictionResult, Predictor
-from app.model.protocols import TrafficClassifier
-from app.observability.identity import ProcessIdentity
-from app.observability.metrics import (
+from app.model.sdn_mpls_ml_deterministic_predictor import DeterministicClassifier
+from app.model.sdn_mpls_ml_deterministic_rules import DeterministicRuleFile
+from app.model.sdn_mpls_ml_metadata import EXPECTED_CLASS_TO_ID, EXPECTED_FEATURE_ORDER, ModelMetadata
+from app.model.sdn_mpls_ml_classifier_pool import ClassifierPool
+from app.model.sdn_mpls_ml_model_predictor import PredictionResult, Predictor
+from app.model.sdn_mpls_ml_protocols import TrafficClassifier
+from app.observability.sdn_mpls_ml_identity import ProcessIdentity
+from app.observability.sdn_mpls_ml_metrics import (
     STARTUP_FAILURES_TOTAL,
     STARTUP_VALIDATION_DURATION_SECONDS,
     BaselineMetrics,
 )
-from app.policy.mapper import PolicyMapper, load_policy_file
-from app.policy.models import PolicyFile, TrafficPolicy
+from app.policy.sdn_mpls_ml_policy_mapper import PolicyMapper, load_policy_file
+from app.policy.sdn_mpls_ml_policy_validation_models import PolicyFile, TrafficPolicy
 from app.sdn_mpls_ml_readiness import ReadinessState, StartupValidationError
 
 
@@ -89,7 +90,7 @@ SYNTHETIC_FAILURE_CODES = {
 class ArtifactPaths:
     """
     Agrupa las rutas validadas de artefactos usadas en startup. Este es otro record que se usa para agrupar todos los datos
-    en un objeto que puede ser usado rapidamente
+    en un objeto que puede ser usado rapidamente dentro de las validaciones de artefactos.
     """
     model_path: Path | None
     metadata_path: Path | None
@@ -100,7 +101,17 @@ class ArtifactPaths:
 @dataclass(slots=True)
 class AppServices:
     """
-    Contiene los servicios y caches compartidos por la aplicacion.
+    Contiene los servicios y caches compartidos por la aplicacion. Corresponde al servicio general que contiene todos los
+    sistemas internos de:
+    - Pool de clasificadores que pueden ser de tipo DeterministicClassifier o TrafficClassifier
+    - Configuraciones
+    - Metadata del modelo
+    - Policies de Trafico
+    - Limite de hilos para inferencia
+
+    Toda esta informacion es accessible directamente desde sdn_mpls_ml_main.py dado que hace durante la inicializacion de la api.
+    SI bien no es un singleton, se constreuye una vez y es valido durante toda la vida de la API como proceso en el contenedor o
+    sistema
     """
 
     raw_settings: RawSettings
@@ -115,18 +126,22 @@ class AppServices:
 
 
 def create_initial_services(raw_settings: RawSettings | None = None) -> AppServices:
-    """Crea un contenedor de servicios en estado de inicializacion.
+    """
+    Crea un contenedor de servicios en estado de inicializacion. En este caso, esta funcion permite configurar inicialmente
+    a una instancia de AppServices para ser usada desde la configuracion de la API en lifespan en base unicamente a tener
+    RawSettings, es decir la configuracion cargada base del entorno. Esta instancia no configura nada mas que las settings
+    dado que requiere de pasar las validaciones de readiness para configurar otros parametros.
 
     Pasos:
     - Carga settings crudos si no fueron proporcionados.
     - Inicializa readiness en estado `initializing`.
     - Deja vacios classifier, metadata y policy mapper.
 
-    Argumentos:
-    - raw_settings: configuracion cruda opcional ya cargada.
+    Args:
+        raw_settings: configuracion cruda opcional ya cargada.
 
-    Retorna:
-    - AppServices: estructura inicial lista para ser validada.
+    Returns:
+        AppServices: estructura inicial lista para ser validada.
     """
 
     raw = raw_settings or get_raw_settings()
@@ -139,6 +154,8 @@ def create_initial_services(raw_settings: RawSettings | None = None) -> AppServi
         model_metadata=None,
         policy_mapper=None,
         request_size_limit_bytes=DEFAULT_MAX_REQUEST_BODY_BYTES,
+        #? Genera un objeto base de BaselineMetrics que corresponde a una clase de metricas de Prometheus
+        #? para reportar errores de manera temprana
         baseline_metrics=_create_baseline_metrics(raw),
     )
 
@@ -147,18 +164,22 @@ def build_services(
     raw_settings: RawSettings | None = None,
     process_identity: ProcessIdentity | None = None,
 ) -> AppServices:
-    """Construye los servicios completos y ejecuta la inicializacion.
+    """
+    Construye los servicios completos y ejecuta la inicializacion. Este mecanismo permite inicializar los recursos de la aplicacion
+    y los servicios que ofrece mediante la inicializacion del estado de readiness mediante la funcion initialize_services().
+    Hasta este punto, el sistema solo se ha encargado de crear el objeto de servicios y de llamar a su inicializacion.
 
     Pasos:
     - Crea la estructura base de servicios.
     - Ejecuta el flujo de startup una sola vez.
     - Devuelve el resultado listo para ser usado por la app.
 
-    Argumentos:
-    - raw_settings: configuracion cruda opcional.
+    Args:
+        raw_settings: configuracion cruda opcional.
+        process_identity: identidad del proceso opcional.
 
-    Retorna:
-    - AppServices: servicios inicializados y readiness cacheado.
+    Returns:
+        AppServices: servicios inicializados y readiness cacheado.
     """
 
     services = create_initial_services(raw_settings)
@@ -167,23 +188,38 @@ def build_services(
 
 
 def initialize_services(services: AppServices, process_identity: ProcessIdentity | None = None) -> None:
-    """Ejecuta la cadena completa de validacion de startup.
+    """
+    Ejecuta la cadena completa de validacion de startup. En este caso, el proceso general que realiza corresponde al proceso de
+    inicializacion de todos los sistemas de la aplicacion, lo que implica pasar por todas las fases de revision de archivos
+    de configuracion, artefactos, esquemas de datos y los modelos, asi como la validacion interna de la capacidad de prediccion
+    de los modelos.
+
+    En base a estas pruebas la aplicacion puede marcar sea un error y mantenerse en un estado not ready, o proceder
+    a la inicializacion de los servicios y marcarse como ready. En caso de error, se registran eventos estructurados
+    y se marca internamente el estado de la aplicacion como not ready con un cache para que no se vuelva a ejecutar
+    este servicio.
 
     Pasos:
     - Registra el inicio del proceso de readiness.
     - Valida settings, artefactos, schemas, runtime y mapa de politicas.
     - Marca readiness como listo o fallido y registra eventos estructurados.
 
-    Argumentos:
-    - services: contenedor mutable donde se escribira el resultado.
+    Args:
+        services: contenedor mutable donde se escribira el resultado.
+        process_identity: identidad opcional del proceso para inicializar metricas.
     """
 
     logger = logging.getLogger(__name__)
     started_at = time.perf_counter()
+    #? Si existen las baseline metrics, y si existe un identificador de proceso (creado en lifespan)
+    #? entonces inicializamos las metricas con la identidad del proceso
     if services.baseline_metrics is not None:
         if process_identity is not None:
             services.baseline_metrics.initialize_worker(process_identity)
+        #? Marcamos el estado de readiness como no listo dado que no se ha pasado ninguna validacion todavia
         services.baseline_metrics.set_readiness(False)
+
+    #? Log de estado de inicio de validacion
     logger.info(
         Messages.STARTUP_VALIDATION_STARTED,
         extra={
@@ -194,12 +230,17 @@ def initialize_services(services: AppServices, process_identity: ProcessIdentity
     )
 
     try:
-        # Etapa 1: validar configuracion antes de tocar disco o runtime.
+        #! Etapa 1: validar configuracion antes de tocar disco o runtime.
         settings = _validate_settings(services.raw_settings)
         if not settings.enable_prometheus_metrics:
             services.baseline_metrics = None
         elif services.baseline_metrics is not None:
-            services.baseline_metrics.classification_mode = settings.classification_mode.response_value
+            #? Si tenemos metricas activadas registramos el modo de clasificacion
+            services.baseline_metrics.classification_mode = (
+                settings.classification_mode.response_value)
+
+        #? Registramos el tamano total de bytes para las requests (para el Middleware de Content Length) y
+        #? registramos el modo de clasificacion bajo el struct de ReadinessState en AppServices
         services.settings = settings
         services.request_size_limit_bytes = settings.max_request_body_bytes
         services.readiness.classification_mode = settings.classification_mode.response_value
@@ -211,9 +252,11 @@ def initialize_services(services: AppServices, process_identity: ProcessIdentity
                 "classification_mode": settings.classification_mode.response_value,
             },
         )
+
         _log_artifact_configuration(logger, settings)
 
-        # Etapa 2: comprobar que los artefactos requeridos existen y pueden abrirse.
+        #! Etapa 2: comprobar que los artefactos requeridos existen y pueden abrirse.
+        #? Si regresamos a este punto de ejecucion no hubo ningun error de validacion en artefactos
         artifacts = _validate_artifacts(settings)
         logger.info(
             Messages.ARTIFACT_VALIDATION_PASSED,
@@ -224,8 +267,10 @@ def initialize_services(services: AppServices, process_identity: ProcessIdentity
             },
         )
 
-        # Etapa 3: validar metadata, politica y reglas deterministicas segun el modo.
+        #! Etapa 3: validar metadata, politica y reglas deterministicas segun el modo.
         metadata, policy_file, deterministic_rules = _validate_schemas(settings, artifacts, services.readiness)
+        #? Guardamos la metadata validada para ser accesible por todos los paquetes durante el lifecycle de la API
+        #? mediante services
         services.model_metadata = metadata
         logger.info(
             Messages.METADATA_VALIDATION_PASSED,
@@ -236,10 +281,14 @@ def initialize_services(services: AppServices, process_identity: ProcessIdentity
             },
         )
 
-        # Etapas 4 y 5: construir pool de clasificadores, ejecutar auto-pruebas y validar mapa total.
+        #! Etapas 4 y 5: construir pool de clasificadores, ejecutar auto-pruebas y validar mapa total.
+        #? Con todas las configuraciones validadas, la prueba mas grande es la construccion de los clasificadores y
+        #? la prueba de clasificacion para MODEL
         classifier_pool = _build_classifier_pool(
             settings, metadata, deterministic_rules, services.readiness, services.baseline_metrics
         )
+
+        #? Procedemos a validar el archivo de politicas por clase completo
         _validate_complete_policy_map(
             policy_file=policy_file,
             expected_classes=list(EXPECTED_CLASS_TO_ID),
@@ -255,20 +304,29 @@ def initialize_services(services: AppServices, process_identity: ProcessIdentity
             },
         )
 
+        #? Configuramos la API con los servicios generados, incluyendo el servicio del Policy Mapper que es usado para
+        #? luego de una prediccion, asignarle a esa prediccion una politica de trafico, la pool de clasificadores y
+        #? un limitador de los hilos que puede usar
         if settings.enable_policy_mapping:
             services.policy_mapper = PolicyMapper(
                 policy_file=policy_file,
                 min_policy_confidence=settings.min_policy_confidence,
             )
+
+        #? Registramos la Classifier Pool y el Limitador de los hilos de inferencia para los clasificadores
         services.classifier_pool = classifier_pool
         services.inference_thread_limiter = CapacityLimiter(settings.classifier_pool_size)
 
+        #? Registramos en el estado de readiness que la app ha pasado todas las validaciones de datos y esta activa
         services.readiness.mark_ready(
             model_name=metadata.model_name if metadata is not None else None,
             model_schema_version=metadata.schema_version if metadata is not None else None,
             feature_count=len(metadata.feature_order) if metadata is not None else len(EXPECTED_FEATURE_ORDER),
             class_count=len(metadata.class_to_id) if metadata is not None else len(EXPECTED_CLASS_TO_ID),
         )
+
+        #? Registramos en las metricas de Prometheus los detalles configurados de la Pool creada, el modo de
+        #? clasificacion y el tiempo de preparacion de todos los checks
         if services.baseline_metrics is not None:
             duration_seconds = time.perf_counter() - started_at
             STARTUP_VALIDATION_DURATION_SECONDS.labels(
@@ -336,16 +394,18 @@ def initialize_services(services: AppServices, process_identity: ProcessIdentity
 
 
 def _log_artifact_configuration(logger: logging.Logger, settings: ValidatedSettings) -> None:
-    """Registra el contexto de rutas usado para validar artefactos.
+    """
+    Registra el contexto de rutas usado para validar artefactos. Este dato de log registra todas las direcciones de
+    archivos, esto no se expone a la API, pero se guarda internamente en el log para validacion futura.
 
     Pasos:
     - Publica el directorio de trabajo actual del proceso.
     - Muestra directorios configurados y sus rutas resueltas.
     - Expone los nombres de archivo esperados para facilitar depuracion local.
 
-    Argumentos:
-    - logger: logger estructurado del modulo.
-    - settings: configuracion validada ya normalizada.
+    Args:
+        logger: logger estructurado del modulo.
+        settings: configuracion validada ya normalizada.
     """
 
     logger.info(
@@ -408,7 +468,12 @@ def _classification_mode_response_value(raw_value: str) -> str:
 
 
 def _create_baseline_metrics(raw: RawSettings) -> BaselineMetrics | None:
-    """Crea el recorder temprano para incluir fallos de validacion en startup."""
+    """
+    Crea el recorder temprano para incluir fallos de validacion en startup. Esta instancia permite configurar
+    rapidamente el estado de la API durante la validacion de startup, dado que prometheus se considera como activado
+    cuando el flag esta activo, eso activa el sistema y retorna el objeto correspondiente.
+
+    """
 
     if raw.enable_prometheus_metrics.strip().lower() in {"false", "0", "no", "off"}:
         return None
@@ -426,16 +491,16 @@ def _startup_error(
 ) -> StartupValidationError:
     """Construye un `StartupValidationError` consistente.
 
-    Argumentos:
-    - code: codigo de error a exponer.
-    - message: mensaje publico del error.
-    - component: componente responsable.
-    - failed_stage: etapa de readiness fallida.
-    - failed_check: verificacion puntual fallida.
-    - retryable: indica si la condicion podria resolverse externamente.
+    Args:
+        code: codigo de error a exponer.
+        message: mensaje publico del error.
+        component: componente responsable.
+        failed_stage: etapa de readiness fallida.
+        failed_check: verificacion puntual fallida.
+        retryable: indica si la condicion podria resolverse externamente.
 
-    Retorna:
-    - StartupValidationError: error listo para registrar y cachear.
+    Returns:
+        StartupValidationError: error listo para registrar y cachear.
     """
 
     return StartupValidationError(
@@ -449,23 +514,26 @@ def _startup_error(
 
 
 def _validate_settings(raw: RawSettings) -> ValidatedSettings:
-    """Valida y normaliza la configuracion de arranque.
+    """
+    Valida y normaliza la configuracion de arranque, es decir, valida la informacion correspondiente a las
+    variables de entorno ingresadas a la API y revisa si se tiene que usar los defaults.
 
     Pasos:
     - Comprueba campos generales requeridos por la aplicacion.
     - Convierte tipos numericos y booleanos desde variables de entorno.
     - Aplica reglas especificas del modo `MODEL` o `DETERMINISTIC_TEST`.
 
-    Argumentos:
-    - raw: settings crudos leidos desde entorno.
+    Args:
+        raw: settings crudos leidos desde entorno.
 
-    Retorna:
-    - ValidatedSettings: configuracion segura para el runtime.
+    Returns:
+        ValidatedSettings: configuracion segura para el runtime.
 
-    Excepciones:
-    - StartupValidationError: si alguna regla de configuracion falla.
+    Raises:
+        StartupValidationError: si alguna regla de configuracion falla.
     """
 
+    #? Revisa si existe un nombre ingresado en la aplicacion en la configuracion raw
     app_name = raw.app_name.strip()
     if not app_name:
         raise _startup_error(
@@ -476,7 +544,6 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             failed_check="app_name_nonempty",
             retryable=False,
         )
-
     app_version = raw.app_version.strip()
     if not app_version:
         raise _startup_error(
@@ -488,8 +555,11 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             retryable=False,
         )
 
+
     mode_raw = raw.classification_mode.strip().upper()
     try:
+        #? Intentamos crear una instancia de ClassifcationMode, si la clase registrada existe entonces
+        #? este modo pasa y retorna la instancia, lo que registra en la aplicacion el modo de clasificacion.
         classification_mode = ClassificationMode(mode_raw)
     except ValueError as exc:
         raise _startup_error(
@@ -501,6 +571,7 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             retryable=False,
         ) from exc
 
+    #? Validamos puerto de la aplicacion
     port = _parse_int(
         raw.port,
         failed_check="port_range",
@@ -516,6 +587,7 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             retryable=False,
         )
 
+    #? Validamos el nivel del log
     log_level = raw.log_level.strip().upper()
     if log_level not in SUPPORTED_LOG_LEVELS:
         raise _startup_error(
@@ -527,6 +599,7 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             retryable=False,
         )
 
+    #? Validamos la ruta de métricas
     metrics_path = raw.metrics_path.strip()
     if not metrics_path or not metrics_path.startswith("/"):
         raise _startup_error(
@@ -546,12 +619,14 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             failed_check="metrics_path_format",
             retryable=False,
         )
+    #? Validamos si se van a exportar las metricas de prometheus
     enable_prometheus_metrics = _parse_bool(
         raw.enable_prometheus_metrics,
         failed_check="enable_prometheus_metrics_boolean",
         message=Messages.ENABLE_PROMETHEUS_METRICS_BOOLEAN,
     )
 
+    ##? Revisa si la carpeta de los archivos de configuracion fue definida
     config_dir = raw.config_dir.strip()
     if not config_dir:
         raise _startup_error(
@@ -562,7 +637,6 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             failed_check="config_dir_configured",
             retryable=False,
         )
-
     policy_filename = raw.policy_filename.strip()
     if not policy_filename:
         raise _startup_error(
@@ -573,7 +647,6 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             failed_check="policy_filename_configured",
             retryable=False,
         )
-
     max_request_body_bytes = _parse_int(
         raw.max_request_body_bytes,
         failed_check="max_request_body_bytes_positive",
@@ -737,6 +810,10 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
                 retryable=False,
             )
 
+    #? Finalmente retornamos un objeto de ValidatedSettings que corresponde a los
+    #? resultados finales de la configuracion. Raw settings contenia defaults que
+    #? ahora se estandarizan a un solo valor, sea el registrado en el ENV o los defaults
+    #? pero un solo valor
     return ValidatedSettings(
         app_name=app_name,
         app_version=app_version,
@@ -765,7 +842,20 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
 
 
 def _parse_int(raw_value: str, *, failed_check: str, message: str) -> int:
-    """Convierte un valor crudo a entero con error de startup tipado."""
+    """
+    Convierte un valor crudo a entero con error de startup tipado.
+
+    Args:
+        raw_value: valor ingresado
+        failed_check: nombre del chequeo usado en diagnostico.
+        message: mensaje publico del error.
+
+    Returns:
+        int: valor entero validado.
+
+    Raises:
+        StartupValidationError: si el valor no es un entero valido.
+    """
 
     try:
         return int(raw_value.strip())
@@ -781,7 +871,20 @@ def _parse_int(raw_value: str, *, failed_check: str, message: str) -> int:
 
 
 def _parse_float(raw_value: str, *, failed_check: str, message: str) -> float:
-    """Convierte un valor crudo a flotante con error de startup tipado."""
+    """
+    Convierte un valor crudo a flotante con error de startup tipado.
+
+    Args:
+        raw_value: valor ingresado
+        failed_check: nombre del chequeo usado en diagnostico.
+        message: mensaje publico del error.
+
+    Returns:
+        float: valor flotante validado.
+
+    Raises:
+        StartupValidationError: si el valor no es un numero valido.
+    """
 
     try:
         return float(raw_value.strip())
@@ -797,18 +900,19 @@ def _parse_float(raw_value: str, *, failed_check: str, message: str) -> float:
 
 
 def _parse_bool(raw_value: str, *, failed_check: str, message: str) -> bool:
-    """Convierte una bandera textual a booleano estricto.
+    """
+    Convierte una bandera textual a booleano estricto.
 
-    Argumentos:
-    - raw_value: valor crudo proveniente del entorno.
-    - failed_check: nombre del chequeo usado en diagnostico.
-    - message: mensaje publico del error.
+    Args:
+        raw_value: valor crudo proveniente del entorno.
+        failed_check: nombre del chequeo usado en diagnostico.
+        message: mensaje publico del error.
 
-    Retorna:
-    - bool: bandera booleana validada.
+    Returns:
+        bool: bandera booleana validada.
 
-    Excepciones:
-    - StartupValidationError: si el valor no corresponde a un booleano conocido.
+    Raises:
+        StartupValidationError: si el valor no corresponde a un booleano conocido.
     """
 
     normalized = raw_value.strip().lower()
@@ -827,23 +931,28 @@ def _parse_bool(raw_value: str, *, failed_check: str, message: str) -> bool:
 
 
 def _validate_artifacts(settings: ValidatedSettings) -> ArtifactPaths:
-    """Valida los artefactos requeridos por el modo de clasificacion.
+    """
+    Valida los artefactos requeridos por el modo de clasificacion. Esto corresponde a la direccion del modelo,
+    archivo de policies, determinantes sin modelo y la propia metadata del modelo.
 
     Pasos:
     - Resuelve artefactos de modelo en modo `MODEL`.
     - Resuelve reglas deterministicas en modo simulador.
     - Valida siempre el archivo de politicas.
 
-    Argumentos:
-    - settings: configuracion validada ya normalizada.
+    Args:
+        settings: configuracion validada ya normalizada.
 
-    Retorna:
-    - ArtifactPaths: rutas listas para carga posterior.
+    Returns:
+        ArtifactPaths: rutas listas para carga posterior.
     """
 
     model_path = None
     metadata_path = None
     deterministic_rule_path = None
+
+    #? Si tenemos que clasificar en base a MODEL (modelo cargado) validamos el artifacto del modelo y
+    #? la metadata
     if settings.classification_mode is ClassificationMode.MODEL:
         model_path = _validate_artifact(
             path=Path(settings.model_dir) / settings.model_filename,
@@ -858,6 +967,8 @@ def _validate_artifacts(settings: ValidatedSettings) -> ArtifactPaths:
             not_found_code="MODEL_METADATA_FILE_NOT_FOUND",
         )
     else:
+        #? Si no clasificamos asi entonces estamos en DETERMINISTIC_TEST y usamos solo un archivo base con mapeo por
+        #? puertos
         deterministic_rule_path = _validate_artifact(
             path=Path(settings.config_dir) / settings.deterministic_rule_filename,
             configured_filename=settings.deterministic_rule_filename,
@@ -865,12 +976,14 @@ def _validate_artifacts(settings: ValidatedSettings) -> ArtifactPaths:
             not_found_code="DETERMINISTIC_RULE_FILE_NOT_FOUND",
         )
 
+    #? El archivo de policy siempre tiene que estar en la app
     policy_path = _validate_artifact(
         path=Path(settings.config_dir) / settings.policy_filename,
         configured_filename=settings.policy_filename,
         component="policy",
         not_found_code="POLICY_FILE_NOT_FOUND",
     )
+
     return ArtifactPaths(
         model_path=model_path,
         metadata_path=metadata_path,
@@ -886,27 +999,31 @@ def _validate_artifact(
     component: str,
     not_found_code: str,
 ) -> Path:
-    """Verifica que un artefacto exista, sea legible y no este vacio.
+    """
+    Verifica que un artefacto exista, sea legible y no este vacio. Esto se aplica para model, model metadata, policy
+    y deterministic rules.
 
     Pasos:
     - Resuelve la ruta real.
     - Comprueba existencia, tipo de archivo y permisos de lectura.
     - Verifica que el archivo sea UTF-8 legible y no este vacio.
 
-    Argumentos:
-    - path: ruta candidata del artefacto.
-    - configured_filename: nombre configurado a exponer en mensajes.
-    - component: componente logico del artefacto.
-    - not_found_code: codigo especifico para ausencia del archivo.
+    Args:
+        path: ruta candidata del artefacto.
+        configured_filename: nombre configurado a exponer en mensajes.
+        component: componente logico del artefacto.
+        not_found_code: codigo especifico para ausencia del archivo.
 
-    Retorna:
-    - Path: ruta resuelta y validada.
+    Returns:
+        Path: ruta resuelta y validada.
 
-    Excepciones:
-    - StartupValidationError: si el artefacto no cumple el contrato de lectura.
+    Raises:
+        StartupValidationError: si el artefacto no cumple el contrato de lectura.
     """
 
     try:
+        #? Intentamos primeramente resolver todo el path configurado para tener
+        #? el path completo
         resolved = path.resolve()
     except OSError as exc:
         raise _artifact_error(
@@ -916,6 +1033,7 @@ def _validate_artifact(
             failed_check="path_resolution",
         ) from exc
 
+    #? Si no existe early exist
     if not resolved.exists():
         raise _artifact_error(
             code=not_found_code,
@@ -930,6 +1048,7 @@ def _validate_artifact(
             component=component,
             failed_check="regular_file",
         )
+    #? Si no tenemos acceso, salida rapida
     if not os.access(resolved, os.R_OK):
         raise _artifact_error(
             code="ARTIFACT_NOT_READABLE",
@@ -964,7 +1083,20 @@ def _validate_artifact(
 
 
 def _artifact_error(*, code: str, message: str, component: str, failed_check: str) -> StartupValidationError:
-    """Construye un error tipado de validacion de artefactos."""
+    """
+    Funcion encargada de construir un error especifico de tipo startup que se da porque el sistema
+    no puede continuar con la validacion o inicializacion porque un componente clave para su funcionamiento
+    no puede ser accedido.
+
+    Args:
+        code: codigo de error especifico.
+        message: mensaje de error para el diagnostico.
+        component: componente logico del artefacto.
+        failed_check: chequeo que fallo en el proceso de validacion.
+
+    Returns:
+        StartupValidationError: error de inicializacion tipado.
+    """
 
     return _startup_error(
         code=code,
@@ -988,42 +1120,50 @@ def _validate_schemas(
     - Carga siempre el archivo de politicas.
     - Actualiza banderas parciales de readiness.
 
-    Argumentos:
-    - settings: configuracion validada.
-    - artifacts: rutas de artefactos ya verificadas.
-    - readiness: estado mutable donde se marcan cargas parciales.
+    Args:
+        settings: configuracion validada.
+        artifacts: rutas de artefactos ya verificadas.
+        readiness: estado mutable donde se marcan cargas parciales.
 
-    Retorna:
-    - tuple[ModelMetadata | None, PolicyFile, DeterministicRuleFile | None]:
+    Returns:
+        tuple[ModelMetadata | None, PolicyFile, DeterministicRuleFile | None]:
       metadata opcional, politica validada y reglas deterministicas opcionales.
     """
 
     metadata = None
     deterministic_rules = None
     if settings.classification_mode is ClassificationMode.MODEL:
+        #? Si nos enctramos en el modo de MODE (clasificacion por ML) validamos la metadata del modelo
         metadata = _load_metadata_for_startup(artifacts.metadata_path)
         readiness.metadata_loaded = True
     else:
+        #? Si estamos en DETERMINISTIC_TEST entonces validamos las reglas cargadas en el sistema
         deterministic_rules = _load_deterministic_rules_for_startup(artifacts.deterministic_rule_path)
+
+    #? Independiente del modo de operacion revisamos las politicas de trafico
     policy_file = _load_policy_for_startup(artifacts.policy_path)
     readiness.policy_loaded = True
     return metadata, policy_file, deterministic_rules
 
 
 def _load_metadata_for_startup(path: Path | None) -> ModelMetadata:
-    """Carga metadata del modelo con diagnostico de startup controlado.
+    """
+    Carga metadata del modelo con diagnostico de startup controlado. Con esto validamos que el archivo
+    definido como settings del modelo sea valido, exista y sea legible dentro de la aplicacion. Hasta
+    este punto no se ha validado contenido hasta pasar al paso dos de la validacion.
 
-    Argumentos:
-    - path: ruta validada del archivo de metadata.
+    Args:
+        path: ruta validada del archivo de metadata.
 
-    Retorna:
-    - ModelMetadata: metadata cargada y validada.
+    Returns:
+        ModelMetadata: metadata cargada y validada.
 
-    Excepciones:
-    - StartupValidationError: si el JSON o el contrato de metadata fallan.
+    Raises:
+        StartupValidationError: si el JSON o el contrato de metadata fallan.
     """
 
     assert path is not None
+
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -1033,6 +1173,8 @@ def _load_metadata_for_startup(path: Path | None) -> ModelMetadata:
             failed_check="json_parse",
         ) from exc
     try:
+        #? Aqui se valida la metadata basada en una validacion con Pydantic para seguir un contrato
+        #? de datos especifico
         return ModelMetadata.model_validate(payload)
     except ValidationError as exc:
         message = str(exc)
@@ -1077,7 +1219,19 @@ def _metadata_error(*, code: str, message: str, failed_check: str) -> StartupVal
 
 
 def _load_policy_for_startup(path: Path) -> PolicyFile:
-    """Carga la politica y traduce sus fallos al contrato de readiness."""
+    """
+    Funcion encargada de cargar el archivo de policitas de trafico y definicion de tuneles para su validacion usando
+    Pydantic y modelos esquematicos definidos
+
+    Args:
+        path: ruta validada del archivo de politicas.
+
+    Returns:
+        PolicyFile: politicas cargadas y validadas.
+
+    Raises:
+        StartupValidationError: si el JSON o el contrato de politicas fallan.
+    """
 
     try:
         return load_policy_file(path)
@@ -1099,12 +1253,26 @@ def _load_policy_for_startup(path: Path) -> PolicyFile:
 
 
 def _load_deterministic_rules_for_startup(path: Path | None) -> DeterministicRuleFile:
-    """Carga reglas deterministicas con diagnostico homogeno de startup."""
+    """
+    Funcion encargada de cargar las reglas deterministicas desde un archivo de configuracion y validarlas contra
+    un schema estandar. Esta funcion es utilizada durante el startup de la aplicacion para validar que
+    el archivo de reglas sea correcto y pueda ser usado por el sistema de clasificacion.
+
+    Args:
+        path: ruta validada del archivo de reglas deterministicas.
+
+    Returns:
+        DeterministicRuleFile: reglas cargadas y validadas.
+
+    Raises:
+        StartupValidationError: si el JSON o el contrato de reglas fallan.
+    """
 
     assert path is not None
     try:
-        return load_deterministic_rules(path)
-    except ValueError as exc:
+        #? Enviamos al modelo a validar directamente con Pydantic
+        return DeterministicRuleFile.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError, ValidationError) as exc:
         raise _startup_error(
             code="POLICY_SCHEMA_INVALID",
             message=Messages.DETERMINISTIC_RULE_SCHEMA_INVALID,
@@ -1122,18 +1290,19 @@ def _build_classifier_pool(
     readiness: ReadinessState,
     observer: BaselineMetrics | None = None,
 ) -> ClassifierPool[TrafficClassifier]:
-    """Construye el pool de clasificadores segun el modo configurado.
+    """
+    Construye el pool de clasificadores segun el modo configurado.
 
     Pasos:
     - Inicializa todas las instancias en memoria local antes de publicarlas.
     - Ejecuta una auto-prueba sintetica por instancia.
     - Marca readiness parcial cuando la etapa termina correctamente.
 
-    Argumentos:
-    - settings: configuracion validada de la app.
-    - metadata: metadata del modelo cuando aplica.
-    - deterministic_rules: reglas del simulador cuando aplica.
-    - readiness: estado mutable para registrar progreso.
+    Args:
+        settings: configuracion validada de la app.
+        metadata: metadata del modelo cuando aplica.
+        deterministic_rules: reglas del simulador cuando aplica.
+        readiness: estado mutable para registrar progreso.
 
     Retorna:
     - ClassifierPool[TrafficClassifier]: pool listo para la ruta `/api/v1/classify`.
@@ -1152,8 +1321,16 @@ def _build_classifier_pool(
     instances: list[TrafficClassifier] = []
     try:
         for instance_index in range(settings.classifier_pool_size):
+            #? Construye un clasificador basado en la configuracion, metadata, reglas y
             classifier = _build_single_classifier(settings, metadata, deterministic_rules, readiness, instance_index)
-            _run_synthetic_self_test(classifier.predict(SYNTHETIC_PACKET_FEATURES))
+
+            #? Ejecutamos una prueba sintentica sobre el modelo para validar que se ha cargado el modelo correcto y
+            #? con la cantidad de features correctas, si esto falla entonces el modelo no es compatible con la API y se lanza un error
+            _run_synthetic_self_test(
+                classifier.predict(SYNTHETIC_PACKET_FEATURES) #? La funcion valida una prediccion realizada a traves del
+                #? metodo predict de la instancia runtime de TrafficClassifier que fue retornada por el metodo anterior
+            )
+            #? Si la validacion pasa entonces agregamos la instancia al pool
             instances.append(classifier)
             logger.info(
                 Messages.CLASSIFIER_POOL_INSTANCE_READY,
@@ -1179,6 +1356,7 @@ def _build_classifier_pool(
         )
         raise
 
+    #? Marcamos que la etapa de validacion paso completamente y retornamos el objeto
     readiness.synthetic_inference_passed = True
     logger.info(
         Messages.CLASSIFIER_POOL_READY,
@@ -1190,6 +1368,10 @@ def _build_classifier_pool(
             "model_name": metadata.model_name if metadata is not None else None,
         },
     )
+    #? Dentro de la aplicacion, al generar una Classifier Pool usamos un observer que se usa para registrar las metricas
+    #? base de la aplicacion correspondientes al tiempo de solicitud de un clasificador, y la cantidad de
+    #? clasificadores usados, libres y totales. Estas actualizaciones se realizan de manera automatica y constante a
+    #? respuesta a cambios como la adquisicion o liberacion de instancias
     return ClassifierPool(instances, observer=observer)
 
 
@@ -1200,12 +1382,24 @@ def _build_single_classifier(
     readiness: ReadinessState,
     instance_index: int,
 ) -> TrafficClassifier:
-    """Construye una instancia individual del clasificador."""
+    """
+    Funcion encargada de construir una instancia real de una entidad de Determinsitic Classifier o Classifier
+    dependiendo del modo de operacion de la API a la hora de cargar los datos en la validacion.
+    :param settings: settings cargadas y valdidadas
+    :param metadata: metdata del modelo
+    :param deterministic_rules: reglas deterministicas en el caso de modo DETERMINISTIC TEST
+    :param readiness: instancia de ReadinessState para guardar informacion de errores o avances
+    :param instance_index: indice de la instancia para el indicador y logs
+    :return: instancia configurada
+    """
 
+    #? Si el modo de clasificacion es DETERMINISTIC_TEST entonces validamos que tenemos reglas y creamos una instancia
+    #? directamente
     if settings.classification_mode is ClassificationMode.DETERMINISTIC_TEST:
         assert deterministic_rules is not None
         return DeterministicClassifier(deterministic_rules)
 
+    #? Si no es este modo entonces iniciamos la carga de un predictor, es decir cargar el modelo y retornarlo
     logger = logging.getLogger(__name__)
     logger.info(
         Messages.MODEL_LOAD_STARTED,
@@ -1217,6 +1411,8 @@ def _build_single_classifier(
             "pool_size": settings.classifier_pool_size,
         },
     )
+    #? Cargamos el predictor que dependiendo del tipo de ejecucion y los archivos retornara una instancia de las clases
+    #? especializadas de TrafficClassifier
     predictor = _load_predictor(settings, metadata)
     readiness.model_loaded = True
     logger.info(
@@ -1230,6 +1426,7 @@ def _build_single_classifier(
             "model_name": metadata.model_name if metadata is not None else None,
         },
     )
+    #? Validamos que el paquete de prueba sintetico funciona para este modelo y retornamos el modelo
     if SYNTHETIC_PACKET_FEATURES["eth_type"] not in MODEL_SUPPORTED_ETHERTYPES:
         raise _runtime_error(
             code="MODEL_SELF_TEST_CONFIGURATION_INVALID",
@@ -1241,25 +1438,29 @@ def _build_single_classifier(
 
 
 def _load_predictor(settings: ValidatedSettings, metadata: ModelMetadata | None) -> Predictor:
-    """Carga el predictor XGBoost y valida su compatibilidad de runtime.
+    """
+    Carga el predictor XGBoost y valida su compatibilidad de runtime.
 
     Pasos:
     - Importa XGBoost y carga el booster desde disco.
     - Verifica cantidad de features del artefacto.
     - Inspecciona configuracion de objetivo y numero de clases cuando existe.
 
-    Argumentos:
-    - settings: configuracion validada con directorio y nombre del modelo.
-    - metadata: metadata validada del modelo.
+    Args:
+        settings: configuracion validada con directorio y nombre del modelo.
+        metadata: metadata validada del modelo.
 
-    Retorna:
-    - Predictor: predictor listo para inferencia.
+    Returns:
+        Predictor: predictor listo para inferencia.
 
-    Excepciones:
-    - StartupValidationError: si el runtime o el artefacto son incompatibles.
+    Raises:
+        StartupValidationError: si el runtime o el artefacto son incompatibles.
     """
 
+    #? Verificamos que tengamos la metadata del modelo antes de continuar
+    #?
     assert metadata is not None
+
     try:
         import xgboost
     except Exception as exc:
@@ -1270,9 +1471,11 @@ def _load_predictor(settings: ValidatedSettings, metadata: ModelMetadata | None)
             retryable=False,
         ) from exc
 
+    #? Definimos un Booster que es la clase base de un XGClassifier, que nos permite cargar un modelo directamente
     booster = xgboost.Booster()
     model_path = Path(settings.model_dir) / settings.model_filename
     try:
+        #? Cargamos el modelo dentro de la instancia del booster
         booster.load_model(model_path)
     except Exception as exc:
         raise _runtime_error(
@@ -1283,6 +1486,8 @@ def _load_predictor(settings: ValidatedSettings, metadata: ModelMetadata | None)
         ) from exc
 
     try:
+        #? Revisamos la cantidad de features que tiene el modelo cargado, estas deben ser cuatro para cuadrar con
+        #? la metadata del modelo
         num_features = booster.num_features()
     except Exception as exc:
         raise _runtime_error(
@@ -1300,13 +1505,16 @@ def _load_predictor(settings: ValidatedSettings, metadata: ModelMetadata | None)
         )
 
     try:
+        #? Obtenemos la configuracion del booster para validar que sea compatible con lo esperado, esto valida el tipo
+        #? del modelo y la cantidad de clases aprendidas que determinan si el modelo que tenemos es el valido para
+        #? esta seccion.
         config = json.loads(booster.save_config())
     except Exception:
         config = None
 
     if config is not None:
-        # La inspeccion del config no reemplaza la prediccion sintetica, pero
-        # permite fallar temprano cuando el objetivo o el numero de clases son incompatibles.
+        #? La inspeccion del config no reemplaza la prediccion sintetica, pero
+        #? permite fallar temprano cuando el objetivo o el numero de clases son incompatibles.
         objective_name = config.get("learner", {}).get("objective", {}).get("name")
         if objective_name is not None and objective_name != "multi:softprob":
             raise _runtime_error(
@@ -1332,7 +1540,18 @@ def _load_predictor(settings: ValidatedSettings, metadata: ModelMetadata | None)
 
 
 def _runtime_error(*, code: str, message: str, failed_check: str, retryable: bool) -> StartupValidationError:
-    """Construye un error tipado para la etapa de runtime del modelo."""
+    """
+    Construye un error tipado para la etapa de runtime del modelo.
+
+    Args:
+        code: codigo funcional del error.
+        message: mensaje legible por humanos.
+        failed_check: clave de validacion fallida.
+        retryable: bandera de reintento.
+
+    Returns:
+        StartupValidationError: error tipado para etapa de runtime.
+    """
 
     return _startup_error(
         code=code,
@@ -1345,20 +1564,24 @@ def _runtime_error(*, code: str, message: str, failed_check: str, retryable: boo
 
 
 def _run_synthetic_self_test(result: PredictionResult) -> None:
-    """Verifica que una inferencia sintetica cumpla el contrato probabilistico.
+    """
+    Verifica que una inferencia sintetica cumpla el contrato probabilistico. Es decir, esta funcion valida que el modelo
+    pueda entender que tiene que recibir cuatro parametroxs en un orden especifico y valida la cantidad de resultados
+    de probabilidades de un modelo multiclase
 
     Pasos:
     - Comprueba cardinalidad total de probabilidades.
     - Valida finitud y rango numerico.
     - Verifica que la clase resultante pueda decodificarse.
 
-    Argumentos:
-    - result: resultado ya normalizado de una auto-prueba.
+    Args:
+        result: resultado ya normalizado de una auto-prueba.
 
-    Excepciones:
-    - StartupValidationError: si la salida sintetica es incompatible.
+    Raises:
+        StartupValidationError: si la salida sintetica es incompatible.
     """
 
+    #? Validamos la salida completa de la clasificacion
     if len(result.probabilities) != len(EXPECTED_CLASS_TO_ID):
         raise _runtime_error(
             code="MODEL_OUTPUT_INVALID",
@@ -1404,26 +1627,28 @@ def _validate_complete_policy_map(
     min_tunnel_bandwidth_kbps: int,
     max_tunnel_bandwidth_kbps: int,
 ) -> None:
-    """Valida la cobertura total del mapa de politicas por clase.
+    """
+    Valida la cobertura total del mapa de politicas por clase.
 
     Pasos:
     - Rechaza clases desconocidas en el archivo.
     - Rechaza clases obligatorias faltantes.
     - Verifica perfil por defecto y restricciones de ancho de banda por clase.
 
-    Argumentos:
-    - policy_file: archivo de politicas ya validado.
-    - expected_classes: clases que deben resolverse obligatoriamente.
-    - min_tunnel_bandwidth_kbps: minimo demostrador para perfiles de tunel.
-    - max_tunnel_bandwidth_kbps: maximo demostrador permitido.
+    Args:
+        policy_file: archivo de politicas ya validado.
+        expected_classes: clases que deben resolverse obligatoriamente.
+        min_tunnel_bandwidth_kbps: minimo demostrador para perfiles de tunel.
+        max_tunnel_bandwidth_kbps: maximo demostrador permitido.
 
-    Excepciones:
-    - StartupValidationError: si el mapa es incompleto o invalido.
+    Raises:
+        StartupValidationError: si el mapa es incompleto o invalido.
     """
 
     policy_classes = set(policy_file.class_policies)
     expected_class_set = set(expected_classes)
     unknown_classes = policy_classes - expected_class_set
+    #? Retornamos un error si tenemos un set de clases inesperadas dentro de la politica
     if unknown_classes:
         raise _policy_error(
             code="POLICY_CLASS_UNKNOWN",
@@ -1432,6 +1657,7 @@ def _validate_complete_policy_map(
         )
 
     missing_classes = expected_class_set - policy_classes
+    #? Retornamos un error si tenemos clases faltantes de las esperadas en la aplicacion
     if missing_classes:
         raise _policy_error(
             code="POLICY_MAP_INCOMPLETE",
@@ -1439,10 +1665,16 @@ def _validate_complete_policy_map(
             failed_check="missing_class",
         )
 
+    #? Validamos la existencia y configuracion del tunel por defecto
     _validate_default_profile(policy_file.default_profile)
+
+    #? Validamos para cada clase que la politica exista y sea serializable, y luego el bandwidth del tunel con respecto
+    #? a los limites de la aplicacion
     for class_name in expected_classes:
         policy = policy_file.class_policies[class_name]
+        #? Validacion de Serializacion
         _validate_policy_serialization(policy)
+        #? Validacion de bandwidth del tunel
         _validate_tunnel_bandwidth(
             class_name=class_name,
             policy=policy,
@@ -1452,8 +1684,14 @@ def _validate_complete_policy_map(
 
 
 def _validate_default_profile(policy: TrafficPolicy) -> None:
-    """Verifica que el perfil por defecto conserve ancho de banda cero."""
+    """
+    Funcion usada para validar el perfil por defecto de una politica por defecto que no necesita un tipo de bandwidth
+    definido.
+    :param policy: Policita de trafico default
+    :return: None
+    """
 
+    #? Validamos la posible serializacion de una policita para validar el objeto
     _validate_policy_serialization(policy)
     if policy.path_constraints.requested_bandwidth_kbps != 0:
         raise _policy_error(
@@ -1464,9 +1702,15 @@ def _validate_default_profile(policy: TrafficPolicy) -> None:
 
 
 def _validate_policy_serialization(policy: TrafficPolicy) -> None:
-    """Confirma que una politica validada siga siendo serializable."""
+    """
+    Confirma que una politica validada siga siendo serializable.
+
+    Args:
+        policy: Politica ingresada de tipo TrafficPolicy
+    """
 
     try:
+        #? Obtenemos la version serializada en Python Dictionaries del objeto
         policy.model_dump()
     except Exception as exc:
         raise _policy_error(
@@ -1483,19 +1727,22 @@ def _validate_tunnel_bandwidth(
     min_tunnel_bandwidth_kbps: int,
     max_tunnel_bandwidth_kbps: int,
 ) -> None:
-    """Valida el ancho de banda de una politica de clase.
+    """
+    Valida el ancho de banda de una politica de clase.
 
-    Argumentos:
-    - class_name: nombre de la clase evaluada.
-    - policy: politica asociada a la clase.
-    - min_tunnel_bandwidth_kbps: minimo demostrador permitido.
-    - max_tunnel_bandwidth_kbps: maximo demostrador permitido.
+    Args:
+        class_name: nombre de la clase evaluada.
+        policy: politica asociada a la clase.
+        min_tunnel_bandwidth_kbps: minimo demostrador permitido.
+        max_tunnel_bandwidth_kbps: maximo demostrador permitido.
 
-    Excepciones:
-    - StartupValidationError: si el ancho de banda sale del rango permitido.
+    Raises:
+        StartupValidationError: si el ancho de banda sale del rango permitido.
     """
 
+    #? Obtenemos el bandwidth solitida y lo revisamos comparandolo con el minimmo posible de un tunel y el maximo
     bandwidth = policy.path_constraints.requested_bandwidth_kbps
+
     if bandwidth < min_tunnel_bandwidth_kbps:
         raise _policy_error(
             code="POLICY_BANDWIDTH_BELOW_MINIMUM",
@@ -1511,7 +1758,14 @@ def _validate_tunnel_bandwidth(
 
 
 def _policy_error(*, code: str, message: str, failed_check: str) -> StartupValidationError:
-    """Construye un error tipado para la validacion del mapa de politicas."""
+    """
+    Funcion usada para registrar un error de StartupValidationError configurado para errores de politicas de trafico
+    y mapeo de clases. Esto se usa para validar que el archivo de politicas sea correcto y
+    :param code: codigo del error
+    :param message: mensaje legible en espanol
+    :param failed_check: fase en la que hubo el error
+    :return: instancia configurada de `StartupValidationError`
+    """
 
     return _startup_error(
         code=code,
@@ -1524,13 +1778,14 @@ def _policy_error(*, code: str, message: str, failed_check: str) -> StartupValid
 
 
 def _first_error_loc(exc: ValidationError) -> str:
-    """Extrae la primera localizacion de error Pydantic como cadena.
+    """
+    Extrae la primera localizacion de error Pydantic como cadena.
 
-    Argumentos:
-    - exc: excepcion de validacion capturada.
+    Args:
+        exc: excepcion de validacion capturada.
 
-    Retorna:
-    - str: ruta textual del primer error o un literal por defecto.
+    Returns:
+        str: ruta textual del primer error o un literal por defecto.
     """
 
     first_error = exc.errors()[0]

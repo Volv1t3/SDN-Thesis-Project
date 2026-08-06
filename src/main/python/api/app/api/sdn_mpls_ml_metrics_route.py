@@ -1,4 +1,9 @@
-"""Endpoint unico de exposicion Prometheus."""
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
+
+Endpoint definido para la exposicion de metricas de la aplicacion
+"""
 
 from __future__ import annotations
 
@@ -12,6 +17,13 @@ router = APIRouter()
 
 
 def _registry_for_scrape() -> CollectorRegistry:
+    """
+    Funcion auxiliar para determinar el registry correcto para scrappear
+    segun la configuracion del directorio multiprocess.
+    Si PROMETHEUS_MULTIPROC_DIR no esta seteado, se usa el registry default.
+    :return:  CollectorRegistry: Registry apropiado para scrappear
+    :rtype: CollectorRegistry
+    """
     multiprocess_dir = os.getenv("PROMETHEUS_MULTIPROC_DIR", "").strip()
     if not multiprocess_dir:
         return REGISTRY
@@ -22,7 +34,18 @@ def _registry_for_scrape() -> CollectorRegistry:
 
 @router.get("/metrics", include_in_schema=False)
 def metrics(request: Request) -> Response:
-    """Devuelve la exposicion Prometheus de todas las metricas registradas."""
+    """
+    Devuelve la exposicion Prometheus de todas las metricas registradas.
+
+    Args:
+        request: solicitud FastAPI con acceso a servicios compartidos.
+
+    Retorna:
+        Response: Respuesta HTTP con las metricas de Prometheus o 404.
+    Notas:
+    - Esta ruta esta excluida del schema OpenAPI.
+    - El endpoint devuelve 404 si las metricas no estan habilitadas.
+    """
 
     services = getattr(request.app.state, "services", None)
     if services is not None and services.settings is not None and not services.settings.enable_prometheus_metrics:

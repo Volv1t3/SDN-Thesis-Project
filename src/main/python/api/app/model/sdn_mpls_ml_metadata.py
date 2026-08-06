@@ -1,4 +1,9 @@
-"""Define y valida el contrato estricto de metadata del modelo.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
+
+Archivo que define el contenido esperado y la validacion concreta del archivo de metadata del modelo
+de XGBoost que tiene que ser proveido al sistema para la ejecucion de la clasificacion de trafico.
 
 Pasos:
 - Declara el orden de features y clases esperadas por la API.
@@ -8,14 +13,14 @@ Pasos:
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.sdn_mpls_ml_messages import Messages
+#? El orden esperado de parametros siempre es este, si es alreves no clasifica correctamente
 EXPECTED_FEATURE_ORDER = ["eth_type", "ip_proto", "src_port", "dst_port"]
-EXPECTED_MODEL_NAME = "sdnflow_xgboost_first_packet"
+
+#? El nombre del modelo configurado es este
+EXPECTED_MODEL_NAME = "sdn_mpls_ml_packet_in_classification_model"
 EXPECTED_CLASS_TO_ID = {
     "DNS": 0,
     "FTP": 1,
@@ -28,16 +33,22 @@ EXPECTED_CLASS_TO_ID = {
 
 
 class ModelMetadata(BaseModel):
-    """Representa la metadata compatible con el clasificador soportado.
+    """
+    Clase que representa los metadatos del modelo de XGBoost para la clasificacion de trafico, al ser una extension
+    de una clase de Pydantic, esta clase implementa mecanismos de validacion internos y tipado para la revision
+    de todos los parametros del modelo
 
     Pasos:
     - Valida campos basicos con Pydantic estricto.
     - Comprueba nombre, formato, features y mapeos de clase.
 
-    Notas:
-    - Los campos extra del archivo se ignoran para tolerar metadata ampliada.
+    Notes:
+        Los campos extra del archivo se ignoran para tolerar metadata ampliada.
     """
 
+    #? Definimos el comportamiento de validacion estricta, especificamente que ignore extras pero que los campos
+    #? definidos en el modelo tengan que estar registrados, asi como desactiva el type coercion para los tipos del
+    #? JSON ingresado, lo que resulta en una validacion mas limpia
     model_config = ConfigDict(extra="ignore", strict=True)
 
     schema_version: str
@@ -52,16 +63,17 @@ class ModelMetadata(BaseModel):
     @field_validator("schema_version")
     @classmethod
     def validate_schema_version(cls, value: str) -> str:
-        """Verifica la version del schema de metadata.
+        """
+        Verifica la version del schema de metadata.
 
-        Argumentos:
-        - value: version declarada en el archivo.
+        Args:
+            value: version declarada en el archivo.
 
-        Retorna:
-        - str: la misma version si es valida.
+        Returns:
+            str: la misma version si es valida.
 
-        Excepciones:
-        - ValueError: si la version no coincide con `1.0`.
+        Raises:
+            ValueError: si la version no coincide con `1.0`.
         """
 
         if value != "1.0":
@@ -70,7 +82,8 @@ class ModelMetadata(BaseModel):
 
     @model_validator(mode="after")
     def validate_contract(self) -> "ModelMetadata":
-        """Comprueba el contrato funcional completo de la metadata.
+        """
+        Comprueba el contrato funcional completo de la metadata.
 
         Pasos:
         - Verifica nombre y formato esperados del modelo.
@@ -112,40 +125,8 @@ class ModelMetadata(BaseModel):
     def classes(self) -> list[tuple[int, str]]:
         """Expone las clases ordenadas por identificador ascendente.
 
-        Retorna:
-        - list[tuple[int, str]]: pares ordenados de id y nombre de clase.
+        Returns:
+            list[tuple[int, str]]: pares ordenados de id y nombre de clase.
         """
 
         return [(class_id, self.id_to_class[str(class_id)]) for class_id in range(len(self.id_to_class))]
-
-
-def load_metadata(path: str | Path) -> ModelMetadata:
-    """Carga metadata desde un archivo JSON UTF-8.
-
-    Pasos:
-    - Lee el archivo desde disco.
-    - Parsea su contenido como JSON.
-    - Valida el payload contra `ModelMetadata`.
-
-    Argumentos:
-    - path: ruta del archivo de metadata.
-
-    Retorna:
-    - ModelMetadata: metadata validada y compatible.
-
-    Excepciones:
-    - ValueError: si el archivo no puede leerse, parsearse o validarse.
-    """
-
-    try:
-        raw_text = Path(path).read_text(encoding="utf-8")
-        payload = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(Messages.METADATA_FILE_INVALID_JSON) from exc
-    except OSError as exc:
-        raise ValueError(Messages.metadata_file_read_failed(path.name)) from exc
-
-    try:
-        return ModelMetadata.model_validate(payload)
-    except ValidationError as exc:
-        raise ValueError(Messages.metadata_validation_failed(str(exc))) from exc

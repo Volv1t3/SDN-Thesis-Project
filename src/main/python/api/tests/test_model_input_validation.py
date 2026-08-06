@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import ClassificationMode, IPV4_ETHERTYPE
+from app.sdn_mpls_ml_config import ClassificationMode, IPV4_ETHERTYPE
 from app.sdn_mpls_ml_exceptions import ModelEtherTypeUnsupportedError
-from app.model.input_validation import validate_packet_for_classification_mode
+from app.model.sdn_mpls_ml_input_validation import validate_packet_for_classification_mode
 
 
 def test_model_mode_accepts_ipv4_ethertype() -> None:

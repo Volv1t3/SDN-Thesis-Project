@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from app.config import (
+from app.sdn_mpls_ml_config import (
     DEFAULT_CLASSIFIER_POOL_SIZE,
     DEFAULT_DETERMINISTIC_RULE_FILENAME,
     DEFAULT_LOG_DIRECTORY,
@@ -24,7 +24,7 @@ from app.config import (
     RawSettings,
     get_raw_settings,
 )
-from app.dependencies import build_services
+from app.sdn_mpls_ml_dependencies import build_services
 
 
 def _configure_model_env(monkeypatch, model_dir: Path, policy_path: Path, deterministic_rule_path: str) -> None:
@@ -331,8 +331,8 @@ def test_partial_classifier_pool_initialization_is_not_published(
 ):
     """Verifica que un fallo intermedio no publique un pool parcial."""
 
-    from app import dependencies as dependency_module
-    from app.model.predictor import PredictionResult
+    from app import sdn_mpls_ml_dependencies as dependency_module
+    from app.model.sdn_mpls_ml_model_predictor import PredictionResult
 
     _patch_dummy_booster(monkeypatch, dummy_booster_class)
     _configure_model_env(

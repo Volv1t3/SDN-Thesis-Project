@@ -23,9 +23,9 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from app.api import inference as inference_api
+from app.api import sdn_mpls_ml_inference_route as inference_api
 from app.sdn_mpls_ml_exceptions import ModelInferenceFailedError, ModelNotReadyError, ModelOutputInvalidError
-from app.model.predictor import PredictionResult
+from app.model.sdn_mpls_ml_model_predictor import PredictionResult
 from app.sdn_mpls_ml_main import app
 
 

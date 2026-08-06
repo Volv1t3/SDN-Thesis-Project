@@ -1,9 +1,9 @@
-"""Expone endpoints de metadata y clasificacion de trafico.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
 
-Pasos:
-- Consulta el estado de readiness antes de clasificar.
-- Aplica validaciones dependientes del modo activo.
-- Ejecuta inferencia o simulacion y resuelve la politica asociada.
+Expone endpoints de metadata y clasificacion de trafico.
+
 
 Notas:
 - La correlacion de solicitud llega desde middleware por `request.state.request_id`.
@@ -28,7 +28,7 @@ from app.sdn_mpls_ml_exceptions import (
     ModelOutputInvalidError,
     PolicyMappingFailedError,
 )
-from app.observability.classification_metrics import (
+from app.observability.sdn_mpls_ml_classification_metrics import (
     CLASSIFICATION_IN_PROGRESS,
     CLASSIFICATION_RESULTS_TOTAL,
     POLICY_FALLBACKS_TOTAL,
@@ -38,9 +38,9 @@ from app.observability.classification_metrics import (
     execute_instrumented_inference,
 )
 from app.sdn_mpls_ml_messages import Messages
-from app.model.input_validation import validate_packet_for_classification_mode
+from app.model.sdn_mpls_ml_input_validation import validate_packet_for_classification_mode
 from app.sdn_mpls_ml_request_context import get_request_id
-from app.schemas.inference import (
+from app.schemas.sdn_mpls_ml_inference_validation_models import (
     ClassifyRequest,
     ClassifyResponse,
     ModelClassInfo,
@@ -62,17 +62,17 @@ def model_info(request: Request) -> ModelInfoResponse:
     - Rechaza estados no listos con error estructurado.
     - Serializa el contrato del modelo cargado.
 
-    Argumentos:
-    - request: solicitud FastAPI con acceso a servicios compartidos.
+    Args:
+        request: solicitud FastAPI con acceso a servicios compartidos.
 
-    Retorna:
-    - ModelInfoResponse: metadata publica del modelo activo.
+    Returns:
+        ModelInfoResponse: metadata publica del modelo activo.
 
-    Notas:
-    - La correlacion de la solicitud viaja en el header `X-Request-ID`.
+    Notes:
+        La correlacion de la solicitud viaja en el header `X-Request-ID`.
 
-    Excepciones:
-    - ModelNotReadyError: si el servicio aun no esta listo.
+    Raises:
+        ModelNotReadyError: si el servicio aun no esta listo.
     """
 
     services = request.app.state.services
@@ -104,25 +104,29 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
     - Ejecuta prediccion y mapea la clase a una politica.
     - Registra un evento estructurado con la latencia final.
 
-    Argumentos:
-    - payload: cuerpo validado de la solicitud sin `request_id` de cliente.
-    - request: solicitud FastAPI con acceso a servicios compartidos.
+    Args:
+        payload: cuerpo validado de la solicitud sin `request_id` de cliente.
+        request: solicitud FastAPI con acceso a servicios compartidos.
 
-    Retorna:
-    - ClassifyResponse: resultado completo de la clasificacion.
+    Returns:
+        ClassifyResponse: resultado completo de la clasificacion.
 
-    Notas:
-    - `request_id` del cuerpo de respuesta es autoritativo y generado por el servidor.
-    - El mismo valor debe coincidir con `X-Request-ID` y con los logs de la solicitud.
-    - Cuando se aplica fallback de politica por confianza baja, la API emite
-      un evento informativo adicional antes del evento final de clasificacion.
+    Notes:
+        `request_id` del cuerpo de respuesta es autoritativo y generado por el servidor.
 
-    Excepciones:
-    - ModelNotReadyError: si el servicio aun no esta listo.
-    - ModelEtherTypeUnsupportedError: si el modo `MODEL` recibe un EtherType no soportado.
-    - PolicyMappingFailedError: si la politica no puede resolverse.
+        El mismo valor debe coincidir con `X-Request-ID` y con los logs de la solicitud.
+
+        Cuando se aplica fallback de politica por confianza baja, la API emite
+        un evento informativo adicional antes del evento final de clasificacion.
+
+    Raises:
+        ModelNotReadyError: si el servicio aun no esta listo.
+        ModelEtherTypeUnsupportedError: si el modo `MODEL` recibe un EtherType no soportado.
+        PolicyMappingFailedError: si la politica no puede resolverse.
     """
 
+    #? Extraemos los servicios, la request ID para la respuesta y la configuracion actual para obtener el metodo de
+    # clasificacion
     services = request.app.state.services
     request_id = get_request_id(request)
     settings = services.settings
@@ -135,6 +139,8 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
     observation = ClassificationObservation(
         classification_mode=classification_mode, enabled=metrics_enabled
     )
+
+    #? Si las metricas estan habilitadas, incrementamos el contador de clasificaciones en progreso para el modo actual
     if metrics_enabled:
         CLASSIFICATION_IN_PROGRESS.labels(classification_mode=classification_mode).inc()
 
@@ -155,6 +161,7 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
             )
 
         try:
+            #? Validamos el paquete ingresado para la clasificacion
             validate_packet_for_classification_mode(
                 classification_mode=settings.classification_mode,
                 eth_type=payload.packet_features.eth_type,
@@ -178,14 +185,17 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
             )
             raise
 
+        #? Extraemos las features en un diccionario de Python
         packet_features = payload.packet_features.model_dump()
         queue_wait_started = time.perf_counter()
         try:
+            #? Hacemos la llamada inicial en un async para trabajar en un hilo worker de AnyIO en la ClassifierPool
             async with services.classifier_pool.acquire(
                 timeout_seconds=settings.request_timeout_seconds
             ) as classifier:
                 queue_wait_ms = round((time.perf_counter() - queue_wait_started) * 1000, 3)
                 try:
+                    #? Ejecutamos la prediccion y esta informacion le enviamos al modelo
                     prediction = await execute_instrumented_inference(
                         classifier=classifier,
                         packet_features=packet_features,
@@ -216,6 +226,7 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
             observation.mark_outcome("output_invalid")
             raise
 
+        #? Registramos la salida del modelo y la prediccion
         if metrics_enabled:
             CLASSIFICATION_RESULTS_TOTAL.labels(
                 classification_mode=classification_mode, class_name=prediction.class_name
@@ -227,6 +238,7 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
         policy_response = None
         if services.policy_mapper is not None:
             try:
+                #? Resolvemos la politica basada en la prediccion hecha anteriormente
                 selected_policy, fallback, fallback_reason = services.policy_mapper.resolve(
                     predicted_class=prediction.class_name,
                     confidence=prediction.confidence,
@@ -285,6 +297,7 @@ async def classify(payload: ClassifyRequest, request: Request) -> ClassifyRespon
             },
         )
         observation.mark_outcome("success")
+        #? Retornamos la respuesta con la informacion de la prediccion y la politica
         return ClassifyResponse(
             request_id=request_id,
             model_name=services.model_metadata.model_name

@@ -1,23 +1,20 @@
-"""Define los contratos HTTP para endpoints de salud y readiness.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
 
-Pasos:
-- Modela la respuesta raiz del servicio.
-- Modela respuestas de liveness y readiness exitosas o fallidas.
+Define los contratos HTTP para endpoints de salud y readiness.
 
 Notas:
 - Estos modelos reflejan el estado cacheado de la aplicacion.
 - La correlacion de transporte viaja en el header `X-Request-ID`.
 """
 
-from .common import StrictBaseModel
+from .sdn_mpls_ml_baseline_validation_models import StrictBaseModel
 
 
 class RootResponse(StrictBaseModel):
-    """Describe la respuesta del endpoint raiz.
-
-    Pasos:
-    - Expone nombre y version del servicio.
-    - Indica estado general y ruta de documentacion.
+    """
+    Describe la respuesta del endpoint root (/).
     """
 
     service: str
@@ -27,21 +24,16 @@ class RootResponse(StrictBaseModel):
 
 
 class LivenessResponse(StrictBaseModel):
-    """Representa la confirmacion minima de vida del proceso HTTP.
-
-    Pasos:
-    - Serializa un estado simple de disponibilidad del proceso.
+    """
+    Representa la confirmacion minima de vida del proceso HTTP.
     """
 
     status: str
 
 
 class ReadinessError(StrictBaseModel):
-    """Modela el error estructurado devuelto por readiness.
-
-    Pasos:
-    - Conserva codigo y mensaje de diagnostico.
-    - Incluye metadatos de etapa y chequeo cuando existen.
+    """
+    Modela el error estructurado devuelto por readiness.
     """
 
     code: str
@@ -53,11 +45,8 @@ class ReadinessError(StrictBaseModel):
 
 
 class ReadySuccessResponse(StrictBaseModel):
-    """Modela una respuesta de readiness satisfactoria.
-
-    Pasos:
-    - Expone el estado listo y el modo de clasificacion activo.
-    - Publica banderas de validacion y resumen del modelo cargado.
+    """
+    Modela una respuesta de readiness satisfactoria.
     """
 
     status: str
@@ -77,11 +66,10 @@ class ReadySuccessResponse(StrictBaseModel):
 
 
 class ReadyFailureResponse(StrictBaseModel):
-    """Modela una respuesta de readiness no disponible.
-
-    Pasos:
-    - Publica el estado no listo o inicializando.
-    - Adjunta un error estructurado cuando la validacion ya fallo.
+    """
+    Modela una respuesta de readiness no disponible. Esta respuesta contiene internamente un
+    cuerpo de ReadinessError que representa toda la informacion de error del estado de readiness de la aplicacion
+    que fue cacheado
 
     Notas:
     - Incluye `request_id` para alinear el cuerpo con `X-Request-ID`.

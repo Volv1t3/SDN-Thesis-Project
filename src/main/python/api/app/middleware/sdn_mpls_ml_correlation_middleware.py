@@ -1,9 +1,12 @@
-"""Genera y propaga un identificador de correlacion por solicitud.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
+Genera y propaga un identificador de correlacion por solicitud.
 
-Pasos:
-- Crea un UUID del lado del servidor para cada request HTTP.
-- Guarda el identificador en `scope["state"]` para handlers y middlewares.
-- Anade el mismo valor al header `X-Request-ID` en toda respuesta HTTP.
+Archivo que define el middleware `CorrelationIdMiddleware` para la aplicación ASGI. Este middleware se encarga de
+generar un identificador único de correlación (UUID) para cada solicitud HTTP entrante y asegurarse de que este
+identificador se propague a través de los headers de la respuesta, así como en los logs y cuerpos de respuesta que lo
+requieran.
 
 Notas:
 - Este identificador es la correlacion autoritativa del transporte HTTP.
@@ -21,9 +24,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.sdn_mpls_ml_http_responses import build_error_response
 from app.sdn_mpls_ml_messages import Messages
-from app.observability.classification_metrics import record_request_error
+from app.observability.sdn_mpls_ml_classification_metrics import record_request_error
 
 
+#? Constantes de control de la aplicacion
 CORRELATION_ID_HEADER = "X-Request-ID"
 _CORRELATION_ID_HEADER_LOWER = CORRELATION_ID_HEADER.lower().encode("ascii")
 INTERNAL_ERROR_CODE = "INTERNAL_ERROR"
@@ -37,71 +41,85 @@ logger = logging.getLogger(__name__)
 
 
 class CorrelationIdMiddleware:
-    """Inicializa la correlacion de transporte para cada solicitud.
+    """
+    Clase que define el mecanismo interno de la generacion del header de correllacion interno en las tramas HTTP que
+    lleguen a la aplicacion. El mecanismo se implementa mediante un componente ASGI puro, por lo que este Middleware
+    recibe la informacion correspondiente de una llamada desde la aplicacion base de Uvicorn que recibe las conexiones
+    HTTP
 
-    Pasos:
-    - Genera un UUID nuevo para la solicitud entrante.
-    - Lo guarda en `scope["state"]["request_id"]`.
-    - Intercepta el inicio de la respuesta y le agrega el header de correlacion.
-
-        Notas:
-        - La misma correlacion debe aparecer en headers, logs y cuerpos que expongan `request_id`.
-        - Este middleware debe envolver al resto de middlewares de aplicacion.
+    Notes:
+        La misma correlacion debe aparecer en headers, logs y cuerpos que expongan `request_id`.
+        Este middleware debe envolver al resto de middlewares de aplicacion.
     """
 
     def __init__(self, app: ASGIApp) -> None:
-        """Guarda la aplicacion ASGI envuelta.
+        """
+        Guarda la aplicacion ASGI envuelta.
 
-        Argumentos:
-        - app: siguiente aplicacion ASGI de la cadena.
+        Args:
+            app: siguiente aplicacion ASGI de la cadena.
         """
 
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """Procesa una solicitud HTTP y le adjunta correlacion.
+        """
+        Procesa una solicitud HTTP y le adjunta correlacion.
 
         Pasos:
         - Omite trafico no HTTP.
         - Inicializa `request_id` en el estado ASGI del request.
         - Envuelve `send` para insertar `X-Request-ID` en `http.response.start`.
 
-        Argumentos:
-        - scope: alcance ASGI entrante.
-        - receive: canal ASGI de lectura.
-        - send: canal ASGI de escritura.
+        Args:
+            scope: alcance ASGI entrante.
+            receive: canal ASGI de lectura.
+            send: canal ASGI de escritura.
 
-        Retorna:
-        - None.
+        Returns:
+            None.
 
-        Notas:
-        - La correlacion se crea antes de que corran validaciones, handlers o endpoints.
-        - El header se inyecta aunque la respuesta haya sido generada por un handler
-          de error o por una capa inferior del framework.
-        - Si una excepcion no fue normalizada aguas abajo, este middleware devuelve
-          el `500 INTERNAL_ERROR` correlacionado como ultima barrera segura.
+        Notes:
+            La correlacion se crea antes de que corran validaciones, handlers o endpoints.
+
+            El header se inyecta aunque la respuesta haya sido generada por un handler de error o por una capa
+            inferior del framework.
+
+            Si una excepcion no fue normalizada aguas abajo, este middleware devuelve
+            el `500 INTERNAL_ERROR` correlacionado como ultima barrera segura.
         """
 
+        #? Evitamos cualquier trama enviada a la aplicacion que no sea HTTP
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        #? Generamos el identificador y lo guardamos en el estado de la solicitud
         request_id = str(uuid.uuid4())
         state = scope.setdefault("state", {})
         state["request_id"] = request_id
 
         async def send_with_correlation(message: Message) -> None:
+            """
+            Funcion interna orientada a la asociacion del header en la solicitud HTTP que se recepto, y que genera
+            una cola send asincrona para mantener el modelo ASGI mediante await send(message)
+            """
             if message["type"] == "http.response.start":
+                #? Evaluamos la lista de headers, si no esta el header de CORRELATION ID entonces colocamos el header
+                #? dentro
                 headers = list(message.get("headers", []))
                 if not any(
                     header_name.lower() == _CORRELATION_ID_HEADER_LOWER
                     for header_name, _ in headers
                 ):
                     headers.append((_CORRELATION_ID_HEADER_LOWER, request_id.encode("ascii")))
+                #? Estructuramos el mensaje con el header incluido
                 message = {**message, "headers": headers}
             await send(message)
 
         try:
+            #? Enviamos la informacion del mensaje modificado hacia el Middleware de Request Size enviando el mensaje
+            # en la cola asincrona de send
             await self.app(scope, receive, send_with_correlation)
         except Exception:
             _record_internal_error(scope)
@@ -132,18 +150,19 @@ class CorrelationIdMiddleware:
 
 
 def _service_name_from_scope(scope: Scope) -> str | None:
-    """Deriva el nombre del servicio desde el estado compartido ASGI.
+    """
+    Deriva el nombre del servicio desde el estado compartido ASGI.
 
     Pasos:
     - Busca la aplicacion FastAPI en el alcance actual.
     - Lee los servicios construidos durante el lifespan.
     - Devuelve el nombre configurado cuando esta disponible.
 
-    Argumentos:
-    - scope: alcance ASGI actual.
+    Args:
+        scope: alcance ASGI actual.
 
-    Retorna:
-    - str | None: nombre del servicio o `None`.
+    Returns:
+        str | None: nombre del servicio o `None`.
     """
 
     app = scope.get("app")

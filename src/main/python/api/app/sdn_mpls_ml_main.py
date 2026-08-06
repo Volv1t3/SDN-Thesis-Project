@@ -36,13 +36,13 @@ from starlette.status import (
 )
 
 #! Imports de la aplicacion
-from app.api.health import router as health_router
-from app.api.inference import router as inference_router
-from app.config import DEFAULT_APP_NAME, DEFAULT_APP_VERSION, get_raw_settings, get_safe_log_level
-from app.dependencies import build_services
-from app.observability.identity import initialize_process_identity
-from app.observability.classification_metrics import record_request_error
-from app.observability.metrics_route import router as metrics_router
+from app.api.sdn_mpls_ml_health_route import router as health_router
+from app.api.sdn_mpls_ml_inference_route import router as inference_router
+from app.sdn_mpls_ml_config import DEFAULT_APP_NAME, DEFAULT_APP_VERSION, get_raw_settings, get_safe_log_level
+from app.sdn_mpls_ml_dependencies import build_services
+from app.observability.sdn_mpls_ml_identity import initialize_process_identity
+from app.observability.sdn_mpls_ml_classification_metrics import record_request_error
+from app.api.sdn_mpls_ml_metrics_route import router as metrics_router
 from app.sdn_mpls_ml_exceptions import (
     AppError,
     InferenceCapacityExceededError,
@@ -103,13 +103,22 @@ async def lifespan(app: FastAPI):
     """
 
     raw_settings = get_raw_settings()
+
+    #? Configuracion inicial de la identidad del servicio, permitiendo configurar para esta instancia de la API (por cada worker de uvicorn)
+    #? una identidad unica referenciable en las metricas de Prometheus y logs
     identity = initialize_process_identity(
-        service=raw_settings.app_name or DEFAULT_APP_NAME,
-        configured_instance_id=raw_settings.instance_id,
+        service=raw_settings.app_name or DEFAULT_APP_NAME, #? Enviamos el nombre de la aplicacion como servicie
+        configured_instance_id=raw_settings.instance_id, #? Identificador de la instancia que se deriva de HOSTNAME si no se provee
     )
+
+    #? Guardamos la identidad generada para metricas, observabilidad y logs
     app.state.process_identity = identity
+
+    #? Configuramos logging con el nivel seguro derivado de la configuracion
     configure_logging(get_safe_log_level(raw_settings.log_level), raw_settings)
     app.state.services = build_services(raw_settings=raw_settings, process_identity=identity)
+
+    #? Notificamos de configuracion final de metricas de prometeus
     if app.state.services.settings is not None:
         logger.info(
             (

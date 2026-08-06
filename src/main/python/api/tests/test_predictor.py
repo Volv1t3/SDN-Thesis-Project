@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 
 from app.sdn_mpls_ml_exceptions import ModelOutputInvalidError
-from app.model.metadata import ModelMetadata
-from app.model.predictor import Predictor
+from app.model.sdn_mpls_ml_metadata import ModelMetadata
+from app.model.sdn_mpls_ml_model_predictor import Predictor
 
 
 class BoosterStub:

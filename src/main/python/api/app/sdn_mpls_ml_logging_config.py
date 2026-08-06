@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from app.config import RawSettings
-from app.observability.identity import get_process_identity
+from app.sdn_mpls_ml_config import RawSettings
+from app.observability.sdn_mpls_ml_identity import get_process_identity
 
 
 class ProcessIdentityFilter(logging.Filter):

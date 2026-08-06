@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.model.pool import ClassifierPool
+from app.model.sdn_mpls_ml_classifier_pool import ClassifierPool
 from app.sdn_mpls_ml_exceptions import InferenceCapacityExceededError
 
 
