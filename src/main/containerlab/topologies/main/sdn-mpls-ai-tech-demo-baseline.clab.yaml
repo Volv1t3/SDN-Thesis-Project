@@ -150,8 +150,8 @@ topology:
         APP_VERSION: 0.1.0
         CLASSIFICATION_MODE: MODEL 
         CONFIG_DIR: configs
-        DETERMINISTIC_RULE_FILENAME: deterministic_rules.json 
-        POLICY_FILENAME: default_policy.json
+        DETERMINISTIC_RULE_FILENAME: sdn_mpls_ml_traffic_class_deterministic_rules.json
+        POLICY_FILENAME: sdn_mpls_ml_traffic_class_to_policy_mapping.json
         ENABLE_POLICY_MAPPING: true
         HOST: 0.0.0.0
         PORT: 33761
@@ -165,6 +165,40 @@ topology:
         MODEL_METADATA_FILENAME: sdn_mpls_ml_model_meta.json
         PROBABILITY_TOLERANCE: 0.001
         REQUEST_TIMEOUT_SECONDS: 10
+
+    sma-obs-grafana-lima:
+      kind: linux
+      image: docker.io/grafana/grafana:13.1.2-ubuntu
+      image-pull-policy: Always
+      mgmt-ipv4: 172.21.121.201
+      ports:
+        - 34761:34761
+      env:
+        GF_SERVER_HTTP_PORT: 34761
+        GF_SECURITY_ADMIN_USER: clab
+        GF_SECURITY_ADMIN_PASSWORD: clab@123
+        GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
+      binds:
+        - grafana-data:/var/lib/grafana
+        - ../../../configurations/tech-demonstrator/services/provisioning:/etc/grafana/provisioning:ro
+
+    sma-obs-prometheus-mike:
+      kind: linux
+      image: docker.io/prom/prometheus:v3.13.2
+      image-pull-policy: Always
+      mgmt-ipv4: 172.21.121.202
+      ports:
+        - 34762:33762
+      cmd: >
+        --config.file=/etc/prometheus/prometheus.yml
+        --storage.tsdb.path=/prometheus
+        --web.console.libraries=/usr/share/prometheus/console_libraries
+        --web.console.templates=/usr/share/prometheus/consoles
+        --storage.tsdb.retention.time=5d
+        --web.listen-address=172.21.121.202:33762
+      binds:
+        - ../../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        - prometheus-data:/prometheus
 
 
   links:

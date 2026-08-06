@@ -16,14 +16,17 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import replace
 from collections.abc import Callable
 from typing import Any
 
 from fastapi.testclient import TestClient
 
-from app.exceptions import ModelInferenceFailedError, ModelNotReadyError, ModelOutputInvalidError
-from app.main import app
+from app.api import inference as inference_api
+from app.sdn_mpls_ml_exceptions import ModelInferenceFailedError, ModelNotReadyError, ModelOutputInvalidError
+from app.model.predictor import PredictionResult
+from app.sdn_mpls_ml_main import app
 
 
 CaseExecutor = Callable[[TestClient], Any]
@@ -258,6 +261,61 @@ def _run_case_with_caplog(
     return result
 
 
+@contextmanager
+def _override_classifier_pool_predict(services, predict_callable):
+    """Sustituye temporalmente el clasificador entregado por el pool."""
+
+    class StubClassifier:
+        def predict(self, packet_features: dict[str, int]) -> PredictionResult:
+            return predict_callable(packet_features)
+
+    original_acquire = services.classifier_pool.acquire
+
+    @asynccontextmanager
+    async def acquire(_timeout_seconds: float):
+        yield StubClassifier()
+
+    services.classifier_pool.acquire = acquire
+    try:
+        yield
+    finally:
+        services.classifier_pool.acquire = original_acquire
+
+
+def _raise_model_inference_failed(_packet_features: dict[str, int]) -> PredictionResult:
+    """Simula un fallo controlado de inferencia."""
+
+    raise ModelInferenceFailedError()
+
+
+def _raise_model_output_invalid(_packet_features: dict[str, int]) -> PredictionResult:
+    """Simula un fallo controlado del contrato de salida."""
+
+    raise ModelOutputInvalidError()
+
+
+def _raise_runtime_error(_packet_features: dict[str, int]) -> PredictionResult:
+    """Simula una excepcion no controlada durante la prediccion."""
+
+    raise RuntimeError("controlled-unhandled-exception")
+
+
+@contextmanager
+def _override_run_sync(raised_exception: Exception):
+    """Sustituye temporalmente `to_thread.run_sync` por un fallo controlado."""
+
+    original_run_sync = inference_api.to_thread.run_sync
+
+    async def fake_run_sync(*_args, **_kwargs):
+        raise raised_exception
+
+    inference_api.to_thread.run_sync = fake_run_sync
+    try:
+        yield
+    finally:
+        inference_api.to_thread.run_sync = original_run_sync
+
+
 def run_error_event_matrix(
     *,
     log_handler: InMemoryLogHandler,
@@ -427,33 +485,31 @@ def run_error_event_matrix(
     finally:
         services.policy_mapper.resolve = original_resolve
 
-    original_predict = services.classifier.predict
     try:
-        services.classifier.predict = lambda *_args, **_kwargs: (_ for _ in ()).throw(ModelInferenceFailedError())
-        results.append(
-            _run_case_with_caplog(
-                log_handler=log_handler,
-                client=client,
-                case_name="model_inference_failure",
-                executor=lambda active_client: active_client.post("/api/v1/classify", json=base_payload),
+        with _override_run_sync(ModelInferenceFailedError()):
+            results.append(
+                _run_case_with_caplog(
+                    log_handler=log_handler,
+                    client=client,
+                    case_name="model_inference_failure",
+                    executor=lambda active_client: active_client.post("/api/v1/classify", json=base_payload),
+                )
             )
-        )
     finally:
-        services.classifier.predict = original_predict
+        pass
 
-    original_predict = services.classifier.predict
     try:
-        services.classifier.predict = lambda *_args, **_kwargs: (_ for _ in ()).throw(ModelOutputInvalidError())
-        results.append(
-            _run_case_with_caplog(
-                log_handler=log_handler,
-                client=client,
-                case_name="invalid_model_output",
-                executor=lambda active_client: active_client.post("/api/v1/classify", json=base_payload),
+        with _override_run_sync(ModelOutputInvalidError()):
+            results.append(
+                _run_case_with_caplog(
+                    log_handler=log_handler,
+                    client=client,
+                    case_name="invalid_model_output",
+                    executor=lambda active_client: active_client.post("/api/v1/classify", json=base_payload),
+                )
             )
-        )
     finally:
-        services.classifier.predict = original_predict
+        pass
 
     original_min_policy_confidence = services.policy_mapper._min_policy_confidence
     try:
@@ -478,21 +534,18 @@ def run_error_event_matrix(
         )
     )
 
-    original_predict = services.classifier.predict
     try:
-        services.classifier.predict = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            RuntimeError("controlled-unhandled-exception")
-        )
-        results.append(
-            _run_case_with_caplog(
-                log_handler=log_handler,
-                client=non_raising_client,
-                case_name="unhandled_internal_exception",
-                executor=lambda active_client: active_client.post("/api/v1/classify", json=base_payload),
+        with _override_run_sync(RuntimeError("controlled-unhandled-exception")):
+            results.append(
+                _run_case_with_caplog(
+                    log_handler=log_handler,
+                    client=non_raising_client,
+                    case_name="unhandled_internal_exception",
+                    executor=lambda active_client: active_client.post("/api/v1/classify", json=base_payload),
+                )
             )
-        )
     finally:
-        services.classifier.predict = original_predict
+        pass
 
     return results
 
@@ -698,3 +751,31 @@ def test_model_not_ready_error_defaults():
     assert detail.failed_stage == "service_readiness"
     assert detail.failed_check == "service_ready"
     assert detail.retryable is True
+
+
+def test_classify_returns_classifier_to_pool_after_unexpected_prediction_failure(client, monkeypatch):
+    """Una excepcion no tipada tampoco deja capacidad del pool retenida."""
+
+    async def raise_from_worker(*_args, **_kwargs):
+        raise RuntimeError("controlled-unhandled-exception")
+
+    monkeypatch.setattr(inference_api.to_thread, "run_sync", raise_from_worker)
+    with TestClient(app, raise_server_exceptions=False) as non_raising_client:
+        pool = non_raising_client.app.state.services.classifier_pool
+        assert pool is not None
+        response = non_raising_client.post(
+            "/api/v1/classify",
+            json={
+                "packet_features": {
+                    "eth_type": 2048,
+                    "ip_proto": 6,
+                    "src_port": 51514,
+                    "dst_port": 443,
+                }
+            },
+        )
+
+        assert response.status_code == 500
+        assert response.json()["error"]["code"] == "INTERNAL_ERROR"
+        assert pool.available == pool.capacity
+        assert pool.borrowed == 0

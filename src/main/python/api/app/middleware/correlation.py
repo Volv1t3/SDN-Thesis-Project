@@ -19,8 +19,9 @@ import uuid
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.http_responses import build_error_response
-from app.messages import Messages
+from app.sdn_mpls_ml_http_responses import build_error_response
+from app.sdn_mpls_ml_messages import Messages
+from app.observability.classification_metrics import record_request_error
 
 
 CORRELATION_ID_HEADER = "X-Request-ID"
@@ -46,7 +47,7 @@ class CorrelationIdMiddleware:
         Notas:
         - La misma correlacion debe aparecer en headers, logs y cuerpos que expongan `request_id`.
         - Este middleware debe envolver al resto de middlewares de aplicacion.
-        """
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         """Guarda la aplicacion ASGI envuelta.
@@ -92,7 +93,10 @@ class CorrelationIdMiddleware:
         async def send_with_correlation(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
-                if not any(header_name.lower() == _CORRELATION_ID_HEADER_LOWER for header_name, _ in headers):
+                if not any(
+                    header_name.lower() == _CORRELATION_ID_HEADER_LOWER
+                    for header_name, _ in headers
+                ):
                     headers.append((_CORRELATION_ID_HEADER_LOWER, request_id.encode("ascii")))
                 message = {**message, "headers": headers}
             await send(message)
@@ -100,6 +104,7 @@ class CorrelationIdMiddleware:
         try:
             await self.app(scope, receive, send_with_correlation)
         except Exception:
+            _record_internal_error(scope)
             logger.error(
                 Messages.UNHANDLED_EXCEPTION,
                 extra={
@@ -151,3 +156,16 @@ def _service_name_from_scope(scope: Scope) -> str | None:
     if settings is not None:
         return settings.app_name
     return services.raw_settings.app_name
+
+
+def _record_internal_error(scope: Scope) -> None:
+    """Cuenta solo los fallos que escaparon los handlers de FastAPI."""
+
+    app = scope.get("app")
+    services = getattr(getattr(app, "state", None), "services", None)
+    settings = getattr(services, "settings", None)
+    record_request_error(
+        error_code=INTERNAL_ERROR_CODE,
+        component=INTERNAL_ERROR_COMPONENT,
+        enabled=settings is not None and settings.enable_prometheus_metrics,
+    )

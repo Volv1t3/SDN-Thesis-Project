@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: 'SDN-MPLS-ML Tech Demonstrator Dashboards'
+    orgId: 1
+    folder: 'SDN-MPLS-ML Tech Demonstrator'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

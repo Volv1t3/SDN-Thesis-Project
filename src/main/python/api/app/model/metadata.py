@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 EXPECTED_FEATURE_ORDER = ["eth_type", "ip_proto", "src_port", "dst_port"]
 EXPECTED_MODEL_NAME = "sdnflow_xgboost_first_packet"
 EXPECTED_CLASS_TO_ID = {
@@ -143,7 +143,7 @@ def load_metadata(path: str | Path) -> ModelMetadata:
     except json.JSONDecodeError as exc:
         raise ValueError(Messages.METADATA_FILE_INVALID_JSON) from exc
     except OSError as exc:
-        raise ValueError(Messages.metadata_file_read_failed(str(path))) from exc
+        raise ValueError(Messages.metadata_file_read_failed(path.name)) from exc
 
     try:
         return ModelMetadata.model_validate(payload)

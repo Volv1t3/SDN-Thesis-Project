@@ -8,7 +8,7 @@ Pasos:
 from __future__ import annotations
 
 from app.config import MODEL_SUPPORTED_ETHERTYPES, ClassificationMode
-from app.exceptions import ModelEtherTypeUnsupportedError
+from app.sdn_mpls_ml_exceptions import ModelEtherTypeUnsupportedError
 
 
 def validate_packet_for_classification_mode(

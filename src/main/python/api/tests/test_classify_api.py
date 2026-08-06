@@ -6,7 +6,20 @@ Pasos:
 - Confirma ausencia de endpoints no soportados.
 """
 
+import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, Lock
 from uuid import UUID
+
+from anyio import CapacityLimiter
+import pytest
+
+from app.api import inference as inference_api
+from app.model.pool import ClassifierPool
+from app.model.predictor import PredictionResult
+from app.sdn_mpls_ml_exceptions import ModelInferenceFailedError, ModelOutputInvalidError
+from app.sdn_mpls_ml_main import app
 
 
 def test_model_endpoint(client):
@@ -40,6 +53,69 @@ def test_classify_valid_request(client):
     assert "processing_time_ms" in body
     assert "orchestration" not in body
     assert set(body["probabilities"]) == {"DNS", "FTP", "HTTP", "ICMP", "NTP", "SSH", "STREAMING"}
+
+
+def test_classify_returns_classifier_to_pool_after_success(client):
+    """La instancia prestada vuelve al pool al terminar una clasificacion exitosa."""
+
+    pool = client.app.state.services.classifier_pool
+    assert pool is not None
+
+    response = client.post(
+        "/api/v1/classify",
+        json={
+            "packet_features": {
+                "eth_type": 2048,
+                "ip_proto": 6,
+                "src_port": 51514,
+                "dst_port": 443,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert pool.available == pool.capacity
+    assert pool.borrowed == 0
+
+
+@pytest.mark.parametrize(
+    ("raised_error", "expected_code"),
+    [
+        (ModelInferenceFailedError(), "MODEL_INFERENCE_FAILED"),
+        (ModelOutputInvalidError(), "MODEL_OUTPUT_INVALID"),
+    ],
+)
+def test_classify_returns_classifier_to_pool_after_typed_prediction_failure(
+    client,
+    monkeypatch,
+    raised_error,
+    expected_code,
+):
+    """Los errores de inferencia tipados no dejan una instancia prestada."""
+
+    pool = client.app.state.services.classifier_pool
+    assert pool is not None
+
+    async def raise_from_worker(*_args, **_kwargs):
+        raise raised_error
+
+    monkeypatch.setattr(inference_api.to_thread, "run_sync", raise_from_worker)
+    response = client.post(
+        "/api/v1/classify",
+        json={
+            "packet_features": {
+                "eth_type": 2048,
+                "ip_proto": 6,
+                "src_port": 51514,
+                "dst_port": 443,
+            }
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == expected_code
+    assert pool.available == pool.capacity
+    assert pool.borrowed == 0
 
 
 def test_classify_not_ready_returns_structured_503(client):
@@ -173,6 +249,151 @@ def test_openapi_generated(client):
     response = client.get("/openapi.json")
     assert response.status_code == 200
     assert "paths" in response.json()
+
+
+def test_classify_sixth_request_waits_until_pool_capacity_is_released(client):
+    """Confirma que una sexta solicitud espere hasta liberar una instancia."""
+
+    services = client.app.state.services
+
+    class BlockingClassifier:
+        def __init__(self, ready_event: Event, release_event: Event, counter: dict[str, int], lock: Lock) -> None:
+            self._ready_event = ready_event
+            self._release_event = release_event
+            self._counter = counter
+            self._lock = lock
+
+        def predict(self, _packet_features: dict[str, int]) -> PredictionResult:
+            with self._lock:
+                self._counter["value"] += 1
+                if self._counter["value"] == 5:
+                    self._ready_event.set()
+            self._release_event.wait(timeout=2.0)
+            return PredictionResult(
+                class_id=6,
+                class_name="STREAMING",
+                confidence=1.0,
+                probabilities={
+                    "DNS": 0.0,
+                    "FTP": 0.0,
+                    "HTTP": 0.0,
+                    "ICMP": 0.0,
+                    "NTP": 0.0,
+                    "SSH": 0.0,
+                    "STREAMING": 1.0,
+                },
+            )
+
+    ready_event = Event()
+    release_event = Event()
+    counter = {"value": 0}
+    lock = Lock()
+    services.classifier_pool = ClassifierPool(
+        [BlockingClassifier(ready_event, release_event, counter, lock) for _ in range(5)]
+    )
+    services.inference_thread_limiter = CapacityLimiter(5)
+    services.settings.request_timeout_seconds = 1
+    payload = {
+        "packet_features": {
+            "eth_type": 2048,
+            "ip_proto": 6,
+            "src_port": 51514,
+            "dst_port": 443,
+        }
+    }
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        initial_futures = [executor.submit(client.post, "/api/v1/classify", json=payload) for _ in range(5)]
+        assert ready_event.wait(timeout=2.0)
+        sixth_future = executor.submit(client.post, "/api/v1/classify", json=payload)
+        time.sleep(0.05)
+        assert sixth_future.done() is False
+        release_event.set()
+        assert sixth_future.result(timeout=2.0).status_code == 200
+        for future in initial_futures:
+            assert future.result(timeout=2.0).status_code == 200
+
+
+def test_classify_returns_503_when_pool_capacity_timeout_is_exceeded(client, caplog):
+    """Verifica la respuesta estructurada cuando el pool no entrega capacidad a tiempo."""
+
+    services = client.app.state.services
+
+    class BlockingClassifier:
+        def __init__(self, ready_event: Event, release_event: Event, counter: dict[str, int], lock: Lock) -> None:
+            self._ready_event = ready_event
+            self._release_event = release_event
+            self._counter = counter
+            self._lock = lock
+
+        def predict(self, _packet_features: dict[str, int]) -> PredictionResult:
+            with self._lock:
+                self._counter["value"] += 1
+                if self._counter["value"] == 5:
+                    self._ready_event.set()
+            self._release_event.wait(timeout=2.0)
+            return PredictionResult(
+                class_id=6,
+                class_name="STREAMING",
+                confidence=1.0,
+                probabilities={
+                    "DNS": 0.0,
+                    "FTP": 0.0,
+                    "HTTP": 0.0,
+                    "ICMP": 0.0,
+                    "NTP": 0.0,
+                    "SSH": 0.0,
+                    "STREAMING": 1.0,
+                },
+            )
+
+    ready_event = Event()
+    release_event = Event()
+    counter = {"value": 0}
+    lock = Lock()
+    services.classifier_pool = ClassifierPool(
+        [BlockingClassifier(ready_event, release_event, counter, lock) for _ in range(5)]
+    )
+    services.inference_thread_limiter = CapacityLimiter(5)
+    services.settings.request_timeout_seconds = 0.05
+    payload = {
+        "packet_features": {
+            "eth_type": 2048,
+            "ip_proto": 6,
+            "src_port": 51514,
+            "dst_port": 443,
+        }
+    }
+
+    caplog.set_level(logging.WARNING, logger="app.sdn_mpls_ml_main")
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        initial_futures = [executor.submit(client.post, "/api/v1/classify", json=payload) for _ in range(5)]
+        assert ready_event.wait(timeout=2.0)
+        response = executor.submit(client.post, "/api/v1/classify", json=payload).result(timeout=2.0)
+        release_event.set()
+        for future in initial_futures:
+            assert future.result(timeout=2.0).status_code == 200
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["request_id"] == response.headers["X-Request-ID"]
+    assert body["error"]["code"] == "INFERENCE_CAPACITY_EXCEEDED"
+    assert body["error"]["component"] == "inference_capacity"
+    assert body["error"]["failed_stage"] == "classifier_acquisition"
+    assert body["error"]["failed_check"] == "classifier_available_before_timeout"
+    assert body["error"]["retryable"] is True
+    capacity_events = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "inference_capacity_exceeded"
+    ]
+    assert len(capacity_events) == 1
+    capacity_event = capacity_events[0]
+    assert capacity_event.request_id == response.headers["X-Request-ID"]
+    assert capacity_event.error_code == "INFERENCE_CAPACITY_EXCEEDED"
+    assert capacity_event.pool_capacity == 5
+    assert capacity_event.pool_available == 0
+    assert capacity_event.pool_borrowed == 5
 
 
 def test_provisioning_endpoint_is_not_registered(client):

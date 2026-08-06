@@ -1,4 +1,10 @@
-"""Construye y valida los servicios compartidos del proceso API.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
+
+Archivo que define la forma en que se define la construccion de todos los servicios adicionales y la validacion de los
+componentes del sistema, incluyendo la carga y validacion de configuraciones, modelos, y la inferencia temprana de prueba
+para definir si la aplicacion esta lista o no
 
 Pasos:
 - Crea el estado inicial de readiness antes de cualquier carga pesada.
@@ -7,20 +13,22 @@ Pasos:
 """
 
 from __future__ import annotations
-
 import json
 import logging
 import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+from anyio import CapacityLimiter
 import numpy as np
 from pydantic import ValidationError
 
+
+#? Importes de la API
 from app.config import (
     DEFAULT_MAX_REQUEST_BODY_BYTES,
+    MAX_CLASSIFIER_POOL_SIZE,
     MODEL_SUPPORTED_ETHERTYPES,
     SUPPORTED_LOG_LEVELS,
     ClassificationMode,
@@ -28,21 +36,32 @@ from app.config import (
     ValidatedSettings,
     get_raw_settings,
 )
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 from app.model.deterministic import DeterministicClassifier, DeterministicRuleFile, load_deterministic_rules
 from app.model.metadata import EXPECTED_CLASS_TO_ID, EXPECTED_FEATURE_ORDER, ModelMetadata
+from app.model.pool import ClassifierPool
 from app.model.predictor import PredictionResult, Predictor
+from app.model.protocols import TrafficClassifier
+from app.observability.identity import ProcessIdentity
+from app.observability.metrics import (
+    STARTUP_FAILURES_TOTAL,
+    STARTUP_VALIDATION_DURATION_SECONDS,
+    BaselineMetrics,
+)
 from app.policy.mapper import PolicyMapper, load_policy_file
 from app.policy.models import PolicyFile, TrafficPolicy
-from app.readiness import ReadinessState, StartupValidationError
+from app.sdn_mpls_ml_readiness import ReadinessState, StartupValidationError
 
 
+#? Codigos especificos de los pasos que se realizan en la validacion local, usados para referenciar errores o trabas
+#? en logs o en respuestas HTTP
 STAGE_CONFIGURATION_PREFLIGHT = "configuration_preflight"
 STAGE_ARTIFACT_CHECKS = "artifact_checks"
 STAGE_METADATA_POLICY_SCHEMA_VALIDATION = "metadata_and_policy_schema_validation"
 STAGE_RUNTIME_MODEL_COMPATIBILITY = "runtime_model_compatibility"
 STAGE_COMPLETE_POLICY_MAP_VALIDATION = "complete_policy_map_validation"
 
+#? Paquete de prueba de tipo HTTP
 SYNTHETIC_PACKET_FEATURES = {
     "eth_type": 2048,
     "ip_proto": 6,
@@ -50,12 +69,15 @@ SYNTHETIC_PACKET_FEATURES = {
     "dst_port": 443,
 }
 
+#? Codigos de errores de carga de modelo que indican problemas de compatibilidad o corrupcion de artefactos
 MODEL_LOAD_FAILURE_CODES = {
     "MODEL_LOAD_FAILED",
     "MODEL_FEATURE_COUNT_MISMATCH",
     "MODEL_OBJECTIVE_INCOMPATIBLE",
     "MODEL_CLASS_COUNT_MISMATCH",
 }
+
+#? Codigos de errores durante la ejecucion de la clasificacion de prueba
 SYNTHETIC_FAILURE_CODES = {
     "MODEL_SELF_TEST_FAILED",
     "MODEL_OUTPUT_INVALID",
@@ -65,13 +87,10 @@ SYNTHETIC_FAILURE_CODES = {
 
 @dataclass(slots=True)
 class ArtifactPaths:
-    """Agrupa las rutas validadas de artefactos usadas en startup.
-
-    Pasos:
-    - Conserva rutas de modelo y metadata cuando aplica.
-    - Conserva rutas de politica y reglas deterministicas.
     """
-
+    Agrupa las rutas validadas de artefactos usadas en startup. Este es otro record que se usa para agrupar todos los datos
+    en un objeto que puede ser usado rapidamente
+    """
     model_path: Path | None
     metadata_path: Path | None
     policy_path: Path
@@ -80,21 +99,19 @@ class ArtifactPaths:
 
 @dataclass(slots=True)
 class AppServices:
-    """Contiene los servicios y caches compartidos por la aplicacion.
-
-    Pasos:
-    - Guarda settings crudos y settings validados.
-    - Expone readiness, clasificador y mapper de politicas.
-    - Publica el limite de tamano de solicitud ya resuelto.
+    """
+    Contiene los servicios y caches compartidos por la aplicacion.
     """
 
     raw_settings: RawSettings
     settings: ValidatedSettings | None
     readiness: ReadinessState
-    classifier: Any | None
+    classifier_pool: ClassifierPool[TrafficClassifier] | None
+    inference_thread_limiter: CapacityLimiter | None
     model_metadata: ModelMetadata | None
     policy_mapper: PolicyMapper | None
     request_size_limit_bytes: int
+    baseline_metrics: BaselineMetrics | None
 
 
 def create_initial_services(raw_settings: RawSettings | None = None) -> AppServices:
@@ -117,14 +134,19 @@ def create_initial_services(raw_settings: RawSettings | None = None) -> AppServi
         raw_settings=raw,
         settings=None,
         readiness=ReadinessState.initializing(_classification_mode_response_value(raw.classification_mode)),
-        classifier=None,
+        classifier_pool=None,
+        inference_thread_limiter=None,
         model_metadata=None,
         policy_mapper=None,
         request_size_limit_bytes=DEFAULT_MAX_REQUEST_BODY_BYTES,
+        baseline_metrics=_create_baseline_metrics(raw),
     )
 
 
-def build_services(raw_settings: RawSettings | None = None) -> AppServices:
+def build_services(
+    raw_settings: RawSettings | None = None,
+    process_identity: ProcessIdentity | None = None,
+) -> AppServices:
     """Construye los servicios completos y ejecuta la inicializacion.
 
     Pasos:
@@ -140,11 +162,11 @@ def build_services(raw_settings: RawSettings | None = None) -> AppServices:
     """
 
     services = create_initial_services(raw_settings)
-    initialize_services(services)
+    initialize_services(services, process_identity=process_identity)
     return services
 
 
-def initialize_services(services: AppServices) -> None:
+def initialize_services(services: AppServices, process_identity: ProcessIdentity | None = None) -> None:
     """Ejecuta la cadena completa de validacion de startup.
 
     Pasos:
@@ -158,6 +180,10 @@ def initialize_services(services: AppServices) -> None:
 
     logger = logging.getLogger(__name__)
     started_at = time.perf_counter()
+    if services.baseline_metrics is not None:
+        if process_identity is not None:
+            services.baseline_metrics.initialize_worker(process_identity)
+        services.baseline_metrics.set_readiness(False)
     logger.info(
         Messages.STARTUP_VALIDATION_STARTED,
         extra={
@@ -170,6 +196,10 @@ def initialize_services(services: AppServices) -> None:
     try:
         # Etapa 1: validar configuracion antes de tocar disco o runtime.
         settings = _validate_settings(services.raw_settings)
+        if not settings.enable_prometheus_metrics:
+            services.baseline_metrics = None
+        elif services.baseline_metrics is not None:
+            services.baseline_metrics.classification_mode = settings.classification_mode.response_value
         services.settings = settings
         services.request_size_limit_bytes = settings.max_request_body_bytes
         services.readiness.classification_mode = settings.classification_mode.response_value
@@ -206,8 +236,10 @@ def initialize_services(services: AppServices) -> None:
             },
         )
 
-        # Etapas 4 y 5: construir clasificador, ejecutar auto-prueba y validar mapa total.
-        services.classifier = _build_classifier(settings, metadata, deterministic_rules, services.readiness)
+        # Etapas 4 y 5: construir pool de clasificadores, ejecutar auto-pruebas y validar mapa total.
+        classifier_pool = _build_classifier_pool(
+            settings, metadata, deterministic_rules, services.readiness, services.baseline_metrics
+        )
         _validate_complete_policy_map(
             policy_file=policy_file,
             expected_classes=list(EXPECTED_CLASS_TO_ID),
@@ -228,6 +260,8 @@ def initialize_services(services: AppServices) -> None:
                 policy_file=policy_file,
                 min_policy_confidence=settings.min_policy_confidence,
             )
+        services.classifier_pool = classifier_pool
+        services.inference_thread_limiter = CapacityLimiter(settings.classifier_pool_size)
 
         services.readiness.mark_ready(
             model_name=metadata.model_name if metadata is not None else None,
@@ -235,6 +269,18 @@ def initialize_services(services: AppServices) -> None:
             feature_count=len(metadata.feature_order) if metadata is not None else len(EXPECTED_FEATURE_ORDER),
             class_count=len(metadata.class_to_id) if metadata is not None else len(EXPECTED_CLASS_TO_ID),
         )
+        if services.baseline_metrics is not None:
+            duration_seconds = time.perf_counter() - started_at
+            STARTUP_VALIDATION_DURATION_SECONDS.labels(
+                classification_mode=settings.classification_mode.response_value,
+                outcome="ready",
+            ).observe(duration_seconds)
+            services.baseline_metrics.set_readiness(True)
+            services.baseline_metrics.set_pool_state(
+                capacity=classifier_pool.capacity,
+                available=classifier_pool.available,
+                borrowed=classifier_pool.borrowed,
+            )
         logger.info(
             Messages.SERVICE_READY,
             extra={
@@ -242,11 +288,22 @@ def initialize_services(services: AppServices) -> None:
                 "event": "service_ready",
                 "classification_mode": settings.classification_mode.response_value,
                 "model_name": metadata.model_name if metadata is not None else None,
+                "pool_size": settings.classifier_pool_size,
                 "validation_duration_ms": round((time.perf_counter() - started_at) * 1000, 3),
             },
         )
     except StartupValidationError as exc:
         services.readiness.mark_failed(exc)
+        if services.baseline_metrics is not None:
+            STARTUP_VALIDATION_DURATION_SECONDS.labels(
+                classification_mode=services.readiness.classification_mode,
+                outcome="failed",
+            ).observe(time.perf_counter() - started_at)
+            STARTUP_FAILURES_TOTAL.labels(
+                failed_stage=exc.failed_stage,
+                error_code=exc.code,
+            ).inc()
+            services.baseline_metrics.set_readiness(False)
         service_name = services.settings.app_name if services.settings is not None else services.raw_settings.app_name
         classification_mode = services.readiness.classification_mode
         logger.error(
@@ -348,6 +405,14 @@ def _classification_mode_response_value(raw_value: str) -> str:
         return ClassificationMode(candidate).response_value
     except ValueError:
         return raw_value.strip().lower() or "unknown"
+
+
+def _create_baseline_metrics(raw: RawSettings) -> BaselineMetrics | None:
+    """Crea el recorder temprano para incluir fallos de validacion en startup."""
+
+    if raw.enable_prometheus_metrics.strip().lower() in {"false", "0", "no", "off"}:
+        return None
+    return BaselineMetrics(classification_mode=_classification_mode_response_value(raw.classification_mode))
 
 
 def _startup_error(
@@ -461,6 +526,31 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             failed_check="log_level_supported",
             retryable=False,
         )
+
+    metrics_path = raw.metrics_path.strip()
+    if not metrics_path or not metrics_path.startswith("/"):
+        raise _startup_error(
+            code="CONFIGURATION_INVALID",
+            message=Messages.METRICS_PATH_INVALID,
+            component="application_settings",
+            failed_stage=STAGE_CONFIGURATION_PREFLIGHT,
+            failed_check="metrics_path_absolute",
+            retryable=False,
+        )
+    if "?" in metrics_path or "#" in metrics_path:
+        raise _startup_error(
+            code="CONFIGURATION_INVALID",
+            message=Messages.METRICS_PATH_INVALID,
+            component="application_settings",
+            failed_stage=STAGE_CONFIGURATION_PREFLIGHT,
+            failed_check="metrics_path_format",
+            retryable=False,
+        )
+    enable_prometheus_metrics = _parse_bool(
+        raw.enable_prometheus_metrics,
+        failed_check="enable_prometheus_metrics_boolean",
+        message=Messages.ENABLE_PROMETHEUS_METRICS_BOOLEAN,
+    )
 
     config_dir = raw.config_dir.strip()
     if not config_dir:
@@ -589,6 +679,20 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
         failed_check="enable_policy_mapping_boolean",
         message=Messages.ENABLE_POLICY_MAPPING_BOOLEAN,
     )
+    classifier_pool_size = _parse_int(
+        raw.classifier_pool_size,
+        failed_check="classifier_pool_size_range",
+        message=Messages.CLASSIFIER_POOL_SIZE_RANGE,
+    )
+    if not 1 <= classifier_pool_size <= MAX_CLASSIFIER_POOL_SIZE:
+        raise _startup_error(
+            code="CONFIGURATION_INVALID",
+            message=Messages.CLASSIFIER_POOL_SIZE_RANGE,
+            component="application_settings",
+            failed_stage=STAGE_CONFIGURATION_PREFLIGHT,
+            failed_check="classifier_pool_size_range",
+            retryable=False,
+        )
 
     model_dir = raw.model_dir.strip()
     model_filename = raw.model_filename.strip()
@@ -639,6 +743,9 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
         host=raw.host.strip() or "0.0.0.0",
         port=port,
         log_level=log_level,
+        enable_prometheus_metrics=enable_prometheus_metrics,
+        metrics_path=metrics_path,
+        instance_id=raw.instance_id.strip(),
         model_dir=model_dir,
         config_dir=config_dir,
         model_filename=model_filename,
@@ -646,6 +753,7 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
         policy_filename=policy_filename,
         deterministic_rule_filename=deterministic_rule_filename,
         enable_policy_mapping=enable_policy_mapping,
+        classifier_pool_size=classifier_pool_size,
         request_timeout_seconds=request_timeout_seconds,
         max_request_body_bytes=max_request_body_bytes,
         probability_tolerance=probability_tolerance,
@@ -1007,17 +1115,18 @@ def _load_deterministic_rules_for_startup(path: Path | None) -> DeterministicRul
         ) from exc
 
 
-def _build_classifier(
+def _build_classifier_pool(
     settings: ValidatedSettings,
     metadata: ModelMetadata | None,
     deterministic_rules: DeterministicRuleFile | None,
     readiness: ReadinessState,
-) -> Any:
-    """Construye el clasificador segun el modo configurado.
+    observer: BaselineMetrics | None = None,
+) -> ClassifierPool[TrafficClassifier]:
+    """Construye el pool de clasificadores segun el modo configurado.
 
     Pasos:
-    - En modo deterministico, crea el simulador y ejecuta una auto-prueba.
-    - En modo modelo, carga el booster real y ejecuta inferencia sintetica.
+    - Inicializa todas las instancias en memoria local antes de publicarlas.
+    - Ejecuta una auto-prueba sintetica por instancia.
     - Marca readiness parcial cuando la etapa termina correctamente.
 
     Argumentos:
@@ -1027,14 +1136,75 @@ def _build_classifier(
     - readiness: estado mutable para registrar progreso.
 
     Retorna:
-    - Any: clasificador listo para la ruta `/api/v1/classify`.
+    - ClassifierPool[TrafficClassifier]: pool listo para la ruta `/api/v1/classify`.
     """
 
+    logger = logging.getLogger(__name__)
+    logger.info(
+        Messages.CLASSIFIER_POOL_INITIALIZATION_STARTED,
+        extra={
+            "service": settings.app_name,
+            "event": "classifier_pool_initialization_started",
+            "classification_mode": settings.classification_mode.response_value,
+            "pool_size": settings.classifier_pool_size,
+        },
+    )
+    instances: list[TrafficClassifier] = []
+    try:
+        for instance_index in range(settings.classifier_pool_size):
+            classifier = _build_single_classifier(settings, metadata, deterministic_rules, readiness, instance_index)
+            _run_synthetic_self_test(classifier.predict(SYNTHETIC_PACKET_FEATURES))
+            instances.append(classifier)
+            logger.info(
+                Messages.CLASSIFIER_POOL_INSTANCE_READY,
+                extra={
+                    "service": settings.app_name,
+                    "event": "classifier_pool_instance_ready",
+                    "classification_mode": settings.classification_mode.response_value,
+                    "instance_index": instance_index,
+                    "pool_size": settings.classifier_pool_size,
+                    "model_name": metadata.model_name if metadata is not None else None,
+                },
+            )
+    except StartupValidationError:
+        logger.error(
+            Messages.CLASSIFIER_POOL_INITIALIZATION_FAILED,
+            extra={
+                "service": settings.app_name,
+                "event": "classifier_pool_initialization_failed",
+                "classification_mode": settings.classification_mode.response_value,
+                "pool_size": settings.classifier_pool_size,
+                "model_name": metadata.model_name if metadata is not None else None,
+            },
+        )
+        raise
+
+    readiness.synthetic_inference_passed = True
+    logger.info(
+        Messages.CLASSIFIER_POOL_READY,
+        extra={
+            "service": settings.app_name,
+            "event": "classifier_pool_ready",
+            "classification_mode": settings.classification_mode.response_value,
+            "pool_size": settings.classifier_pool_size,
+            "model_name": metadata.model_name if metadata is not None else None,
+        },
+    )
+    return ClassifierPool(instances, observer=observer)
+
+
+def _build_single_classifier(
+    settings: ValidatedSettings,
+    metadata: ModelMetadata | None,
+    deterministic_rules: DeterministicRuleFile | None,
+    readiness: ReadinessState,
+    instance_index: int,
+) -> TrafficClassifier:
+    """Construye una instancia individual del clasificador."""
+
     if settings.classification_mode is ClassificationMode.DETERMINISTIC_TEST:
-        classifier = DeterministicClassifier(deterministic_rules)
-        _run_synthetic_self_test(classifier.predict(SYNTHETIC_PACKET_FEATURES))
-        readiness.synthetic_inference_passed = True
-        return classifier
+        assert deterministic_rules is not None
+        return DeterministicClassifier(deterministic_rules)
 
     logger = logging.getLogger(__name__)
     logger.info(
@@ -1043,6 +1213,8 @@ def _build_classifier(
             "service": settings.app_name,
             "event": "model_load_started",
             "classification_mode": settings.classification_mode.response_value,
+            "instance_index": instance_index,
+            "pool_size": settings.classifier_pool_size,
         },
     )
     predictor = _load_predictor(settings, metadata)
@@ -1053,6 +1225,8 @@ def _build_classifier(
             "service": settings.app_name,
             "event": "model_load_passed",
             "classification_mode": settings.classification_mode.response_value,
+            "instance_index": instance_index,
+            "pool_size": settings.classifier_pool_size,
             "model_name": metadata.model_name if metadata is not None else None,
         },
     )
@@ -1063,17 +1237,6 @@ def _build_classifier(
             failed_check="synthetic_eth_type",
             retryable=False,
         )
-    _run_synthetic_self_test(predictor.predict(SYNTHETIC_PACKET_FEATURES))
-    readiness.synthetic_inference_passed = True
-    logger.info(
-        Messages.SYNTHETIC_INFERENCE_PASSED,
-        extra={
-            "service": settings.app_name,
-            "event": "synthetic_inference_passed",
-            "classification_mode": settings.classification_mode.response_value,
-            "model_name": metadata.model_name if metadata is not None else None,
-        },
-    )
     return predictor
 
 

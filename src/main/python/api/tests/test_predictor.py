@@ -9,7 +9,7 @@ Pasos:
 import numpy as np
 import pytest
 
-from app.exceptions import ModelOutputInvalidError
+from app.sdn_mpls_ml_exceptions import ModelOutputInvalidError
 from app.model.metadata import ModelMetadata
 from app.model.predictor import Predictor
 

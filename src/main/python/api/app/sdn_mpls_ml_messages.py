@@ -1,28 +1,32 @@
-"""Centraliza mensajes humanos visibles de la aplicacion.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
 
-Pasos:
-- Define textos usados por respuestas HTTP, readiness y logs.
-- Mantiene separados los mensajes humanos de los identificadores maquina.
-- Evita deriva de idioma entre excepciones, handlers y startup.
+Archivo que centraliza los mensajes de la aplicacion entera, desde respuestas automatizadas para las API, endpoints HTTP,
+errores y logs
 
 Notas:
-- Los nombres de campos JSON, eventos, codigos y componentes permanecen en ingles.
-- Los textos de este modulo usan espanol ASCII para preservar el estandar del proyecto.
+- Los nombres de campos JSON, eventos, codigos y componentes permanecen en ingles para su filtrado en Grafana.
+- Los textos de este modulo usan espanol ASCII para preservar el estandar del proyecto y mantener los mensajes
+claros en consolas u otros sistemas.
 """
 
 from __future__ import annotations
 
 
 class Messages:
-    """Agrupa mensajes humanos reutilizables de la API.
+    """
+    Agrupa mensajes humanos reutilizables de la API.
 
-    Pasos:
-    - Expone constantes para textos fijos.
-    - Expone helpers para mensajes parametrizados.
-    - Sirve como fuente unica para respuestas y logging.
+
+    Estos mensajes definen varios de los posibles serrores que se pueden dar dentro de la aplicacion, tanto en las areas de
+    validacion de contenido, asi como en areas de validacion de mensajes, cuerpos en requests de la api y posibles fallas
+    de la api propia. Todas estas strings se exportan y usan de manera general en las respuestas de la API y Logs para
+    que sean de facil entendimiento a la hora de debuggear el codigo
+
     """
 
-    # Errores HTTP y de dominio
+    #! Mensajes de errores HTTP y respuestas a mensajes incorrectos a la API
     INTERNAL_ERROR = "Ocurrio un error interno inesperado."
     INVALID_JSON = "El cuerpo de la solicitud no contiene JSON valido."
     INVALID_CONTENT_LENGTH = "El encabezado Content-Length no es valido."
@@ -33,9 +37,10 @@ class Messages:
     MODEL_INFERENCE_FAILED = "No fue posible determinar la categoria del trafico."
     MODEL_OUTPUT_INVALID = "La salida producida por el modelo no cumple con el contrato requerido."
     POLICY_MAPPING_FAILED = "No fue posible resolver la politica de trafico."
+    INFERENCE_CAPACITY_EXCEEDED = "No se obtuvo una instancia de clasificador dentro del tiempo permitido."
     HTTP_NOT_FOUND = "No se encontro la ruta solicitada."
 
-    # Logs HTTP
+    #! Mensajes similares a los anteriores, pero usados en los logs del sistema
     INVALID_JSON_RECEIVED = "Se recibio un cuerpo JSON invalido."
     REQUEST_VALIDATION_LOG = "La solicitud no supero la validacion del esquema."
     INVALID_CONTENT_LENGTH_LOG = "La solicitud fue rechazada porque el encabezado Content-Length es invalido."
@@ -45,13 +50,16 @@ class Messages:
     MODEL_INFERENCE_FAILED_LOG = "La inferencia del modelo fallo."
     MODEL_OUTPUT_INVALID_LOG = "La salida del modelo no supero la validacion del contrato."
     POLICY_MAPPING_FAILED_LOG = "La resolucion de la politica de trafico fallo."
+    INFERENCE_CAPACITY_EXCEEDED_LOG = "La solicitud excedio la capacidad disponible de inferencia."
     POLICY_FALLBACK_APPLIED = "Se aplico la politica predeterminada."
     CLASSIFICATION_COMPLETED = "La clasificacion de trafico fue completada."
     HTTP_REQUEST_NOT_FOUND = "No se encontro la ruta HTTP solicitada."
     HTTP_REQUEST_FAILED = "La solicitud HTTP fallo."
     UNHANDLED_EXCEPTION = "Ocurrio una excepcion no controlada."
 
-    # Startup y readiness
+    #! Mensajes usados para definir los pasos en el startup check de la aplicacion, que revisa si la metadata
+    #! cargada del sistem vale, si el modelo se ha cargado, es valido y tambien si sirve, y al final si los mapeos
+    #! de politicas son validos
     STARTUP_VALIDATION_STARTED = "Se inicio la validacion de arranque del servicio."
     CONFIGURATION_PREFLIGHT_PASSED = "La validacion preliminar de configuracion fue exitosa."
     ARTIFACT_CONFIGURATION_RESOLVED = "La configuracion de artefactos fue resuelta."
@@ -61,16 +69,22 @@ class Messages:
     MODEL_LOAD_PASSED = "El modelo fue cargado correctamente."
     SYNTHETIC_INFERENCE_PASSED = "La inferencia sintetica de arranque fue exitosa."
     POLICY_MAP_VALIDATION_PASSED = "La validacion del mapa de politicas fue exitosa."
+    CLASSIFIER_POOL_INITIALIZATION_STARTED = "Se inicio la inicializacion del pool de clasificadores."
+    CLASSIFIER_POOL_INSTANCE_READY = "Una instancia del pool de clasificadores esta lista."
+    CLASSIFIER_POOL_READY = "El pool de clasificadores esta listo."
+    CLASSIFIER_POOL_INITIALIZATION_FAILED = "La inicializacion del pool de clasificadores fallo."
     SERVICE_READY = "El servicio de inferencia esta listo."
     SERVICE_NOT_READY = "El servicio de inferencia no esta disponible."
 
-    # Configuracion
+    #! Mensajes de advertencia y errores en terminos de configuracion, lo que nos permite identificar en los Logs de la ap
+    #! si hay errores en las variables de entorno en las que depende la aplicacion
     APP_NAME_REQUIRED = "APP_NAME debe configurarse con un valor no vacio."
     APP_VERSION_REQUIRED = "APP_VERSION debe configurarse con un valor no vacio."
     CLASSIFICATION_MODE_UNSUPPORTED = "CLASSIFICATION_MODE no es un valor soportado."
     PORT_INVALID = "PORT debe ser un entero valido."
     PORT_RANGE = "PORT debe estar entre 1 y 65535."
     LOG_LEVEL_UNSUPPORTED = "LOG_LEVEL debe ser uno de los valores soportados."
+    CLASSIFIER_POOL_SIZE_RANGE = "CLASSIFIER_POOL_SIZE debe estar entre 1 y 32."
     CONFIG_DIR_REQUIRED = "CONFIG_DIR debe configurarse con un valor no vacio."
     POLICY_FILENAME_REQUIRED = "POLICY_FILENAME debe configurarse con un valor no vacio."
     MAX_REQUEST_BODY_BYTES_POSITIVE = "MAX_REQUEST_BODY_BYTES debe ser un entero positivo."
@@ -81,6 +95,13 @@ class Messages:
     MAX_TUNNEL_BANDWIDTH_RANGE = "MAX_TUNNEL_BANDWIDTH_KBPS debe estar entre 1 y 100000."
     TUNNEL_BANDWIDTH_BOUNDS = "MIN_TUNNEL_BANDWIDTH_KBPS no debe superar MAX_TUNNEL_BANDWIDTH_KBPS."
     ENABLE_POLICY_MAPPING_BOOLEAN = "ENABLE_POLICY_MAPPING debe ser un valor booleano."
+    ENABLE_PROMETHEUS_METRICS_BOOLEAN = "ENABLE_PROMETHEUS_METRICS debe ser un valor booleano."
+    METRICS_PATH_INVALID = "METRICS_PATH debe ser una ruta HTTP absoluta valida."
+    PROMETHEUS_METRICS_ENABLED = "La exportacion de metricas Prometheus esta habilitada."
+    PROMETHEUS_METRICS_DISABLED = "La exportacion de metricas Prometheus esta deshabilitada."
+    PROMETHEUS_MULTIPROCESS_CONFIGURATION_INVALID = (
+        "La configuracion multiproceso de Prometheus no es valida."
+    )
     MODEL_DIR_REQUIRED_MODEL_MODE = "MODEL_DIR debe configurarse en modo model."
     MODEL_FILENAME_REQUIRED_MODEL_MODE = "MODEL_FILENAME debe configurarse en modo model."
     MODEL_METADATA_FILENAME_REQUIRED_MODEL_MODE = "MODEL_METADATA_FILENAME debe configurarse en modo model."
@@ -88,7 +109,8 @@ class Messages:
         "DETERMINISTIC_RULE_FILENAME debe configurarse en modo deterministic_test."
     )
 
-    # Startup: metadata, policy y runtime
+    #! Mensajes de error de carga de los archivos del modelo, metadata o configuracion, permitiendo reportar errores no solo
+    #! de ausencia de los archivos, sino de configuracion y sintaxis, es decir, si se rompe un modelo de datos, etc.
     MODEL_METADATA_INVALID_JSON = "El archivo de metadatos del modelo no contiene JSON valido."
     MODEL_METADATA_INCOMPATIBLE = "Los metadatos del modelo no cumplen el contrato de compatibilidad."
     MODEL_METADATA_SCHEMA_INVALID = "El archivo de metadatos del modelo no supero la validacion del esquema."
@@ -120,7 +142,8 @@ class Messages:
     )
     POLICY_SERIALIZATION_FAILED = "No fue posible serializar el perfil de politica despues de la validacion."
 
-    # Predictor y loaders auxiliares
+    #! Mensajes de error que permiten retornar informacion sobre errores del modelo, por ejemplo si un modelo ha pasado la configuracion
+    #! y validacion, pero empieza a retornar resultados erroneos, tenemos mensajes exactos para retornar a la API y los logs
     MODEL_OUTPUT_MULTIPLE_ROWS = "El modelo devolvio mas de una fila de prediccion."
     MODEL_OUTPUT_SHAPE_UNSUPPORTED = "El modelo devolvio una forma de salida no soportada."
     MODEL_OUTPUT_PROBABILITY_COUNT = "La salida del modelo no contiene exactamente siete probabilidades."
@@ -168,54 +191,130 @@ class Messages:
     )
     MODEL_BUNDLE_SYNTHETIC_NONFINITE = "La auto-prueba sintetica produjo probabilidades no finitas."
 
+
+    #? Toda esta seccion define metodos staticos para la clase que nos permiten decorar frases genericas
     @staticmethod
     def artifact_path_resolution(configured_filename: str) -> str:
+        """
+        Permite adornar una frase referencial para indicar la 'falta de un archivo dado una ruta no resuelta' para un
+        tipo de artefacto bajo un nombre.
+        :param configured_filename: nombre del archivo
+        :return: string concatenada
+        """
         return f"No se pudo resolver la ruta del artefacto configurado {configured_filename}."
 
     @staticmethod
     def artifact_not_found(configured_filename: str) -> str:
+        """
+        Permite adornar una frase referencial para indicar la 'falta de un archivo dado una ruta resuelta' para un
+        tipo de artefacto bajo un nombre.
+        :param configured_filename: nombre del archivo
+        :return: string concatenada
+        """
         return f"No se encontro el artefacto configurado {configured_filename}."
 
     @staticmethod
     def artifact_not_regular_file(configured_filename: str) -> str:
+        """
+        Permite documentar una frase referencial para indicar que un artefacto cargado y leido no es un archivo regular.
+        :param configured_filename: nombre del archivo
+        :return: string concatenada
+        """
         return f"El artefacto configurado {configured_filename} no es un archivo regular."
 
     @staticmethod
     def artifact_not_readable(configured_filename: str) -> str:
+        """
+        Permite documentar una frase referencial para indicar un archivo que el proceso no tiene acceso de lectura
+        :param configured_filename: nombre del archivo
+        :return: string concatenada
+        """
         return f"El artefacto configurado {configured_filename} no se puede leer."
 
     @staticmethod
     def artifact_empty(configured_filename: str) -> str:
+        """
+        Permite documentar una frase referencial para indicar un archivo que fue abierto pero esta vacio
+        :param configured_filename: nombre del archivo
+        :return: string concatenada
+        """
         return f"El artefacto configurado {configured_filename} esta vacio."
 
     @staticmethod
     def artifact_not_utf8(configured_filename: str) -> str:
+        """
+        Permite documentar una frase referencial para indicar que un archivo de configuracion o modelo no tiene un formato
+        utf8 para su lectura.
+        :param configured_filename: nombre del archivo
+        :return: string concatenada
+        """
         return f"El artefacto configurado {configured_filename} no pudo abrirse como UTF-8."
 
     @staticmethod
     def policy_file_validation_failed(details: str) -> str:
+        """
+        Permite documentar una frase referencial para indicar que un archivo cargado fallo el proceso de validacion sea de
+        Pydantic o la validacion propia de la aplicacion
+        :param details: detalles del problema de validacion
+        :return: string concatenada
+        """
         return f"La validacion del archivo de politicas fallo: {details}"
 
     @staticmethod
     def deterministic_rule_validation_failed(details: str) -> str:
+        """
+        Permite documentar una frase de referencia de que el archivo de reglas deterministicas, usado en el caso de que el
+        sistema se ejecute en modo DETERMINISTIC_TEST no pase validacion
+        :param details: detalles del problema de validacion
+        :return: string concatenada
+        """
         return f"La validacion del archivo de reglas deterministicas fallo: {details}"
 
     @staticmethod
     def unexpected_model_name(model_name: str) -> str:
+        """
+        Permite documentar una frase de referencia de que el archivo de reglas del modelo no tiene el nombre de modelo esperado
+        y esto ha resultado en un error de validacion.
+        :param model_name: nombre del modelo esperado
+        :return: string concatenada
+        """
         return f"model_name no coincide con el valor esperado: {model_name}"
 
     @staticmethod
     def metadata_file_read_failed(path: str) -> str:
+        """
+        Permite documentar una frase de referencia que determina que un archivo de metadatos del modelo no fue leido correctamente
+        :param path: ruta del archivo de configuracion
+        :return: string concatenada
+        """
         return f"No fue posible leer el archivo de metadatos: {path}"
 
     @staticmethod
     def metadata_validation_failed(details: str) -> str:
+        """
+        Permite docuemntar una frase de referencia que determina que un archivo de metadatos fue cargado pero no
+        paso una validacion sea de Pydantic o configurada en el codigo
+        :param details: detalles del error de validacion
+        :return: string concatenada
+        """
         return f"La validacion de metadatos fallo: {details}"
 
     @staticmethod
     def policy_bandwidth_below_minimum(class_name: str) -> str:
+        """
+        Permite documentar una frase de referencia que determina que un archivo de politicas fue cargado pero el ancho de banda
+        de la politica se encuentra por debajo del minimo permitido por la aplicacion
+        :param class_name: detalle de la clase del archivo de politica que no paso la prueba
+        :return: string concatenada
+        """
         return f"El ancho de banda de la politica {class_name} esta por debajo del minimo del demostrador."
 
     @staticmethod
     def policy_bandwidth_above_maximum(class_name: str) -> str:
+        """
+        Permite documentar una frase de referencia que determina que un archivo de politicas fue cargado pero el ancho de banda
+        de la politica se encuentra por encima del maximo permitido por la aplicacion
+        :param class_name: detalle de la clase del archivo de politica que no paso la prueba
+        :return: string concatenada
+        """
         return f"El ancho de banda de la politica {class_name} supera el maximo del demostrador."

@@ -6,9 +6,9 @@ Pasos:
 - Confirma que readiness repetida no reejecuta inferencia.
 """
 
-from app.main import app
+from app.sdn_mpls_ml_main import app
 from app.middleware import CorrelationIdMiddleware, RequestSizeLimitMiddleware
-from app.readiness import ReadinessState
+from app.sdn_mpls_ml_readiness import ReadinessState
 
 
 def test_liveness(client):
@@ -34,6 +34,8 @@ def test_readiness_loaded(client):
     assert body["policy_loaded"] is True
     assert body["synthetic_inference_passed"] is True
     assert body["class_count"] == 7
+    assert body["classifier_pool_ready"] is True
+    assert body["classifier_pool_size"] == 5
     assert response.headers["X-Request-ID"]
 
 
@@ -60,7 +62,7 @@ def test_readiness_not_loaded(monkeypatch, config_dir_path, policy_filename, det
     from fastapi.testclient import TestClient
 
     from app.config import get_raw_settings
-    from app.main import app
+    from app.sdn_mpls_ml_main import app
 
     monkeypatch.setenv("CLASSIFICATION_MODE", "MODEL")
     monkeypatch.setenv("MODEL_DIR", "/nonexistent")
@@ -82,12 +84,13 @@ def test_readiness_not_loaded(monkeypatch, config_dir_path, policy_filename, det
 def test_repeated_readiness_calls_do_not_rerun_inference(client, dummy_booster_class):
     """Asegura que readiness use el cache y no dispare inferencia repetida."""
 
-    assert dummy_booster_class.predict_call_count == 1
+    assert dummy_booster_class.predict_call_count == 5
+    assert dummy_booster_class.load_call_count == 5
     response_one = client.get("/health/ready")
     response_two = client.get("/health/ready")
     assert response_one.status_code == 200
     assert response_two.status_code == 200
-    assert dummy_booster_class.predict_call_count == 1
+    assert dummy_booster_class.predict_call_count == 5
     assert response_one.headers["X-Request-ID"] != response_two.headers["X-Request-ID"]
 
 

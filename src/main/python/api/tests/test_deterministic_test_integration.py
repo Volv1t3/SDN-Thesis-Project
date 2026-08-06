@@ -14,7 +14,7 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.config import get_raw_settings
-from app.main import app
+from app.sdn_mpls_ml_main import app
 
 
 def _configure_deterministic_env(monkeypatch, config_dir_path: str, policy_filename: str, deterministic_rule_filename: str) -> None:
@@ -57,7 +57,7 @@ def test_deterministic_test_classify_dns_returns_policy_mapping(
         assert body["model_name"] == "deterministic_test"
         assert body["prediction"]["class_id"] == 0
         assert body["prediction"]["class_name"] == "DNS"
-        assert body["policy"]["profile_name"] == "dns_control"
+        assert body["policy"]["profile_name"] == "dns_tunnel_policy"
         assert body["policy"]["dscp"] == 18
         assert body["policy"]["mpls_tc"] == 2
         assert body["policy"]["path_constraints"]["requested_bandwidth_kbps"] == 10000
@@ -108,7 +108,7 @@ def test_deterministic_test_classify_returns_full_response_shape(
             "STREAMING": 0.0,
         }
         assert body["policy"] == {
-            "profile_name": "http_standard",
+            "profile_name": "http_tunnel_policy",
             "dscp": 0,
             "mpls_tc": 0,
             "path_constraints": {

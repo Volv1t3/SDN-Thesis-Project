@@ -71,6 +71,8 @@ class ReadySuccessResponse(StrictBaseModel):
     model_schema_version: str | None = None
     feature_count: int | None = None
     class_count: int | None = None
+    classifier_pool_ready: bool | None = None
+    classifier_pool_size: int | None = None
     validated_at_utc: str | None = None
 
 

@@ -13,7 +13,7 @@ Notas:
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
-from app.request_context import get_request_id
+from app.sdn_mpls_ml_request_context import get_request_id
 from app.schemas.health import LivenessResponse, ReadyFailureResponse, ReadySuccessResponse, RootResponse
 
 router = APIRouter()
@@ -130,5 +130,7 @@ def ready(request: Request):
         model_schema_version=readiness.model_schema_version,
         feature_count=readiness.feature_count,
         class_count=readiness.class_count,
+        classifier_pool_ready=services.classifier_pool is not None,
+        classifier_pool_size=services.classifier_pool.capacity if services.classifier_pool is not None else None,
         validated_at_utc=readiness.completed_at_utc,
     )

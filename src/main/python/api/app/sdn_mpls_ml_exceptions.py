@@ -1,4 +1,10 @@
-"""Define errores tipados y serializables usados por la API.
+"""
+SDN-MPLS-ML Tech Demonstrator
+Santiago Arellano 00328370
+
+Archivo que define los errores y excepciones definidas para la API como extensiones de las clases de Exception de Python
+que corresponde a clases de error especificas usadas para manejar tanto eventos de logging de errores y respuestas de API
+basadas en los campos de error que estas tienen.
 
 Pasos:
 - Declara un contrato base para errores de aplicacion.
@@ -11,13 +17,14 @@ Notas:
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 
 
 @dataclass(slots=True)
 class ErrorDetail:
-    """Representa el detalle serializable de un error.
+    """Representa el detalle serializable de un error. Esta parte del sistema representa otro Record que contiene la informacion
+    de los detalles de un error, es decir el codigo, el mensaje correcto legible, el componente que fallo, y si el error
+    puede ser reintantable como un error en clasifiacion.
 
     Pasos:
     - Conserva codigo y mensaje legibles por maquina y operador.
@@ -33,7 +40,12 @@ class ErrorDetail:
 
 
 class AppError(Exception):
-    """Base comun para errores funcionales de la API.
+    """
+    Base comun para errores funcionales de la API. La clase contiene los mismos campos que su contraparte de tipo Record, pero
+    la idea es que esta al ser una excepcion real esta puede ser lanzada por el cuerpo de la aplicacion y ser interceptada
+    y usada por servicios de logging y respuestas htttp definidas en sdn_mpls_ml_main.py. Ademas, al presentar la forma
+    de serializar este objeto a un error de tipo ErrorDetail (Record) tiene la capacidad de enviar su informacion en un
+    objeto sencillo para su serializacion.
 
     Pasos:
     - Define un codigo y mensaje por defecto.
@@ -62,15 +74,16 @@ class AppError(Exception):
         retryable: bool | None = None,
         request_id: str | None = None,
     ) -> None:
-        """Inicializa un error de aplicacion con metadatos opcionales.
+        """
+        Inicializa un error de aplicacion con metadatos opcionales.
 
-        Argumentos:
-        - message: mensaje final del error o `None` para usar el predeterminado.
-        - component: componente logico asociado al fallo.
-        - failed_stage: etapa del flujo donde ocurrio el error.
-        - failed_check: nombre del chequeo que fallo.
-        - retryable: indica si el error es reintentable.
-        - request_id: correlacion opcional de la solicitud generada por el servidor.
+        Args:
+            message: mensaje final del error o `None` para usar el predeterminado.
+            component: componente logico asociado al fallo.
+            failed_stage: etapa del flujo donde ocurrio el error.
+            failed_check: nombre del chequeo que fallo.
+            retryable: indica si el error es reintentable.
+            request_id: correlacion opcional de la solicitud generada por el servidor.
         """
 
         super().__init__(message or self.message)
@@ -82,10 +95,14 @@ class AppError(Exception):
         self.request_id = request_id
 
     def to_error(self) -> ErrorDetail:
-        """Convierte la excepcion al contrato serializable de error.
+        """
+        Convierte la excepcion al contrato serializable de error.
 
-        Retorna:
-        - ErrorDetail: estructura lista para respuestas HTTP.
+        Args:
+            self: la instancia de la excepcion.
+
+        Returns:
+            ErrorDetail: estructura lista para respuestas HTTP.
         """
 
         return ErrorDetail(
@@ -99,14 +116,10 @@ class AppError(Exception):
 
 
 class InvalidJsonError(AppError):
-    """Indica que el cuerpo HTTP no pudo parsearse como JSON valido.
-
-    Pasos:
-    - Representa un fallo de parseo previo a la validacion de schema.
-    - Conserva metadatos estructurados utiles para logs y respuestas.
-    - Permite diferenciar JSON invalido de errores de contrato Pydantic.
     """
-
+    Clase que indica que el cuerpo HTTP no pudo parsearse como JSON valido, resultado de una validacion sea de FastAPI o un error
+    de Pydantic. Internamente define los mismos campos que AppError pero los configura con los parametros default para este error
+    """
     status_code = 400
     code = "INVALID_JSON"
     message = Messages.INVALID_JSON
@@ -117,8 +130,10 @@ class InvalidJsonError(AppError):
 
 
 class InvalidContentLengthError(AppError):
-    """Indica que `Content-Length` no es interpretable como valor valido."""
-
+    """
+    Indica que `Content-Length` no es interpretable como valor valido. Esto puede ser por no tener un parametro de header
+    correcto, o una longitud por encima del limite maximo de la aplicacion
+    """
     status_code = 400
     code = "INVALID_CONTENT_LENGTH"
     message = Messages.INVALID_CONTENT_LENGTH
@@ -129,8 +144,10 @@ class InvalidContentLengthError(AppError):
 
 
 class RequestTooLargeError(AppError):
-    """Indica que el cuerpo HTTP excede el limite configurado."""
-
+    """
+    Indica que el cuerpo HTTP excede el limite configurado. Esto puede darse sea por una validacion del header comparado con el
+    contexto real del paquete, o sin header contra el limite del servidor
+    """
     status_code = 413
     code = "REQUEST_TOO_LARGE"
     message = Messages.REQUEST_TOO_LARGE
@@ -141,14 +158,10 @@ class RequestTooLargeError(AppError):
 
 
 class RequestValidationAppError(AppError):
-    """Indica que el schema de la solicitud fallo validacion.
-
-    Pasos:
-    - Representa errores de contrato detectados por Pydantic o FastAPI.
-    - Expone una clasificacion comun para fallos de campos requeridos, extras o tipos.
-    - Deja el detalle exacto del campo en la lista `details` de la respuesta.
     """
-
+    Indica que el schema de la solicitud fallo validacion. Esto se da por validaciones de
+    Pydantic o por validaciones internas
+    """
     status_code = 422
     code = "REQUEST_VALIDATION_FAILED"
     message = Messages.REQUEST_VALIDATION_FAILED
@@ -159,8 +172,10 @@ class RequestValidationAppError(AppError):
 
 
 class ModelEtherTypeUnsupportedError(AppError):
-    """Indica que el modelo solo acepta un EtherType soportado."""
-
+    """
+    Indica que el modelo solo acepta un EtherType soportado. Esto se valida principalmente a la hora de recibir
+    una request de clasificacion, dado que el modelo esta entrenado para recibir el parametro con el valor de 2048 o IPv4
+    """
     status_code = 422
     code = "MODEL_ETHERTYPE_UNSUPPORTED"
     message = Messages.MODEL_ETHERTYPE_UNSUPPORTED
@@ -171,8 +186,9 @@ class ModelEtherTypeUnsupportedError(AppError):
 
 
 class ModelNotReadyError(AppError):
-    """Indica que la API sigue viva pero no esta lista para clasificar."""
-
+    """
+    Indica que la API sigue viva pero no esta lista para clasificar.
+    """
     status_code = 503
     code = "MODEL_NOT_READY"
     message = Messages.MODEL_NOT_READY
@@ -183,18 +199,13 @@ class ModelNotReadyError(AppError):
 
 
 class ModelInferenceFailedError(AppError):
-    """Indica que la inferencia no pudo ejecutarse correctamente.
-
-    Pasos:
-    - Representa un fallo al invocar la etapa de prediccion del modelo.
-    - Expone una clasificacion comun para respuesta HTTP y log estructurado.
-    - Marca el evento como potencialmente reintentable a nivel tecnico.
+    """
+    Indica que la inferencia no pudo ejecutarse correctamente.
 
     Notas:
     - El caller externo aun debe preferir el comportamiento de fallback
       antes que reintentar inmediatamente el mismo paquete.
     """
-
     status_code = 500
     code = "MODEL_INFERENCE_FAILED"
     message = Messages.MODEL_INFERENCE_FAILED
@@ -204,9 +215,22 @@ class ModelInferenceFailedError(AppError):
     retryable = True
 
 
-class ModelOutputInvalidError(AppError):
-    """Indica que la salida del clasificador no cumple el contrato esperado."""
+class InferenceCapacityExceededError(AppError):
+    """Indica que no hubo capacidad de inferencia disponible a tiempo."""
 
+    status_code = 503
+    code = "INFERENCE_CAPACITY_EXCEEDED"
+    message = Messages.INFERENCE_CAPACITY_EXCEEDED
+    component = "inference_capacity"
+    failed_stage = "classifier_acquisition"
+    failed_check = "classifier_available_before_timeout"
+    retryable = True
+
+
+class ModelOutputInvalidError(AppError):
+    """
+    Indica que la salida del clasificador no cumple el contrato esperado.
+    """
     status_code = 500
     code = "MODEL_OUTPUT_INVALID"
     message = Messages.MODEL_OUTPUT_INVALID
@@ -217,14 +241,14 @@ class ModelOutputInvalidError(AppError):
 
 
 class PolicyMappingFailedError(AppError):
-    """Indica que la politica no pudo resolverse tras la clasificacion.
+    """
+    Indica que la politica no pudo resolverse tras la clasificacion.
 
     Pasos:
     - Representa un fallo interno al traducir una clase predicha a politica.
     - Expone una clasificacion estable para respuestas y logs estructurados.
     - Evita que cada llamador tenga que repetir el mismo diagnostico base.
     """
-
     status_code = 500
     code = "POLICY_MAPPING_FAILED"
     message = Messages.POLICY_MAPPING_FAILED

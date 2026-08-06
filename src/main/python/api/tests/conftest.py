@@ -21,7 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config import get_raw_settings  # noqa: E402
-from app.main import app  # noqa: E402
+from app.sdn_mpls_ml_main import app  # noqa: E402
 from app.model.metadata import EXPECTED_CLASS_TO_ID  # noqa: E402
 
 
@@ -141,14 +141,14 @@ def config_dir_path() -> str:
 def policy_filename() -> str:
     """Devuelve el nombre del archivo de politica base."""
 
-    return "default_policy.json"
+    return "sdn_mpls_ml_traffic_class_to_policy_mapping.json"
 
 
 @pytest.fixture
 def deterministic_rule_filename() -> str:
     """Devuelve el nombre del archivo base de reglas deterministicas."""
 
-    return "deterministic_rules.json"
+    return "sdn_mpls_ml_traffic_class_deterministic_rules.json"
 
 
 @pytest.fixture

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator, model_validator
 
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 from app.model.metadata import EXPECTED_CLASS_TO_ID
 from app.model.predictor import PredictionResult
 

@@ -17,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_raw_settings
-from app.main import app
+from app.sdn_mpls_ml_main import app
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -70,7 +70,7 @@ def test_real_model_classify_dns_returns_policy_mapping(real_model_client):
     assert body["model_name"] == "sdnflow_xgboost_first_packet"
     assert body["prediction"]["class_id"] == 0
     assert body["prediction"]["class_name"] == "DNS"
-    assert body["policy"]["profile_name"] == "dns_control"
+    assert body["policy"]["profile_name"] == "dns_tunnel_policy"
     assert body["policy"]["dscp"] == 18
     assert body["policy"]["mpls_tc"] == 2
     assert body["policy"]["path_constraints"]["requested_bandwidth_kbps"] == 10000
@@ -103,7 +103,7 @@ def test_real_model_classify_returns_full_response_shape(real_model_client):
     assert set(body["probabilities"]) == {"DNS", "FTP", "HTTP", "ICMP", "NTP", "SSH", "STREAMING"}
     assert sum(body["probabilities"].values()) == pytest.approx(1.0, abs=0.001)
     assert body["policy"] == {
-        "profile_name": "http_standard",
+        "profile_name": "http_tunnel_policy",
         "dscp": 0,
         "mpls_tc": 0,
         "path_constraints": {
@@ -189,8 +189,8 @@ def test_unsupported_ethertype_does_not_change_readiness(real_model_client):
 def test_model_mode_rejection_skips_inference_and_logs_warning(real_model_client, caplog):
     """Comprueba que el rechazo por EtherType evite inferencia y registre warning."""
 
-    predict_spy = Mock(wraps=real_model_client.app.state.services.classifier.predict)
-    real_model_client.app.state.services.classifier.predict = predict_spy
+    acquire_spy = Mock(wraps=real_model_client.app.state.services.classifier_pool.acquire)
+    real_model_client.app.state.services.classifier_pool.acquire = acquire_spy
 
     with caplog.at_level(logging.WARNING, logger="app.api.inference"):
         response = real_model_client.post(
@@ -206,7 +206,7 @@ def test_model_mode_rejection_skips_inference_and_logs_warning(real_model_client
         )
 
     assert response.status_code == 422
-    predict_spy.assert_not_called()
+    acquire_spy.assert_not_called()
     warning_records = [
         record for record in caplog.records if getattr(record, "event", None) == "classification_rejected"
     ]

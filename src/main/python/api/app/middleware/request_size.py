@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
-
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.exceptions import InvalidContentLengthError, RequestTooLargeError
-from app.http_responses import build_error_response
-from app.messages import Messages
+from app.observability.classification_metrics import (
+    record_request_body_rejection,
+    record_request_error,
+)
+from app.sdn_mpls_ml_exceptions import InvalidContentLengthError, RequestTooLargeError
+from app.sdn_mpls_ml_http_responses import build_error_response
+from app.sdn_mpls_ml_messages import Messages
 
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,9 @@ class RequestSizeLimitMiddleware:
         declared_length = _parse_content_length(scope)
 
         if declared_length is _INVALID_CONTENT_LENGTH:
+            _record_rejection(
+                scope, reason="invalid_content_length", error=InvalidContentLengthError
+            )
             _log_middleware_event(
                 scope,
                 level=logging.WARNING,
@@ -93,6 +98,7 @@ class RequestSizeLimitMiddleware:
             return
 
         if declared_length is not None and declared_length > max_body_bytes:
+            _record_rejection(scope, reason="declared_size_exceeded", error=RequestTooLargeError)
             _log_middleware_event(
                 scope,
                 level=logging.WARNING,
@@ -129,6 +135,7 @@ class RequestSizeLimitMiddleware:
             body = message.get("body", b"")
             received_bytes += len(body)
             if received_bytes > max_body_bytes:
+                _record_rejection(scope, reason="actual_size_exceeded", error=RequestTooLargeError)
                 _log_middleware_event(
                     scope,
                     level=logging.WARNING,
@@ -214,6 +221,21 @@ def _service_name_from_scope(scope: Scope) -> str | None:
     if settings is not None:
         return settings.app_name
     return services.raw_settings.app_name
+
+
+def _record_rejection(
+    scope: Scope,
+    *,
+    reason: str,
+    error: type[InvalidContentLengthError] | type[RequestTooLargeError],
+) -> None:
+    """Publica el rechazo del middleware sin duplicar el handler HTTP central."""
+
+    services = getattr(scope.get("app"), "state", None)
+    settings = getattr(getattr(services, "services", None), "settings", None)
+    enabled = settings is not None and settings.enable_prometheus_metrics
+    record_request_body_rejection(reason=reason, enabled=enabled)
+    record_request_error(error_code=error.code, component=error.component, enabled=enabled)
 
 
 def _parse_content_length(scope: Scope) -> int | _InvalidContentLengthSentinel | None:

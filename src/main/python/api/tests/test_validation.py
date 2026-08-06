@@ -13,7 +13,17 @@ from pathlib import Path
 
 import pytest
 
-from app.config import get_raw_settings
+from app.config import (
+    DEFAULT_CLASSIFIER_POOL_SIZE,
+    DEFAULT_DETERMINISTIC_RULE_FILENAME,
+    DEFAULT_LOG_DIRECTORY,
+    DEFAULT_LOG_FILE_BACKUP_COUNT,
+    DEFAULT_LOG_FILE_MAX_BYTES,
+    DEFAULT_LOG_FILENAME,
+    DEFAULT_POLICY_FILENAME,
+    RawSettings,
+    get_raw_settings,
+)
 from app.dependencies import build_services
 
 
@@ -38,6 +48,56 @@ def _patch_dummy_booster(monkeypatch, dummy_booster_class) -> None:
 
     dummy_booster_class.reset()
     monkeypatch.setattr(xgboost, "Booster", dummy_booster_class)
+
+
+def test_artifact_filenames_use_renamed_defaults_and_environment_overrides(monkeypatch):
+    """Los nombres de artefactos usan los nuevos defaults y admiten overrides."""
+
+    monkeypatch.delenv("POLICY_FILENAME", raising=False)
+    monkeypatch.delenv("DETERMINISTIC_RULE_FILENAME", raising=False)
+    defaults = RawSettings()
+    assert defaults.policy_filename == DEFAULT_POLICY_FILENAME
+    assert defaults.deterministic_rule_filename == DEFAULT_DETERMINISTIC_RULE_FILENAME
+
+    monkeypatch.setenv("POLICY_FILENAME", "custom-policy.json")
+    monkeypatch.setenv("DETERMINISTIC_RULE_FILENAME", "custom-rules.json")
+    overrides = RawSettings()
+    assert overrides.policy_filename == "custom-policy.json"
+    assert overrides.deterministic_rule_filename == "custom-rules.json"
+
+
+def test_logging_settings_use_environment_overrides(monkeypatch):
+    """La configuracion de logs se carga exclusivamente desde app.config."""
+
+    for variable in ("LOG_DIRECTORY", "LOG_FILENAME", "LOG_FILE_MAX_BYTES", "LOG_FILE_BACKUP_COUNT"):
+        monkeypatch.delenv(variable, raising=False)
+    defaults = RawSettings()
+    assert defaults.log_directory == DEFAULT_LOG_DIRECTORY
+    assert defaults.log_filename == DEFAULT_LOG_FILENAME
+    assert defaults.log_file_max_bytes == DEFAULT_LOG_FILE_MAX_BYTES
+    assert defaults.log_file_backup_count == DEFAULT_LOG_FILE_BACKUP_COUNT
+
+    monkeypatch.setenv("LOG_DIRECTORY", "/tmp/application-logs")
+    monkeypatch.setenv("LOG_FILENAME", "custom.log")
+    monkeypatch.setenv("LOG_FILE_MAX_BYTES", "2048")
+    monkeypatch.setenv("LOG_FILE_BACKUP_COUNT", "2")
+    overrides = RawSettings()
+    assert overrides.log_directory == "/tmp/application-logs"
+    assert overrides.log_filename == "custom.log"
+    assert overrides.log_file_max_bytes == 2048
+    assert overrides.log_file_backup_count == 2
+
+
+def test_classifier_pool_settings_use_environment_overrides(monkeypatch):
+    """El tamano del pool se define desde configuracion centralizada."""
+
+    monkeypatch.delenv("CLASSIFIER_POOL_SIZE", raising=False)
+    defaults = RawSettings()
+    assert defaults.classifier_pool_size == DEFAULT_CLASSIFIER_POOL_SIZE
+
+    monkeypatch.setenv("CLASSIFIER_POOL_SIZE", "7")
+    overrides = RawSettings()
+    assert overrides.classifier_pool_size == "7"
 
 
 def test_invalid_port_fails_readiness(
@@ -229,5 +289,95 @@ def test_default_bandwidth_zero_remains_valid(
     get_raw_settings.cache_clear()
     services = build_services()
     assert services.readiness.ready is True
+    assert services.classifier_pool is not None
+    assert services.classifier_pool.capacity == 5
+    assert services.inference_thread_limiter is not None
     assert services.policy_mapper.default_policy.path_constraints.requested_bandwidth_kbps == 0
+    get_raw_settings.cache_clear()
+
+
+def test_invalid_classifier_pool_size_fails_readiness(
+    monkeypatch,
+    model_dir,
+    config_dir_path,
+    policy_filename,
+    deterministic_rule_filename,
+    dummy_booster_class,
+):
+    """Comprueba que el pool size fuera de rango falle en preflight."""
+
+    _patch_dummy_booster(monkeypatch, dummy_booster_class)
+    _configure_model_env(
+        monkeypatch,
+        model_dir,
+        Path(config_dir_path) / policy_filename,
+        str(Path(config_dir_path) / deterministic_rule_filename),
+    )
+    monkeypatch.setenv("CLASSIFIER_POOL_SIZE", "0")
+    get_raw_settings.cache_clear()
+    services = build_services()
+    assert services.readiness.error_code == "CONFIGURATION_INVALID"
+    assert services.readiness.failed_check == "classifier_pool_size_range"
+    get_raw_settings.cache_clear()
+
+
+def test_partial_classifier_pool_initialization_is_not_published(
+    monkeypatch,
+    model_dir,
+    config_dir_path,
+    policy_filename,
+    deterministic_rule_filename,
+    dummy_booster_class,
+):
+    """Verifica que un fallo intermedio no publique un pool parcial."""
+
+    from app import dependencies as dependency_module
+    from app.model.predictor import PredictionResult
+
+    _patch_dummy_booster(monkeypatch, dummy_booster_class)
+    _configure_model_env(
+        monkeypatch,
+        model_dir,
+        Path(config_dir_path) / policy_filename,
+        str(Path(config_dir_path) / deterministic_rule_filename),
+    )
+    get_raw_settings.cache_clear()
+
+    class StubClassifier:
+        def predict(self, _packet_features: dict[str, int]) -> PredictionResult:
+            return PredictionResult(
+                class_id=0,
+                class_name="DNS",
+                confidence=1.0,
+                probabilities={
+                    "DNS": 1.0,
+                    "FTP": 0.0,
+                    "HTTP": 0.0,
+                    "ICMP": 0.0,
+                    "NTP": 0.0,
+                    "SSH": 0.0,
+                    "STREAMING": 0.0,
+                },
+            )
+
+    build_count = {"value": 0}
+
+    def failing_builder(*args, **kwargs):
+        del args, kwargs
+        build_count["value"] += 1
+        if build_count["value"] == 4:
+            raise dependency_module._runtime_error(
+                code="MODEL_LOAD_FAILED",
+                message="controlled-test-failure",
+                failed_check="booster_load_model",
+                retryable=False,
+            )
+        return StubClassifier()
+
+    monkeypatch.setattr(dependency_module, "_build_single_classifier", failing_builder)
+    services = build_services()
+    assert services.readiness.ready is False
+    assert services.classifier_pool is None
+    assert services.inference_thread_limiter is None
+    assert services.readiness.failed_stage == "runtime_model_compatibility"
     get_raw_settings.cache_clear()

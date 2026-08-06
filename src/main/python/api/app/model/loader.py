@@ -17,7 +17,7 @@ from typing import Any
 
 import numpy as np
 
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 from app.model.metadata import ModelMetadata, load_metadata
 from app.model.predictor import Predictor
 

@@ -12,15 +12,34 @@ Notas:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
+from anyio import to_thread
 from fastapi import APIRouter, Request
 
-from app.exceptions import ModelEtherTypeUnsupportedError, ModelNotReadyError, PolicyMappingFailedError
-from app.messages import Messages
+from app.sdn_mpls_ml_exceptions import (
+    AppError,
+    InferenceCapacityExceededError,
+    ModelEtherTypeUnsupportedError,
+    ModelInferenceFailedError,
+    ModelNotReadyError,
+    ModelOutputInvalidError,
+    PolicyMappingFailedError,
+)
+from app.observability.classification_metrics import (
+    CLASSIFICATION_IN_PROGRESS,
+    CLASSIFICATION_RESULTS_TOTAL,
+    POLICY_FALLBACKS_TOTAL,
+    POLICY_SELECTIONS_TOTAL,
+    PREDICTION_CONFIDENCE,
+    ClassificationObservation,
+    execute_instrumented_inference,
+)
+from app.sdn_mpls_ml_messages import Messages
 from app.model.input_validation import validate_packet_for_classification_mode
-from app.request_context import get_request_id
+from app.sdn_mpls_ml_request_context import get_request_id
 from app.schemas.inference import (
     ClassifyRequest,
     ClassifyResponse,
@@ -75,7 +94,7 @@ def model_info(request: Request) -> ModelInfoResponse:
 
 
 @router.post("/classify", response_model=ClassifyResponse)
-def classify(payload: ClassifyRequest, request: Request) -> ClassifyResponse:
+async def classify(payload: ClassifyRequest, request: Request) -> ClassifyResponse:
     """Clasifica un paquete y devuelve prediccion, probabilidades y politica.
 
     Pasos:
@@ -104,96 +123,186 @@ def classify(payload: ClassifyRequest, request: Request) -> ClassifyResponse:
     - PolicyMappingFailedError: si la politica no puede resolverse.
     """
 
-    started = time.perf_counter()
     services = request.app.state.services
     request_id = get_request_id(request)
-    if not services.readiness.ready or services.classifier is None:
-        raise ModelNotReadyError(
-            component=services.readiness.error_component or "inference_service",
-            failed_stage=services.readiness.failed_stage,
-            failed_check=services.readiness.failed_check,
-            retryable=services.readiness.retryable,
-            request_id=request_id,
-        )
+    settings = services.settings
+    classification_mode = (
+        settings.classification_mode.response_value
+        if settings
+        else services.readiness.classification_mode
+    )
+    metrics_enabled = settings is not None and settings.enable_prometheus_metrics
+    observation = ClassificationObservation(
+        classification_mode=classification_mode, enabled=metrics_enabled
+    )
+    if metrics_enabled:
+        CLASSIFICATION_IN_PROGRESS.labels(classification_mode=classification_mode).inc()
 
     try:
-        validate_packet_for_classification_mode(
-            classification_mode=services.settings.classification_mode,
-            eth_type=payload.packet_features.eth_type,
-            request_id=request_id,
-        )
-    except ModelEtherTypeUnsupportedError as exc:
-        logger.warning(
-            Messages.CLASSIFICATION_REJECTED,
-            extra={
-                "service": services.settings.app_name,
-                "event": "classification_rejected",
-                "request_id": request_id,
-                "classification_mode": services.settings.classification_mode.response_value,
-                "error_code": exc.code,
-                "component": exc.component,
-                "failed_stage": exc.failed_stage,
-                "failed_check": exc.failed_check,
-                "retryable": exc.retryable,
-            },
-        )
-        raise
-
-    prediction = services.classifier.predict(payload.packet_features.model_dump())
-
-    policy_response = None
-    if services.policy_mapper is not None:
-        try:
-            # La resolucion de politica se ejecuta despues de la prediccion para
-            # poder decidir si aplica la clase especifica o el perfil por defecto.
-            selected_policy, fallback, fallback_reason = services.policy_mapper.resolve(
-                predicted_class=prediction.class_name,
-                confidence=prediction.confidence,
+        if (
+            not services.readiness.ready
+            or services.classifier_pool is None
+            or services.inference_thread_limiter is None
+            or settings is None
+        ):
+            observation.mark_outcome("not_ready")
+            raise ModelNotReadyError(
+                component=services.readiness.error_component or "inference_service",
+                failed_stage=services.readiness.failed_stage,
+                failed_check=services.readiness.failed_check,
+                retryable=services.readiness.retryable,
+                request_id=request_id,
             )
-        except Exception as exc:
-            raise PolicyMappingFailedError() from exc
-        policy_response = PolicyResponse(
-            **selected_policy.model_dump(),
-            policy_fallback=fallback,
-            policy_fallback_reason=fallback_reason,
-        )
-        if fallback:
-            logger.info(
-                Messages.POLICY_FALLBACK_APPLIED,
+
+        try:
+            validate_packet_for_classification_mode(
+                classification_mode=settings.classification_mode,
+                eth_type=payload.packet_features.eth_type,
+                request_id=request_id,
+            )
+        except ModelEtherTypeUnsupportedError as exc:
+            observation.mark_outcome("rejected")
+            logger.warning(
+                Messages.CLASSIFICATION_REJECTED,
                 extra={
-                    "service": services.settings.app_name,
-                    "event": "policy_fallback_applied",
+                    "service": settings.app_name,
+                    "event": "classification_rejected",
                     "request_id": request_id,
-                    "component": "policy_mapper",
-                    "fallback_reason": fallback_reason,
-                    "predicted_class": prediction.class_name,
-                    "confidence": prediction.confidence,
+                    "classification_mode": classification_mode,
+                    "error_code": exc.code,
+                    "component": exc.component,
+                    "failed_stage": exc.failed_stage,
+                    "failed_check": exc.failed_check,
+                    "retryable": exc.retryable,
                 },
             )
+            raise
 
-    processing_time_ms = round((time.perf_counter() - started) * 1000, 3)
-    logger.info(
-        Messages.CLASSIFICATION_COMPLETED,
-        extra={
-            "service": services.settings.app_name,
-            "event": "classification_completed",
-            "request_id": request_id,
-            "model_name": services.model_metadata.model_name if services.model_metadata is not None else None,
-            "predicted_class": prediction.class_name,
-            "confidence": prediction.confidence,
-            "processing_time_ms": processing_time_ms,
-        },
-    )
+        packet_features = payload.packet_features.model_dump()
+        queue_wait_started = time.perf_counter()
+        try:
+            async with services.classifier_pool.acquire(
+                timeout_seconds=settings.request_timeout_seconds
+            ) as classifier:
+                queue_wait_ms = round((time.perf_counter() - queue_wait_started) * 1000, 3)
+                try:
+                    prediction = await execute_instrumented_inference(
+                        classifier=classifier,
+                        packet_features=packet_features,
+                        classification_mode=classification_mode,
+                        limiter=services.inference_thread_limiter,
+                        enabled=metrics_enabled,
+                        run_sync=to_thread.run_sync,
+                    )
+                except AppError as exc:
+                    exc.request_id = request_id
+                    raise
+                pool_capacity = services.classifier_pool.capacity
+                pool_available = services.classifier_pool.available
+                pool_borrowed = services.classifier_pool.borrowed
+        except InferenceCapacityExceededError as exc:
+            observation.mark_outcome("capacity_timeout")
+            raise InferenceCapacityExceededError(
+                request_id=request_id,
+                component=exc.component,
+                failed_stage=exc.failed_stage,
+                failed_check=exc.failed_check,
+                retryable=exc.retryable,
+            ) from exc
+        except ModelInferenceFailedError:
+            observation.mark_outcome("inference_failed")
+            raise
+        except ModelOutputInvalidError:
+            observation.mark_outcome("output_invalid")
+            raise
 
-    return ClassifyResponse(
-        request_id=request_id,
-        model_name=services.model_metadata.model_name if services.model_metadata is not None else "deterministic_test",
-        prediction=PredictionBody(
-            class_id=prediction.class_id,
-            class_name=prediction.class_name,
-            confidence=prediction.confidence,
-        ),
-        probabilities=prediction.probabilities,
-        policy=policy_response,
-        processing_time_ms=processing_time_ms,
-    )
+        if metrics_enabled:
+            CLASSIFICATION_RESULTS_TOTAL.labels(
+                classification_mode=classification_mode, class_name=prediction.class_name
+            ).inc()
+            PREDICTION_CONFIDENCE.labels(
+                classification_mode=classification_mode, class_name=prediction.class_name
+            ).observe(prediction.confidence)
+
+        policy_response = None
+        if services.policy_mapper is not None:
+            try:
+                selected_policy, fallback, fallback_reason = services.policy_mapper.resolve(
+                    predicted_class=prediction.class_name,
+                    confidence=prediction.confidence,
+                )
+            except Exception as exc:
+                observation.mark_outcome("policy_failed")
+                raise PolicyMappingFailedError() from exc
+            policy_response = PolicyResponse(
+                **selected_policy.model_dump(),
+                policy_fallback=fallback,
+                policy_fallback_reason=fallback_reason,
+            )
+            if metrics_enabled:
+                POLICY_SELECTIONS_TOTAL.labels(
+                    profile_name=selected_policy.profile_name, fallback=str(fallback).lower()
+                ).inc()
+                if fallback:
+                    POLICY_FALLBACKS_TOTAL.labels(
+                        reason=fallback_reason or "unknown", predicted_class=prediction.class_name
+                    ).inc()
+            if fallback:
+                logger.info(
+                    Messages.POLICY_FALLBACK_APPLIED,
+                    extra={
+                        "service": settings.app_name,
+                        "event": "policy_fallback_applied",
+                        "request_id": request_id,
+                        "component": "policy_mapper",
+                        "fallback_reason": fallback_reason,
+                        "predicted_class": prediction.class_name,
+                        "confidence": prediction.confidence,
+                        "pool_capacity": pool_capacity,
+                        "pool_available": pool_available,
+                        "pool_borrowed": pool_borrowed,
+                        "queue_wait_ms": queue_wait_ms,
+                    },
+                )
+
+        processing_time_ms = round((time.perf_counter() - observation.started_at) * 1000, 3)
+        logger.info(
+            Messages.CLASSIFICATION_COMPLETED,
+            extra={
+                "service": settings.app_name,
+                "event": "classification_completed",
+                "request_id": request_id,
+                "model_name": services.model_metadata.model_name
+                if services.model_metadata is not None
+                else None,
+                "predicted_class": prediction.class_name,
+                "confidence": prediction.confidence,
+                "pool_capacity": pool_capacity,
+                "pool_available": pool_available,
+                "pool_borrowed": pool_borrowed,
+                "queue_wait_ms": queue_wait_ms,
+                "processing_time_ms": processing_time_ms,
+            },
+        )
+        observation.mark_outcome("success")
+        return ClassifyResponse(
+            request_id=request_id,
+            model_name=services.model_metadata.model_name
+            if services.model_metadata is not None
+            else "deterministic_test",
+            prediction=PredictionBody(
+                class_id=prediction.class_id,
+                class_name=prediction.class_name,
+                confidence=prediction.confidence,
+            ),
+            probabilities=prediction.probabilities,
+            policy=policy_response,
+            processing_time_ms=processing_time_ms,
+        )
+    except asyncio.CancelledError:
+        observation.mark_outcome("cancelled")
+        raise
+    finally:
+        observation.finish()
+        if metrics_enabled:
+            CLASSIFICATION_IN_PROGRESS.labels(classification_mode=classification_mode).dec()

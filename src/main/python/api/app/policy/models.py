@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 
 
 class PathConstraints(BaseModel):

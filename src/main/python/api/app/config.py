@@ -6,7 +6,7 @@ Pasos:
 - Expone un contenedor validado para consumo interno.
 
 Notas:
-- Este modulo no ejecuta validaciones de negocio complejas.
+- Este modulo no ejecuta validaciones complejas.
 """
 
 from __future__ import annotations
@@ -19,17 +19,26 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DEFAULT_APP_NAME = "sdnflow-inference-api"
-DEFAULT_APP_VERSION = "1.0.0"
+DEFAULT_APP_NAME = "sma-ml-api-kilo"
+DEFAULT_APP_VERSION = "0.1.0"
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = "8000"
 DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_LOG_DIRECTORY = "./logs"
+DEFAULT_LOG_FILENAME = "sdn_mpls_ml_api.log"
+DEFAULT_LOG_FILE_MAX_BYTES = 10 * 1024 * 1024
+DEFAULT_LOG_FILE_BACKUP_COUNT = 5
+DEFAULT_ENABLE_PROMETHEUS_METRICS = "true"
+DEFAULT_METRICS_PATH = "/metrics"
+DEFAULT_INSTANCE_ID = ""
 DEFAULT_MODEL_DIR = "/models"
 DEFAULT_CONFIG_DIR = "/configs"
-DEFAULT_MODEL_FILENAME = "model.json"
-DEFAULT_MODEL_METADATA_FILENAME = "model_meta.json"
-DEFAULT_POLICY_FILENAME = "default_policy.json"
-DEFAULT_DETERMINISTIC_RULE_FILENAME = "deterministic_rules.json"
+DEFAULT_MODEL_FILENAME = "sdn_mpls_ml_model.json"
+DEFAULT_MODEL_METADATA_FILENAME = "sdn_mpls_ml_model_meta.json"
+DEFAULT_POLICY_FILENAME = "sdn_mpls_ml_traffic_class_to_policy_mapping.json"
+DEFAULT_DETERMINISTIC_RULE_FILENAME = "sdn_mpls_ml_traffic_class_deterministic_rules.json"
+DEFAULT_CLASSIFIER_POOL_SIZE = "5"
+MAX_CLASSIFIER_POOL_SIZE = 32
 DEFAULT_REQUEST_TIMEOUT_SECONDS = "10"
 DEFAULT_MAX_REQUEST_BODY_BYTES = 16384
 DEFAULT_PROBABILITY_TOLERANCE = 0.001
@@ -67,7 +76,11 @@ class ClassificationMode(StrEnum):
 
 
 class RawSettings(BaseSettings):
-    """Representa variables de entorno sin validacion semantica completa.
+    """Representa variables de entorno sin validacion semantica completa. Las variables declaradas en esta clase
+    se registran automaticamente desde el entorno de ejecucion de la aplicacion, pero mantienen valores por defecto que pueden ser usados
+    en el caso de no tener un registro de variables. En este caso, las variables por defecto pueden servir como una advertencia dado que
+    el puerto registrado 8000 puede no ser el puerto abierto por el contenedor o el host, y esto podria llevar a que el
+    servicio no sea accesible desde el exterior, sirviendo como advertencia de que no esta configurado correctamente el sistema
 
     Pasos:
     - Declara cada variable admitida por la API.
@@ -88,6 +101,24 @@ class RawSettings(BaseSettings):
     host: str = Field(default=DEFAULT_HOST, alias="HOST")
     port: str = Field(default=DEFAULT_PORT, alias="PORT")
     log_level: str = Field(default=DEFAULT_LOG_LEVEL, alias="LOG_LEVEL")
+    log_directory: str = Field(default=DEFAULT_LOG_DIRECTORY, alias="LOG_DIRECTORY")
+    log_filename: str = Field(default=DEFAULT_LOG_FILENAME, alias="LOG_FILENAME")
+    log_file_max_bytes: int = Field(
+        default=DEFAULT_LOG_FILE_MAX_BYTES,
+        alias="LOG_FILE_MAX_BYTES",
+        gt=0,
+    )
+    log_file_backup_count: int = Field(
+        default=DEFAULT_LOG_FILE_BACKUP_COUNT,
+        alias="LOG_FILE_BACKUP_COUNT",
+        ge=0,
+    )
+    enable_prometheus_metrics: str = Field(
+        default=DEFAULT_ENABLE_PROMETHEUS_METRICS,
+        alias="ENABLE_PROMETHEUS_METRICS",
+    )
+    metrics_path: str = Field(default=DEFAULT_METRICS_PATH, alias="METRICS_PATH")
+    instance_id: str = Field(default=DEFAULT_INSTANCE_ID, alias="INSTANCE_ID")
 
     model_dir: str = Field(default=DEFAULT_MODEL_DIR, alias="MODEL_DIR")
     config_dir: str = Field(default=DEFAULT_CONFIG_DIR, alias="CONFIG_DIR")
@@ -100,6 +131,7 @@ class RawSettings(BaseSettings):
     )
 
     enable_policy_mapping: str = Field(default="true", alias="ENABLE_POLICY_MAPPING")
+    classifier_pool_size: str = Field(default=DEFAULT_CLASSIFIER_POOL_SIZE, alias="CLASSIFIER_POOL_SIZE")
     request_timeout_seconds: str = Field(default=DEFAULT_REQUEST_TIMEOUT_SECONDS, alias="REQUEST_TIMEOUT_SECONDS")
     max_request_body_bytes: str = Field(default=str(DEFAULT_MAX_REQUEST_BODY_BYTES), alias="MAX_REQUEST_BODY_BYTES")
     probability_tolerance: str = Field(default=str(DEFAULT_PROBABILITY_TOLERANCE), alias="PROBABILITY_TOLERANCE")
@@ -129,6 +161,9 @@ class ValidatedSettings:
     host: str
     port: int
     log_level: str
+    enable_prometheus_metrics: bool
+    metrics_path: str
+    instance_id: str
     model_dir: str
     config_dir: str
     model_filename: str
@@ -136,6 +171,7 @@ class ValidatedSettings:
     policy_filename: str
     deterministic_rule_filename: str
     enable_policy_mapping: bool
+    classifier_pool_size: int
     request_timeout_seconds: int
     max_request_body_bytes: int
     probability_tolerance: float

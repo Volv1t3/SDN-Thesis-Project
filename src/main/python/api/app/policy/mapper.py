@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.messages import Messages
+from app.sdn_mpls_ml_messages import Messages
 from app.policy.models import PolicyFile, TrafficPolicy
 
 

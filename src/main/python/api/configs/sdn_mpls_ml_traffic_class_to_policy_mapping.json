@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "default_profile": {
-    "profile_name": "best_effort",
+    "profile_name": "best_effort_no_tunnel_required",
     "dscp": 0,
     "mpls_tc": 0,
     "path_constraints": {
@@ -12,7 +12,7 @@
   },
   "class_policies": {
     "DNS": {
-      "profile_name": "dns_control",
+      "profile_name": "dns_tunnel_policy",
       "dscp": 18,
       "mpls_tc": 2,
       "path_constraints": {
@@ -22,7 +22,7 @@
       }
     },
     "FTP": {
-      "profile_name": "ftp_bulk",
+      "profile_name": "ftp_tunnel_policy",
       "dscp": 10,
       "mpls_tc": 1,
       "path_constraints": {
@@ -32,7 +32,7 @@
       }
     },
     "HTTP": {
-      "profile_name": "http_standard",
+      "profile_name": "http_tunnel_policy",
       "dscp": 0,
       "mpls_tc": 0,
       "path_constraints": {
@@ -42,7 +42,7 @@
       }
     },
     "ICMP": {
-      "profile_name": "icmp_control",
+      "profile_name": "icmp_tunnel_policy",
       "dscp": 16,
       "mpls_tc": 2,
       "path_constraints": {
@@ -52,7 +52,7 @@
       }
     },
     "NTP": {
-      "profile_name": "ntp_control",
+      "profile_name": "ntp_tunneL_policy",
       "dscp": 16,
       "mpls_tc": 2,
       "path_constraints": {
@@ -62,7 +62,7 @@
       }
     },
     "SSH": {
-      "profile_name": "ssh_interactive",
+      "profile_name": "ssh_tunnel_policy",
       "dscp": 26,
       "mpls_tc": 3,
       "path_constraints": {
@@ -72,7 +72,7 @@
       }
     },
     "STREAMING": {
-      "profile_name": "streaming_default",
+      "profile_name": "streaming_tunnel_policy",
       "dscp": 34,
       "mpls_tc": 4,
       "path_constraints": {

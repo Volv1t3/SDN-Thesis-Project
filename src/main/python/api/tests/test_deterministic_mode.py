@@ -9,7 +9,7 @@ Pasos:
 from fastapi.testclient import TestClient
 
 from app.config import get_raw_settings
-from app.main import app
+from app.sdn_mpls_ml_main import app
 
 
 def test_deterministic_mode_ready_and_classifies_known_port(
@@ -46,7 +46,7 @@ def test_deterministic_mode_ready_and_classifies_known_port(
         assert classify_response.status_code == 200
         body = classify_response.json()
         assert body["prediction"]["class_name"] == "DNS"
-        assert body["policy"]["profile_name"] == "dns_control"
+        assert body["policy"]["profile_name"] == "dns_tunnel_policy"
     get_raw_settings.cache_clear()
 
 
