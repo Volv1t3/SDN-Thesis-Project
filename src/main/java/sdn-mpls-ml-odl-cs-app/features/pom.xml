@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Karaf feature module for the SDN-MPLS-ML controller application.
+
+  This module produces the feature descriptor that allows the application
+  to be installed inside OpenDaylight through Karaf:
+
+      feature:repo-add mvn:...
+      feature:install odl-sdn-mpls-ml-controller-app
+
+  This feature should not be automatically activated merely by existing in
+  the Docker image. It becomes active only after feature installation.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+             http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <!-- Maven model version. -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      ODL single feature parent.
+
+      single-feature-parent is used for Maven modules that produce one Karaf
+      feature. It can generate the Karaf feature contents from this module's
+      dependencies.
+    -->
+    <parent>
+        <groupId>org.opendaylight.odlparent</groupId>
+        <artifactId>single-feature-parent</artifactId>
+        <version>14.1.6</version>
+        <relativePath/>
+    </parent>
+
+    <!--
+      Module coordinates.
+    -->
+    <groupId>com.sma.sdn</groupId>
+    <artifactId>sdn-mpls-ml-cs-app-features</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+
+    <!--
+      feature packaging tells Maven/Karaf tooling to produce a Karaf feature.
+    -->
+    <packaging>feature</packaging>
+
+    <name>SDN-MPLS-ML Controller Application - Karaf Feature</name>
+    <description>
+        Karaf feature used to install the SDN-MPLS-ML controller application
+        into an OpenDaylight Vanadium runtime.
+    </description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!--
+          Our implementation bundle.
+        -->
+        <dependency>
+            <groupId>com.sma.sdn</groupId>
+            <artifactId>sdn-mpls-ml-cs-app-impl</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!--
+          OpenDaylight-managed Jackson Karaf feature.
+
+          This is preferred over trying to manually install individual Jackson
+          bundles into Karaf.
+        -->
+        <dependency>
+            <groupId>org.opendaylight.odlparent</groupId>
+            <artifactId>odl-jackson-2</artifactId>
+            <classifier>features</classifier>
+            <type>xml</type>
+        </dependency>
+    </dependencies>
+
+</project>

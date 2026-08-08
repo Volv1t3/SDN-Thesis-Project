@@ -1,0 +1,30 @@
+Manifest-Version: 1.0
+Bnd-LastModified: 1786154725471
+Build-Jdk-Spec: 21
+Bundle-Blueprint: OSGI-INF/blueprint/impl-blueprint.xml
+Bundle-Description: OpenDaylight in-controller application for reactive 
+ PacketIn handling,        Python ML API integration, and SDN/MPLS polic
+ y actions.
+Bundle-DocURL: https://www.opendaylight.org
+Bundle-License: https://www.eclipse.org/legal/epl-v10.html
+Bundle-ManifestVersion: 2
+Bundle-Name: SDN-MPLS-ML Controller Application - Implementation
+Bundle-SymbolicName: com.sma.sdn.mpls-ml-cs-app-impl
+Bundle-Vendor: OpenDaylight
+Bundle-Version: 0.1.0.SNAPSHOT
+Created-By: Apache Maven Bundle Plugin 6.0.0
+Import-Package: java.lang,org.osgi.service.blueprint;version="[1.0.0,2.0
+ .0)",org.slf4j;version="[2.0,3)"
+Include-Resource: OSGI-INF/blueprint/.gitkeep=src/main/resources/OSGI-IN
+ F/blueprint/.gitkeep,OSGI-INF/blueprint/impl-blueprint.xml=src/main/res
+ ources/OSGI-INF/blueprint/impl-blueprint.xml,/Users/santiagoarellano/Do
+ cuments/Projects/SDN-MPLS-ML Technology Demostrator/src/main/java/sdn-m
+ pls-ml-odl-cs-app/impl/target/classes/LICENSE,META-INF/git.properties=-
+ /Users/santiagoarellano/Documents/Projects/SDN-MPLS-ML Technology Demos
+ trator/src/main/java/sdn-mpls-ml-odl-cs-app/impl/target/classes/META-IN
+ F/git.properties,META-INF/services=-/Users/santiagoarellano/Documents/P
+ rojects/SDN-MPLS-ML Technology Demostrator/src/main/java/sdn-mpls-ml-od
+ l-cs-app/impl/target/classes/META-INF/services
+Private-Package: com.sma.sdn.impl
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
+Tool: Bnd-7.0.0.202310060912

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Implementation module for the SDN-MPLS-ML controller application.
+
+  This module produces the actual Java OSGi bundle loaded by Karaf inside
+  OpenDaylight.
+
+  For the first skeleton, this bundle should only prove:
+    - it builds,
+    - it installs,
+    - Blueprint starts the provider,
+    - logs appear on startup/shutdown.
+
+  Later, this same module will contain:
+    - PacketIn listener,
+    - packet feature extraction,
+    - Python FastAPI HTTP client,
+    - JSON request/response mapping,
+    - OpenFlow flow installation logic,
+    - optional PCE/TE integration adapter.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+             http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <!-- Maven model version. -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      ODL bundle parent.
+
+      bundle-parent is the ODL parent POM for modules that produce OSGi
+      bundles. It configures bundle packaging and OSGi metadata generation.
+    -->
+    <parent>
+        <groupId>org.opendaylight.odlparent</groupId>
+        <artifactId>bundle-parent</artifactId>
+        <version>14.1.6</version>
+        <relativePath/>
+    </parent>
+
+    <!--
+      Module coordinates.
+
+      These match the root project groupId/version but use a module-specific
+      artifactId.
+    -->
+    <groupId>com.sma.sdn</groupId>
+    <artifactId>sdn-mpls-ml-cs-app-impl</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+
+    <!--
+      bundle packaging is required because this module is loaded by OSGi/Karaf.
+    -->
+    <packaging>bundle</packaging>
+
+    <!--
+      Human-readable metadata.
+    -->
+    <name>SDN-MPLS-ML Controller Application - Implementation</name>
+    <description>
+        OpenDaylight in-controller application for reactive PacketIn handling,
+        Python ML API integration, and SDN/MPLS policy actions.
+    </description>
+
+    <properties>
+        <!-- Keep this module aligned with Vanadium's Java 21 baseline. -->
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+
+        <!--
+          SLF4J logging API.
+
+          Use SLF4J in application code. ODL/Karaf provides the actual logging
+          backend, so this dependency should remain provided.
+        -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+          Jackson Databind.
+
+          Used to serialize JSON requests to the Python FastAPI service and
+          deserialize JSON responses back into Java DTOs.
+
+          No explicit version is declared because ODL Parent dependency
+          management should control compatible versions for the ODL runtime.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!--
+          Jackson Java 8 / JDK type support.
+
+          Useful when DTOs eventually contain Optional, modern date/time types,
+          or other JDK-specific values. This is not strictly required for the
+          first skeleton, but it is safe and useful for the API client layer.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jdk8</artifactId>
+        </dependency>
+
+        <!--
+          Jackson Java Time module.
+
+          Useful for timestamps in request IDs, decision logs, controller
+          events, or API responses. Not mandatory for first startup, but likely
+          useful once we log classification/provisioning events.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <!--
+          No external HTTP client is added here.
+
+          The application should use Java 21's built-in:
+              java.net.http.HttpClient
+              java.net.http.HttpRequest
+              java.net.http.HttpResponse
+
+          This avoids adding Apache HttpClient, OkHttp, or similar libraries
+          into Karaf/OSGi unless we later prove we need them.
+        -->
+    </dependencies>
+
+</project>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Blueprint container definition for the SDN-MPLS-ML controller application.
+
+  OpenDaylight/Karaf uses this file to instantiate the provider class when the
+  bundle is loaded.
+
+  The init-method runs when the Blueprint container starts.
+  The destroy-method runs when the Blueprint container is stopped.
+-->
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0">
+
+    <!--
+      Main application provider bean.
+
+      For now, this provider has no injected services. Later, this bean will
+      receive references to MD-SAL, OpenFlowPlugin, and other ODL services.
+    -->
+    <bean id="sdnMplsMlProvider"
+          class="com.sma.sdn.impl.SDN_MPLS_ML_Provider"
+          init-method="init"
+          destroy-method="close"/>
+
+</blueprint>

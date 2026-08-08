@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<features xmlns="http://karaf.apache.org/xmlns/features/v1.6.0" name="sdn-mpls-ml-cs-app-features">
+    <repository>mvn:org.opendaylight.odlparent/odl-jackson-2/14.1.6/xml/features</repository>
+    <feature name="sdn-mpls-ml-cs-app-features" description="SDN-MPLS-ML Controller Application - Karaf Feature" version="0.1.0.SNAPSHOT">
+        <details>Karaf feature used to install the SDN-MPLS-ML controller application
+        into an OpenDaylight Vanadium runtime.</details>
+        <feature version="14.1.6" prerequisite="false" dependency="false">odl-jackson-2</feature>
+        <bundle>mvn:com.sma.sdn/sdn-mpls-ml-cs-app-impl/0.1.0-SNAPSHOT</bundle>
+        <bundle>mvn:com.fasterxml.jackson.datatype/jackson-datatype-jdk8/2.19.4</bundle>
+        <bundle>mvn:com.fasterxml.jackson.datatype/jackson-datatype-jsr310/2.19.4</bundle>
+    </feature>
+</features>
