@@ -56,6 +56,8 @@ topology:
         - ovs-vsctl set-manager tcp:172.21.121.100:6640
         - ovs-vsctl set-controller sma-ovs-pe1-echo tcp:172.21.121.100:6653
         - ovs-vsctl set bridge sma-ovs-pe1-echo protocols=OpenFlow13
+        - ovs-ofctl -O OpenFlow13 del-flows sma-ovs-pe1-echo
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=0,actions=CONTROLLER:65535,NORMAL"
 
     sma-ovs-pe2-foxtrot:
       kind: linux
@@ -80,6 +82,10 @@ topology:
         - ovs-vsctl set-manager tcp:172.21.121.100:6640
         - ovs-vsctl set-controller sma-ovs-pe2-foxtrot tcp:172.21.121.100:6653
         - ovs-vsctl set bridge sma-ovs-pe2-foxtrot protocols=OpenFlow13
+        - ovs-ofctl -O OpenFlow13 del-flows sma-ovs-pe2-foxtrot
+        # Esta regla en el lado del PE2 Foxtrot registra un Flow Rule de prioridad 0,la  mas baja posible. La idea es que enviara una notificacion del paquete ingresasdo al 
+        # controlador, que es lo que resulta en nuestros logs validados, mientras que no detiene el trafico como lo hacia cuando no habia ninguna otra regla.
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=0,actions=CONTROLLER:65535,NORMAL"
 
       
 
