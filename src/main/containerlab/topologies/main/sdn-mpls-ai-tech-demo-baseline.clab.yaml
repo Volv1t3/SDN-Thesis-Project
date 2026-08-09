@@ -100,6 +100,7 @@ topology:
       exec: 
         - sudo ip addr add 192.168.10.10/24 dev eth1
         - sudo ip link set eth1 up
+        - sudo ip link set dev eth1 mtu 1496
         - sudo ip route add 192.168.20.0/24 via 192.168.10.1 dev eth1
         - sudo ip route add 10.0.0.0/8 via 192.168.10.1 dev eth1
         - sudo ip route add 10.100.0.0/16 via 192.168.10.1 dev eth1
@@ -115,6 +116,7 @@ topology:
       exec:
         - sudo ip addr add 192.168.20.10/24 dev eth1
         - sudo ip link set eth1 up
+        - sudo ip link set dev eth1 mtu 1496
         - sudo ip route add 192.168.10.0/24 via 192.168.20.1 dev eth1
         - sudo ip route add 10.0.0.0/8 via 192.168.20.1 dev eth1
         - sudo ip route add 10.100.0.0/16 via 192.168.20.1 dev eth1
