@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Karaf feature module for the SDN-MPLS-ML controller application.
+    SDN-MPLS-ML Tech Demonstrator
+    Santiago Arellano 00328370
 
-  This module produces the feature descriptor that allows the application
-  to be installed inside OpenDaylight through Karaf:
-
-      feature:repo-add mvn:...
-      feature:install odl-sdn-mpls-ml-controller-app
-
-  This feature should not be automatically activated merely by existing in
-  the Docker image. It becomes active only after feature installation.
+    Modulo adicional que permite la definicion de un archivo feature.xml que define las librerias requeridas dentro de
+    ODL para la inicializacion del modulo y para su uso.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -21,11 +16,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!--
-      ODL single feature parent.
-
-      single-feature-parent is used for Maven modules that produce one Karaf
-      feature. It can generate the Karaf feature contents from this module's
-      dependencies.
+      usamos el artefacto de ODL single-feature-parent para producir un modulo que solo genera una feature (la descripcion
+      de los requerimientos y demas) hacia Karaf
     -->
     <parent>
         <groupId>org.opendaylight.odlparent</groupId>
@@ -34,47 +26,73 @@
         <relativePath/>
     </parent>
 
-    <!--
-      Module coordinates.
-    -->
     <groupId>com.sma.sdn</groupId>
     <artifactId>sdn-mpls-ml-cs-app-features</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 
-    <!--
-      feature packaging tells Maven/Karaf tooling to produce a Karaf feature.
-    -->
+
     <packaging>feature</packaging>
 
     <name>SDN-MPLS-ML Controller Application - Karaf Feature</name>
     <description>
-        Karaf feature used to install the SDN-MPLS-ML controller application
-        into an OpenDaylight Vanadium runtime.
+        Feature de Karaf usada para la instalacion del modulo directamente en el sistema de Apache Karaf
     </description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <controller.version>12.0.5</controller.version>
+        <mdsal.version>15.0.4</mdsal.version>
+        <openflowplugin.version>0.21.3</openflowplugin.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>opendaylight-public</id>
+            <name>OpenDaylight Public Repository</name>
+            <url>https://nexus.opendaylight.org/content/repositories/public/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
-        <!--
-          Our implementation bundle.
-        -->
         <dependency>
             <groupId>com.sma.sdn</groupId>
             <artifactId>sdn-mpls-ml-cs-app-impl</artifactId>
             <version>${project.version}</version>
         </dependency>
-
-        <!--
-          OpenDaylight-managed Jackson Karaf feature.
-
-          This is preferred over trying to manually install individual Jackson
-          bundles into Karaf.
-        -->
         <dependency>
             <groupId>org.opendaylight.odlparent</groupId>
             <artifactId>odl-jackson-2</artifactId>
+            <classifier>features</classifier>
+            <type>xml</type>
+        </dependency>
+        <dependency>
+            <groupId>org.opendaylight.mdsal</groupId>
+            <artifactId>odl-mdsal-binding-api</artifactId>
+            <version>${mdsal.version}</version>
+            <classifier>features</classifier>
+            <type>xml</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.opendaylight.controller</groupId>
+            <artifactId>odl-mdsal-broker</artifactId>
+            <version>${controller.version}</version>
+            <classifier>features</classifier>
+            <type>xml</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.opendaylight.openflowplugin</groupId>
+            <artifactId>odl-openflowplugin-flow-services-rest</artifactId>
+            <version>${openflowplugin.version}</version>
+            <classifier>features</classifier>
+            <type>xml</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.opendaylight.openflowplugin</groupId>
+            <artifactId>odl-openflowplugin-app-table-miss-enforcer</artifactId>
+            <version>${openflowplugin.version}</version>
             <classifier>features</classifier>
             <type>xml</type>
         </dependency>

@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Root Maven aggregator for the SDN-MPLS-ML OpenDaylight controller app.
 
-  This POM does not produce a runtime artifact by itself.
-  Its job is to collect the project modules and provide shared coordinates
-  such as groupId, artifactId, version, and common properties.
+    SDN-MPLS-ML Tech Demonstrator
+    Santiago Arellano 00328370
 
-  The actual OSGi bundle is produced by the impl/ module.
-  The installable Karaf feature is produced by the features/ module.
+    Archivo POM general que define los modulos internos a agregar en un paquete final JAR.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -15,16 +12,11 @@
              http://maven.apache.org/POM/4.0.0
              https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-    <!-- Maven model version. Always 4.0.0 for modern Maven POM files. -->
     <modelVersion>4.0.0</modelVersion>
 
     <!--
-      OpenDaylight lightweight parent.
-
-      odlparent-lite is appropriate for root aggregator projects because this
-      module does not produce an OSGi bundle or a Karaf feature directly.
-
-      Version 14.1.6 matches the Vanadium ODL Parent line.
+      Se usa la version odlparent pero light porque no necesitamos ninguna libreria externa sino solo el POM general
+      definido por ODL para la agrupacion de componentes
     -->
     <parent>
         <groupId>org.opendaylight.odlparent</groupId>
@@ -33,54 +25,25 @@
         <relativePath/>
     </parent>
 
-    <!--
-      Project coordinates.
-
-      groupId:
-        Your organization/project namespace.
-
-      artifactId:
-        Name of this root Maven project.
-
-      version:
-        Snapshot version for active development. This same version is reused
-        by the impl and features modules.
-    -->
     <groupId>com.sma.sdn</groupId>
     <artifactId>sdn-mpls-ml-cs-app</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-
-    <!--
-      Root project is only an aggregator, so packaging must be pom.
-    -->
     <packaging>pom</packaging>
-
-    <!--
-      Shared properties available to all child modules.
-
-      maven.compiler.release:
-        Forces Java 21 source/target compatibility. Vanadium runs on Java 21.
-
-      project.build.sourceEncoding:
-        Keeps source file encoding deterministic.
-    -->
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Anadimos estas tres lineas nuevas dado que requerimos, para desarrollo local, conoer
+        que librerias y que importe necesitamos manejar para escribir el listener para PacketReceived
+        notifications desde el controlador.-->
+        <mdsal.version>15.0.4</mdsal.version>
+        <openflowplugin.version>0.21.3</openflowplugin.version>
+        <yangtools.version>14.0.23</yangtools.version>
     </properties>
-
-    <!--
-      Child modules built when running Maven from the root directory.
-
-      impl:
-        Produces the OSGi bundle containing the Java controller application.
-
-      features:
-        Produces the Karaf feature descriptor used to install the app in ODL.
-    -->
     <modules>
         <module>impl</module>
         <module>features</module>
     </modules>
+
+
 
 </project>

@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="sdn-mpls-ml-cs-app-impl-0.1.0-SNAPSHOT">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/impl/target/sdn-mpls-ml-cs-app-impl-0.1.0-SNAPSHOT.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

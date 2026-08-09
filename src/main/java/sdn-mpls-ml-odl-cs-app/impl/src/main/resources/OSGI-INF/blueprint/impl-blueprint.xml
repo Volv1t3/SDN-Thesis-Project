@@ -10,15 +10,14 @@
 -->
 <blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0">
 
-    <!--
-      Main application provider bean.
+    <reference id="notificationService"
+               interface="org.opendaylight.mdsal.binding.api.NotificationService"/>
 
-      For now, this provider has no injected services. Later, this bean will
-      receive references to MD-SAL, OpenFlowPlugin, and other ODL services.
-    -->
     <bean id="sdnMplsMlProvider"
           class="com.sma.sdn.impl.SDN_MPLS_ML_Provider"
           init-method="init"
-          destroy-method="close"/>
+          destroy-method="close">
+        <argument ref="notificationService"/>
+    </bean>
 
 </blueprint>

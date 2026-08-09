@@ -1,14 +1,19 @@
 Manifest-Version: 1.0
-Bnd-LastModified: 1786154725471
+Bnd-LastModified: 1786223358715
 Build-Jdk-Spec: 21
 Bundle-Blueprint: OSGI-INF/blueprint/impl-blueprint.xml
-Bundle-Description: OpenDaylight in-controller application for reactive 
- PacketIn handling,        Python ML API integration, and SDN/MPLS polic
- y actions.
+Bundle-Description: Controller Side Application (o en nomenclatura ODL I
+ n-Controller Application) orientada a la recepcion de eventos        de
+  trafico de Openflow, para la extraccion de sus caracteristicas y su cl
+ asificacion mediante una API definida en        Python cuyo funcionamie
+ nto ya esta validado.        Este modulo se encarga de la recepcion de 
+ senales de Openflow, clasificacion, solicitud de un camino y el posteri
+ or        seeding de los tuneles definidos en sea LSR1 o lSR4 dependien
+ do de la senal recibida de Opendaylight
 Bundle-DocURL: https://www.opendaylight.org
 Bundle-License: https://www.eclipse.org/legal/epl-v10.html
 Bundle-ManifestVersion: 2
-Bundle-Name: SDN-MPLS-ML Controller Application - Implementation
+Bundle-Name: SDN-MPLS-ML Controller Side Application - Implementation
 Bundle-SymbolicName: com.sma.sdn.mpls-ml-cs-app-impl
 Bundle-Vendor: OpenDaylight
 Bundle-Version: 0.1.0.SNAPSHOT
@@ -17,14 +22,13 @@ Import-Package: java.lang,org.osgi.service.blueprint;version="[1.0.0,2.0
  .0)",org.slf4j;version="[2.0,3)"
 Include-Resource: OSGI-INF/blueprint/.gitkeep=src/main/resources/OSGI-IN
  F/blueprint/.gitkeep,OSGI-INF/blueprint/impl-blueprint.xml=src/main/res
- ources/OSGI-INF/blueprint/impl-blueprint.xml,/Users/santiagoarellano/Do
- cuments/Projects/SDN-MPLS-ML Technology Demostrator/src/main/java/sdn-m
- pls-ml-odl-cs-app/impl/target/classes/LICENSE,META-INF/git.properties=-
- /Users/santiagoarellano/Documents/Projects/SDN-MPLS-ML Technology Demos
- trator/src/main/java/sdn-mpls-ml-odl-cs-app/impl/target/classes/META-IN
- F/git.properties,META-INF/services=-/Users/santiagoarellano/Documents/P
- rojects/SDN-MPLS-ML Technology Demostrator/src/main/java/sdn-mpls-ml-od
- l-cs-app/impl/target/classes/META-INF/services
+ ources/OSGI-INF/blueprint/impl-blueprint.xml,C:\Users\sanfr\IdeaProject
+ s\SDN-Thesis-Project\src\main\java\sdn-mpls-ml-odl-cs-app\impl\target/c
+ lasses/LICENSE,META-INF/git.properties=-C:\Users\sanfr\IdeaProjects\SDN
+ -Thesis-Project\src\main\java\sdn-mpls-ml-odl-cs-app\impl\target/classe
+ s/META-INF/git.properties,META-INF/services=-C:\Users\sanfr\IdeaProject
+ s\SDN-Thesis-Project\src\main\java\sdn-mpls-ml-odl-cs-app\impl\target/c
+ lasses/META-INF/services
 Private-Package: com.sma.sdn.impl
 Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
 Tool: Bnd-7.0.0.202310060912

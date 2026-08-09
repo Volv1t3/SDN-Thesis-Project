@@ -1,23 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Implementation module for the SDN-MPLS-ML controller application.
+  SDN-MPLS-ML Tech Demonstrator
+  Santiago Arellano 00328370
 
-  This module produces the actual Java OSGi bundle loaded by Karaf inside
-  OpenDaylight.
+  Modulo que produce la aplicacion interna al sistema de Apache Karaf que maneja Opendaylight para el registro de la
+  aplicacion Controller Side Application requerida para receptar eventos de PacketIn y su lectura en el sistema.
 
-  For the first skeleton, this bundle should only prove:
-    - it builds,
-    - it installs,
-    - Blueprint starts the provider,
-    - logs appear on startup/shutdown.
+  El modelo implementado actualmente se basa en un OSGi Bundle, que define el porque de la existencia de un moduloe features
+  y un modulo impl que es el formato requerido por los bundles registrados en Apache Karaf dentro de Opendaylight. Ademas
+  usamos el modelo de Blueprint Containers para definir un sistema sin importar directamente OSGi sino que nos basamos
+  en las librerias de org.opendaylight.odlparent bundle-parent que contiene librerias necesarias para su funcionamiento
+  base.
 
-  Later, this same module will contain:
-    - PacketIn listener,
-    - packet feature extraction,
-    - Python FastAPI HTTP client,
-    - JSON request/response mapping,
-    - OpenFlow flow installation logic,
-    - optional PCE/TE integration adapter.
+  El modulo se organiza de la siguiente manera:
+  1. groupId: com.sma.sdn que corresponde a sma (SDN-MPLS-AI root de todos los nombres de subsistemas de la topologia) ,
+  sdn el componente que se esta modificando sobre su implementacion base ODL
+  2. arifactId: sdn-mpls-ml-cs-app-impl que corresponde al componente de implementacion del bundle real
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -25,15 +23,8 @@
              http://maven.apache.org/POM/4.0.0
              https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-    <!-- Maven model version. -->
+
     <modelVersion>4.0.0</modelVersion>
-
-    <!--
-      ODL bundle parent.
-
-      bundle-parent is the ODL parent POM for modules that produce OSGi
-      bundles. It configures bundle packaging and OSGi metadata generation.
-    -->
     <parent>
         <groupId>org.opendaylight.odlparent</groupId>
         <artifactId>bundle-parent</artifactId>
@@ -41,99 +32,80 @@
         <relativePath/>
     </parent>
 
-    <!--
-      Module coordinates.
-
-      These match the root project groupId/version but use a module-specific
-      artifactId.
-    -->
     <groupId>com.sma.sdn</groupId>
     <artifactId>sdn-mpls-ml-cs-app-impl</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 
-    <!--
-      bundle packaging is required because this module is loaded by OSGi/Karaf.
-    -->
+    <!--? Definimos que vamos a implementar un bundle de OSGi-->
     <packaging>bundle</packaging>
 
-    <!--
-      Human-readable metadata.
-    -->
-    <name>SDN-MPLS-ML Controller Application - Implementation</name>
+
+    <name>SDN-MPLS-ML Controller Side Application - Implementation</name>
     <description>
-        OpenDaylight in-controller application for reactive PacketIn handling,
-        Python ML API integration, and SDN/MPLS policy actions.
+        Controller Side Application (o en nomenclatura ODL In-Controller Application) orientada a la recepcion de eventos
+        de trafico de Openflow, para la extraccion de sus caracteristicas y su clasificacion mediante una API definida en
+        Python cuyo funcionamiento ya esta validado.
+
+        Este modulo se encarga de la recepcion de senales de Openflow, clasificacion, solicitud de un camino y el posterior
+        seeding de los tuneles definidos en sea LSR1 o lSR4 dependiendo de la senal recibida de Opendaylight
     </description>
 
     <properties>
-        <!-- Keep this module aligned with Vanadium's Java 21 baseline. -->
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <mdsal.version>15.0.4</mdsal.version>
+        <openflowplugin.version>0.21.3</openflowplugin.version>
+        <yangtools.version>14.0.23</yangtools.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>opendaylight-public</id>
+            <name>OpenDaylight Public Repository</name>
+            <url>https://nexus.opendaylight.org/content/repositories/public/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
-
-        <!--
-          SLF4J logging API.
-
-          Use SLF4J in application code. ODL/Karaf provides the actual logging
-          backend, so this dependency should remain provided.
-        -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
         </dependency>
 
-        <!--
-          Jackson Databind.
-
-          Used to serialize JSON requests to the Python FastAPI service and
-          deserialize JSON responses back into Java DTOs.
-
-          No explicit version is declared because ODL Parent dependency
-          management should control compatible versions for the ODL runtime.
-        -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-
-        <!--
-          Jackson Java 8 / JDK type support.
-
-          Useful when DTOs eventually contain Optional, modern date/time types,
-          or other JDK-specific values. This is not strictly required for the
-          first skeleton, but it is safe and useful for the API client layer.
-        -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jdk8</artifactId>
         </dependency>
-
-        <!--
-          Jackson Java Time module.
-
-          Useful for timestamps in request IDs, decision logs, controller
-          events, or API responses. Not mandatory for first startup, but likely
-          useful once we log classification/provisioning events.
-        -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.opendaylight.mdsal</groupId>
+            <artifactId>mdsal-binding-api</artifactId>
+            <version>${mdsal.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
-        <!--
-          No external HTTP client is added here.
+        <dependency>
+            <groupId>org.opendaylight.openflowplugin.model</groupId>
+            <artifactId>model-flow-service</artifactId>
+            <version>${openflowplugin.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
-          The application should use Java 21's built-in:
-              java.net.http.HttpClient
-              java.net.http.HttpRequest
-              java.net.http.HttpResponse
+        <dependency>
+            <groupId>org.opendaylight.yangtools</groupId>
+            <artifactId>concepts</artifactId>
+            <version>${yangtools.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
-          This avoids adding Apache HttpClient, OkHttp, or similar libraries
-          into Karaf/OSGi unless we later prove we need them.
-        -->
     </dependencies>
 
 </project>
