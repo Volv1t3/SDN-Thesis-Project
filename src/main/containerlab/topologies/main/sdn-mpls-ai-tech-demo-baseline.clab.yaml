@@ -51,13 +51,22 @@ topology:
         - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile --detach
         - ovs-vsctl --may-exist add-br sma-ovs-pe1-echo
         - ovs-vsctl set bridge sma-ovs-pe1-echo datapath_type=netdev
-        - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo host-golf
+        - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo host-golf 
         - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo core-lsr1
         - ovs-vsctl set-manager tcp:172.21.121.100:6640
         - ovs-vsctl set-controller sma-ovs-pe1-echo tcp:172.21.121.100:6653
         - ovs-vsctl set bridge sma-ovs-pe1-echo protocols=OpenFlow13
         - ovs-ofctl -O OpenFlow13 del-flows sma-ovs-pe1-echo
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=0,actions=CONTROLLER:65535,NORMAL"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=300,arp,in_port=host-golf,actions=output:core-lsr1"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=300,arp,in_port=core-lsr1,actions=output:host-golf"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=200,ip,in_port=host-golf,actions=CONTROLLER:65535,output:core-lsr1"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=200,ip,in_port=core-lsr1,actions=output:host-golf"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=0,actions=drop"
+      stages:
+        create:
+          wait-for:
+            - node: sma-xrv-lsr1-alpha
+              stage: healthy
 
     sma-ovs-pe2-foxtrot:
       kind: linux
@@ -83,9 +92,16 @@ topology:
         - ovs-vsctl set-controller sma-ovs-pe2-foxtrot tcp:172.21.121.100:6653
         - ovs-vsctl set bridge sma-ovs-pe2-foxtrot protocols=OpenFlow13
         - ovs-ofctl -O OpenFlow13 del-flows sma-ovs-pe2-foxtrot
-        # Esta regla en el lado del PE2 Foxtrot registra un Flow Rule de prioridad 0,la  mas baja posible. La idea es que enviara una notificacion del paquete ingresasdo al 
-        # controlador, que es lo que resulta en nuestros logs validados, mientras que no detiene el trafico como lo hacia cuando no habia ninguna otra regla.
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=0,actions=CONTROLLER:65535,NORMAL"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=300,arp,in_port=host-hotel,actions=output:core-lsr4"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=300,arp,in_port=core-lsr4,actions=output:host-hotel"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=200,ip,in_port=host-hotel,actions=CONTROLLER:65535,output:core-lsr4"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=200,ip,in_port=core-lsr4,actions=output:host-hotel"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=0,actions=drop"
+      stages:
+        create:
+          wait-for:
+            - node: sma-xrv-lsr4-delta
+              stage: healthy
 
       
 
@@ -126,12 +142,78 @@ topology:
       kind: linux
       image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-opendaylight:0.23.1-baseline
       mgmt-ipv4: 172.21.121.100
+      memory: 6G
       env:
-        JAVA_MIN_MEM: 1G
-        JAVA_MAX_MEM: 4G
+        JAVA_MIN_MEM: 4G
+        JAVA_MAX_MEM: 6G
+        TUNNEL_CREATION_MODE: DELEGATED_TUNNEL_UPDATE
+        SMA_LOG_DIRECTORY: /logs
+        SMA_LOG_FILENAME: sdn_mpls_ml_controller.log
+        SMA_LOG_FILE_MAX_BYTES: 10485760
+        SMA_LOG_FILE_BACKUP_COUNT: 5
+        SMA_LOG_LEVEL: DEBUG
+
+        ODL_BGPLS_TOPOLOGY_ID: sma-bgp-linkstate-topology
+        ODL_PCEP_TOPOLOGY_ID: pcep-topology
+        ODL_PATH_COMPUTATION_GRAPH_NAME: ted://sma-bgp-linkstate-topology
+
+        SMA_HEADEND_RID: 11.11.11.11
+        SMA_HEADEND_PCC_NODE: pcc://10.100.10.1
+
+        SMA_TAILEND_RID: 14.14.14.14
+        SMA_TAILEND_PCC_NODE: pcc://10.100.40.1
+
+        SMA_FORWARD_LSP_NAME: sma-lsr1-lsr4-delegated
+        SMA_REVERSE_LSP_NAME: sma-lsr4-lsr1-delegated
+        SMA_FORWARD_TUNNEL_INTERFACE: tunnel-te110
+        SMA_REVERSE_TUNNEL_INTERFACE: tunnel-te410
+        SMA_FORWARD_DIRECTION_KEY: lsr1_to_lsr4
+        SMA_REVERSE_DIRECTION_KEY: lsr4_to_lsr1
+
+        SMA_HEADEND_TO_TAILEND_INGRESS: sma-ovs-pe1-echo|host-golf
+        SMA_TAILEND_TO_HEADEND_INGRESS: sma-ovs-pe2-foxtrot|host-hotel
+
+        ODL_RESTCONF_DATA_BASE_URL: http://127.0.0.1:8182/restconf/data
+        ODL_RESTS_OPERATIONS_BASE_URL: http://127.0.0.1:8181/rests/operations
+        ODL_USERNAME: admin
+        ODL_PASSWORD: admin
+
+        CLASSIFIER_BASE_URL: http://172.21.121.200:33761
+        CLASSIFIER_CLASSIFY_PATH: /api/v1/classify
+
+        CLASSIFICATION_CACHE_TTL_SECONDS: 3600
+        PATH_CACHE_TTL_SECONDS: 60
+        TOPOLOGY_CACHE_TTL_SECONDS: 300
+
+        ODL_OPERATIONAL_VALIDATION_TIMEOUT_SECONDS: 120
+        HTTP_REQUEST_TIMEOUT_SECONDS: 10
+
+        ODL_RETRY_INITIAL_DELAY_MS: 500
+        ODL_RETRY_MAX_DELAY_MS: 5000
+        ODL_RETRY_JITTER_PERCENT: 20
+        ODL_TOPOLOGY_DISCOVERY_MAX_ATTEMPTS: 5
+
+        SMA_OPENFLOW_BOOTSTRAP_ENABLED: true
+        SMA_OPENFLOW_TABLE_ID: 0
+
+        
+        SMA_OVS_ECHO_MGMT_IP: 172.21.121.15
+        SMA_OVS_ECHO_HOST_PORT_NAME: host-golf
+        SMA_OVS_ECHO_CORE_PORT_NAME: core-lsr1
+
+        SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
+        SMA_OVS_FOXTROT_HOST_PORT_NAME: host-hotel
+        SMA_OVS_FOXTROT_CORE_PORT_NAME: core-lsr4
+
+        SMA_OPENFLOW_ARP_PRIORITY: 300
+        SMA_OPENFLOW_IPV4_PRIORITY: 200
+
+        SMA_OPENFLOW_INSTALL_DEFAULT_DROP: false
+        SMA_OPENFLOW_DEFAULT_DROP_PRIORITY: 0
       image-pull-policy: Always
       cap-add:
         - NET_ADMIN
+        - NET_BIND_SERVICE
         - SYS_ADMIN
       exec:
         - sudo ip link set dev eth1 up
@@ -142,6 +224,19 @@ topology:
         - sudo ip address replace 10.100.30.2/30 dev eth3
         - sudo ip link set dev eth4 up
         - sudo ip address replace 10.100.40.2/30 dev eth4
+      binds:
+        - ../../data-folders/karaf-csa-logs:/logs
+      stages:
+        create:
+          wait-for:
+            - node: sma-xrv-lsr1-alpha
+              stage: healthy
+            - node: sma-xrv-lsr2-bravo
+              stage: healthy
+            - node: sma-xrv-lsr3-charlie
+              stage: healthy
+            - node: sma-xrv-lsr4-delta
+              stage: healthy
     
     sma-odl-ml-api-kilo:
       kind: linux
@@ -179,6 +274,7 @@ topology:
         LOG_FILENAME: sdn_mpls_ml_api.log
       binds:
         - ../../data-folders/ml-api-logs:/api/logs
+      
 
     sma-obs-grafana-lima:
       kind: linux

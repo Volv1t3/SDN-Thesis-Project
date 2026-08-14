@@ -21,6 +21,12 @@ ARG ODL_REPOSITORY=https://nexus.opendaylight.org/content/repositories/opendayli
 ARG ODL_ARCHIVE=karaf-${ODL_VERSION}.tar.gz
 ARG ODL_DOWNLOAD_URL=${ODL_REPOSITORY}/${ODL_VERSION}/${ODL_ARCHIVE}
 
+# Identidad estable usada por Karaf y por los directorios montados desde el host.
+ARG KARAF_USER=sma-karaf
+ARG KARAF_GROUP=sma-karaf
+ARG KARAF_UID=10002
+ARG KARAF_GID=10002
+
 # ------------------------------------------------------------------------------
 # OpenDaylight / Karaf environment
 # ------------------------------------------------------------------------------
@@ -36,6 +42,12 @@ ENV JAVA_MAX_MEM=6G
 ENV JAVA_OPTS="-Djava.awt.headless=true \
 -Dfile.encoding=UTF-8 \
 -Djava.security.egd=file:/dev/./urandom"
+
+ENV SMA_LOG_DIRECTORY=/logs \
+    SMA_LOG_FILENAME=sdn_mpls_ml_controller.log \
+    SMA_LOG_FILE_MAX_BYTES=10485760 \
+    SMA_LOG_FILE_BACKUP_COUNT=5 \
+    SMA_LOG_LEVEL=DEBUG
 
 # ------------------------------------------------------------------------------
 # Runtime tools
@@ -72,7 +84,7 @@ RUN apt-get update \
 WORKDIR /tmp
 
 RUN set -eux; \
-    mkdir -p "${ODL_HOME}"; \
+    mkdir -p "${ODL_HOME}" /logs; \
     curl \
         --fail \
         --location \
@@ -87,6 +99,10 @@ RUN set -eux; \
         --directory "${ODL_HOME}" \
         --strip-components=1; \
     rm -f "${ODL_ARCHIVE}"
+
+COPY baseline-odl/sma-odl-entrypoint.sh /usr/local/bin/sma-odl-entrypoint
+
+RUN chmod 0755 /usr/local/bin/sma-odl-entrypoint
 
 # ------------------------------------------------------------------------------
 # Install generated SDN-MPLS-ML application artifacts into Karaf local repository
@@ -221,10 +237,34 @@ print(app_feature_name)
 PY
 
 # ------------------------------------------------------------------------------
+# Non-root Karaf runtime identity
+#
+# The fixed 10002:10002 identity must match the ownership assigned to the host
+# karaf-csa-logs directory before Containerlab mounts it at /logs.
+# ------------------------------------------------------------------------------
+
+RUN set -eux; \
+    groupadd --gid "${KARAF_GID}" "${KARAF_GROUP}"; \
+    useradd \
+        --uid "${KARAF_UID}" \
+        --gid "${KARAF_GID}" \
+        --home-dir "${ODL_HOME}" \
+        --no-create-home \
+        --shell /bin/bash \
+        "${KARAF_USER}"; \
+    printf '%s ALL=(ALL) NOPASSWD: ALL\n' "${KARAF_USER}" \
+        > "/etc/sudoers.d/${KARAF_USER}"; \
+    chmod 0440 "/etc/sudoers.d/${KARAF_USER}"; \
+    chown -R "${KARAF_UID}:${KARAF_GID}" "${ODL_HOME}" /logs
+
+# ------------------------------------------------------------------------------
 # Runtime working directory
 # ------------------------------------------------------------------------------
 
 WORKDIR /opt/opendaylight
+
+# Karaf and the SDN-MPLS-ML logging system always run as UID:GID 10002:10002.
+USER 10002:10002
 
 # ------------------------------------------------------------------------------
 # Exposed controller and application ports
@@ -273,5 +313,5 @@ HEALTHCHECK \
 # Entrypoint
 # ------------------------------------------------------------------------------
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/sma-odl-entrypoint"]
 CMD ["./bin/karaf", "server"]
