@@ -8,9 +8,6 @@
       </list>
     </option>
   </component>
-  <component name="toolkitConnectionManager">
-    <option name="activeConnectionId" value="sso-session:d-906613758e" />
-  </component>
   <component name="toolkitExplorerToolWindow">
     <option name="selectedTab" value="CodeCatalyst" />
   </component>

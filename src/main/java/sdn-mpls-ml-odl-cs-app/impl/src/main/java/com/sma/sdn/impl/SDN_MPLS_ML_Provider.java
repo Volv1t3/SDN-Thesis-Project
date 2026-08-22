@@ -413,7 +413,7 @@ public final class SDN_MPLS_ML_Provider
                     StructuredLogger.fields(
                             "packet_sequence", packetSequence,
                             "notification_type", notification.getClass().getName(),
-                            "notification_interface", notification.getImplementedInterface().getName(),
+                            "notification_interface", PacketReceived.class.getName(),
                             "raw_notification", String.valueOf(notification),
                             "raw_ingress", String.valueOf(notification.getIngress())));
             workflowService.handlePacket(notification);

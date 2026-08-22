@@ -62,11 +62,11 @@ topology:
         - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=200,ip,in_port=host-golf,actions=CONTROLLER:65535,output:core-lsr1"
         - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=200,ip,in_port=core-lsr1,actions=output:host-golf"
         - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=0,actions=drop"
-      stages:
-        create:
-          wait-for:
-            - node: sma-xrv-lsr1-alpha
-              stage: healthy
+      # stages:
+      #   create:
+      #     wait-for:
+      #       - node: sma-xrv-lsr1-alpha
+      #         stage: healthy
 
     sma-ovs-pe2-foxtrot:
       kind: linux
@@ -97,11 +97,11 @@ topology:
         - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=200,ip,in_port=host-hotel,actions=CONTROLLER:65535,output:core-lsr4"
         - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=200,ip,in_port=core-lsr4,actions=output:host-hotel"
         - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=0,actions=drop"
-      stages:
-        create:
-          wait-for:
-            - node: sma-xrv-lsr4-delta
-              stage: healthy
+      # stages:
+      #   create:
+      #     wait-for:
+      #       - node: sma-xrv-lsr4-delta
+      #         stage: healthy
 
       
 
@@ -226,17 +226,17 @@ topology:
         - sudo ip address replace 10.100.40.2/30 dev eth4
       binds:
         - ../../data-folders/karaf-csa-logs:/logs
-      stages:
-        create:
-          wait-for:
-            - node: sma-xrv-lsr1-alpha
-              stage: healthy
-            - node: sma-xrv-lsr2-bravo
-              stage: healthy
-            - node: sma-xrv-lsr3-charlie
-              stage: healthy
-            - node: sma-xrv-lsr4-delta
-              stage: healthy
+      # stages:
+      #   create:
+      #     wait-for:
+      #       - node: sma-xrv-lsr1-alpha
+      #         stage: healthy
+      #       - node: sma-xrv-lsr2-bravo
+      #         stage: healthy
+      #       - node: sma-xrv-lsr3-charlie
+      #         stage: healthy
+      #       - node: sma-xrv-lsr4-delta
+      #         stage: healthy
     
     sma-odl-ml-api-kilo:
       kind: linux
