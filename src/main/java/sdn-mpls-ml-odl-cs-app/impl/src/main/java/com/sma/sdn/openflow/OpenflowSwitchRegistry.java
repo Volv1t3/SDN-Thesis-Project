@@ -8,6 +8,7 @@
 package com.sma.sdn.openflow;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -83,6 +84,35 @@ public final class OpenflowSwitchRegistry {
     public Optional<OpenflowConnectorRecord> findConnector(
             final String nodeId, final String connectorName) {
         return findByNodeId(nodeId).map(value -> value.connectorsByName().get(connectorName));
+    }
+
+    /**
+     * Busca un conector por el identificador completo que ODL publica en una notificacion PacketIn.
+     *
+     * <p>Pasos:
+     * <ol>
+     *   <li>Localiza el conmutador mediante el identificador de nodo OpenFlow.</li>
+     *   <li>Consulta el indice de identificadores completos de sus conectores.</li>
+     *   <li>Devuelve el conector solamente cuando pertenece al nodo solicitado.</li>
+     * </ol>
+     *
+     * @param nodeId identificador OpenFlow del nodo emisor
+     * @param connectorId identificador OpenFlow completo del conector emisor
+     * @return conector asociado, si el inventario registrado contiene la identidad solicitada
+     */
+    public Optional<OpenflowConnectorRecord> findConnectorById(
+            final String nodeId, final String connectorId) {
+        return findByNodeId(nodeId).map(value -> value.connectorsById().get(connectorId));
+    }
+
+    /** Returns the number of switches in the current OpenFlow inventory snapshot. */
+    public int size() {
+        return snapshot.byNodeId().size();
+    }
+
+    /** Returns the current switch snapshot keyed by logical name for operational exposure. */
+    public Map<String, OpenflowSwitchRecord> snapshotByLogicalName() {
+        return new LinkedHashMap<>(snapshot.byLogicalName());
     }
 
     private OpenflowSwitchRecord requireByLogicalName(final String logicalName) {

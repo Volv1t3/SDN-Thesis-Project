@@ -160,6 +160,32 @@ def test_body_at_exact_limit_is_not_rejected_by_size_middleware(client):
     assert payload["request_id"] == headers["x-request-id"]
 
 
+def test_valid_json_body_is_replayed_to_pydantic(client):
+    """El middleware debe reenviar el cuerpo completo a la dependencia Pydantic."""
+
+    body = (
+        b'{"packet_features":{"eth_type":2048,"ip_proto":1,'
+        b'"src_port":0,"dst_port":0}}'
+    )
+    status_code, headers, response_body = _invoke_http_app(
+        client.app,
+        method="POST",
+        path="/api/v1/classify",
+        headers=[
+            (b"host", b"testserver"),
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(body)).encode("ascii")),
+        ],
+        # Simula una entrega fragmentada, como puede ocurrir con un cliente HTTP
+        # distinto de Postman.
+        body_chunks=[body[:23], body[23:]],
+    )
+
+    assert status_code == 200
+    payload = json.loads(response_body.decode("utf-8"))
+    assert payload["request_id"] == headers["x-request-id"]
+
+
 def test_missing_content_length_oversized_body_returns_413(client):
     """Verifica que el tamano real se aplique aunque falte `Content-Length`."""
 

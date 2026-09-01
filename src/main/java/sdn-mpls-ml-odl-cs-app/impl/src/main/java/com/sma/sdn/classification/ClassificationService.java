@@ -134,7 +134,9 @@ public final class ClassificationService {
                 "classifier_request_prepared",
                 "classify",
                 "Se preparo la solicitud segura para el clasificador externo.",
-                StructuredLogger.fields("request_body_bytes", body.getBytes(StandardCharsets.UTF_8).length));
+                StructuredLogger.fields(
+                        "request_body_bytes", body.getBytes(StandardCharsets.UTF_8).length,
+                        "request_body", body));
         final HttpResponse<String> response;
         final Instant startedAt = Instant.now();
         try {
@@ -157,9 +159,19 @@ public final class ClassificationService {
                 StructuredLogger.fields(
                         "http_status", response.statusCode(),
                         "response_body_bytes", response.body() == null ? 0 : response.body().length(),
+                        "response_body", response.body(),
                         "duration_ms", Duration.between(startedAt, Instant.now()).toMillis()));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             metrics.increment("sma_classifier_failure_total");
+            LOG.warn(
+                    "classifier_response_rejected",
+                    "classify",
+                    "El clasificador rechazo la solicitud y devolvio un cuerpo de error para diagnostico.",
+                    StructuredLogger.fields(
+                            "http_status", response.statusCode(),
+                            "request_body", body,
+                            "error_response_body", response.body()),
+                    null);
             throw new IllegalStateException("La solicitud al clasificador fallo: HTTP " + response.statusCode());
         }
         final ClassificationResult result = responseDeserializer.deserialize(response.body());

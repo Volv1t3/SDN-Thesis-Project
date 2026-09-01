@@ -77,6 +77,10 @@ class JsonFormatter(logging.Formatter):
             payload["service"] = record.service
         if hasattr(record, "event"):
             payload["event"] = record.event
+        if hasattr(record, "context"):
+            payload["context"] = record.context
+        if hasattr(record, "metadata"):
+            payload["metadata"] = record.metadata
         for key in (
             "instance_id",
             "worker_id",

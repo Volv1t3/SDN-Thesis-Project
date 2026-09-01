@@ -9,20 +9,24 @@
 package com.sma.sdn;
 
 import com.sma.sdn.classification.ClassificationService;
+import com.sma.sdn.config.AppConfig;
 import com.sma.sdn.metrics.SdnMplsMlMetrics;
-import com.sma.sdn.model.CalculatedPath;
 import com.sma.sdn.model.ClassificationResult;
-import com.sma.sdn.model.DelegatedLspRecord;
+import com.sma.sdn.model.DirectionalPolicyEvidence;
 import com.sma.sdn.model.FlowDirection;
 import com.sma.sdn.model.PacketClassificationContext;
-import com.sma.sdn.model.PathConstraints;
 import com.sma.sdn.model.TunnelDirection;
+import com.sma.sdn.model.WorkflowContext;
 import com.sma.sdn.observability.LogContext;
 import com.sma.sdn.observability.StructuredLogger;
 import com.sma.sdn.packet.PacketInFeatureExtractor;
-import com.sma.sdn.path.PathComputationService;
+import com.sma.sdn.policy.PairPolicyCoordinator;
+import com.sma.sdn.policy.PairPolicyHashService;
+import com.sma.sdn.policy.ServiceKeyResolver;
 import com.sma.sdn.registry.DirectionRegistry;
-import com.sma.sdn.tunnel.DelegatedLspService;
+import com.sma.sdn.registry.TunnelPairRegistry;
+import com.sma.sdn.topology.BandwidthTranslator;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
@@ -36,9 +40,12 @@ public final class SdnMplsMlWorkflowService {
 
     private final PacketInFeatureExtractor packetInFeatureExtractor;
     private final ClassificationService classificationService;
+    private final AppConfig config;
     private final DirectionRegistry directionRegistry;
-    private final PathComputationService pathComputationService;
-    private final DelegatedLspService delegatedLspService;
+    private final TunnelPairRegistry pairRegistry;
+    private final ServiceKeyResolver serviceKeyResolver;
+    private final PairPolicyHashService hashService;
+    private final PairPolicyCoordinator pairPolicyCoordinator;
     private final SdnMplsMlMetrics metrics;
     private final BooleanSupplier controlPlaneReady;
     private final BooleanSupplier topologyUsable;
@@ -63,20 +70,26 @@ public final class SdnMplsMlWorkflowService {
      * @param topologyUsable comprobacion de vigencia de BGP-LS
      */
     public SdnMplsMlWorkflowService(
+            final AppConfig config,
             final PacketInFeatureExtractor packetInFeatureExtractor,
             final ClassificationService classificationService,
             final DirectionRegistry directionRegistry,
-            final PathComputationService pathComputationService,
-            final DelegatedLspService delegatedLspService,
+            final TunnelPairRegistry pairRegistry,
+            final ServiceKeyResolver serviceKeyResolver,
+            final PairPolicyHashService hashService,
+            final PairPolicyCoordinator pairPolicyCoordinator,
             final SdnMplsMlMetrics metrics,
             final BooleanSupplier controlPlaneReady,
             final BooleanSupplier topologyUsable) {
+        this.config = Objects.requireNonNull(config, "config");
         this.packetInFeatureExtractor = Objects.requireNonNull(
                 packetInFeatureExtractor, "packetInFeatureExtractor");
         this.classificationService = Objects.requireNonNull(classificationService, "classificationService");
         this.directionRegistry = Objects.requireNonNull(directionRegistry, "directionRegistry");
-        this.pathComputationService = Objects.requireNonNull(pathComputationService, "pathComputationService");
-        this.delegatedLspService = Objects.requireNonNull(delegatedLspService, "delegatedLspService");
+        this.pairRegistry = Objects.requireNonNull(pairRegistry, "pairRegistry");
+        this.serviceKeyResolver = Objects.requireNonNull(serviceKeyResolver, "serviceKeyResolver");
+        this.hashService = Objects.requireNonNull(hashService, "hashService");
+        this.pairPolicyCoordinator = Objects.requireNonNull(pairPolicyCoordinator, "pairPolicyCoordinator");
         this.metrics = Objects.requireNonNull(metrics, "metrics");
         this.controlPlaneReady = Objects.requireNonNull(controlPlaneReady, "controlPlaneReady");
         this.topologyUsable = Objects.requireNonNull(topologyUsable, "topologyUsable");
@@ -152,54 +165,73 @@ public final class SdnMplsMlWorkflowService {
             return;
         }
 
-        final TunnelDirection tunnelDirection = directionRegistry.requireTunnelDirection(flowDirection);
+        final TunnelDirection ingressTunnelDirection = directionRegistry.requireTunnelDirection(flowDirection);
         try (LogContext ignored = LogContext.open(Map.of(
-                "direction_key", tunnelDirection.directionKey()))) {
+                "direction_key", ingressTunnelDirection.directionKey()))) {
             LOG.debug(
                     "packet_direction_resolved",
                     "handlePacket",
                     "Se resolvio la direccion logica del paquete.",
                     StructuredLogger.fields(
-                            "source_router_id", tunnelDirection.source().routerId(),
-                            "destination_router_id", tunnelDirection.destination().routerId()));
+                            "source_router_id", ingressTunnelDirection.source().routerId(),
+                            "destination_router_id", ingressTunnelDirection.destination().routerId()));
             final ClassificationResult classification = classificationService.classifyOrGetCached(context);
-            final PathConstraints constraints = classification.policy().pathConstraints();
-            final CalculatedPath path = pathComputationService.computeOrGetCached(tunnelDirection, constraints);
-            final boolean unchanged = delegatedLspService.activeStateMatches(tunnelDirection, path, constraints);
-            final String action;
-            if (unchanged) {
-                action = "skip_no_change";
-                metrics.increment("sma_update_lsp_skipped_no_change_total");
-            } else {
-                delegatedLspService.updateDelegatedLsp(tunnelDirection, path, constraints);
-                action = "update_lsp";
+            final WorkflowContext workflowContext = WorkflowContext.current();
+            final DirectionalPolicyEvidence evidence = buildEvidence(context, ingressTunnelDirection, classification);
+            final var decision = pairPolicyCoordinator.handleEvidence(evidence, workflowContext);
+            if (decision.candidate().isEmpty()) {
+                LOG.info("packet_workflow_pending_consensus", "handlePacket",
+                        "La evidencia fue registrada, pero aun no existe una politica de par accionable.",
+                        StructuredLogger.fields("pair_key", decision.pairKey(), "service_key", decision.serviceKey().normalizedValue(),
+                                "consensus_status", decision.consensusStatus(), "observed_direction_key",
+                                ingressTunnelDirection.directionKey()));
+                return;
             }
-            final DelegatedLspRecord lsp = delegatedLspService.requireDelegatedLsp(
-                    tunnelDirection.directionKey());
-
             LOG.info(
                     "packet_workflow_completed",
                     "handlePacket",
-                    "Finalizo el flujo del paquete sobre el LSP delegado.",
+                    "Finalizo el flujo del paquete con una decision de politica de par.",
                     StructuredLogger.fields(
                             "ingress_switch", context.ingressSwitchName(),
                             "ingress_connector", context.ingressConnectorName(),
-                            "eth_type", context.packetFeatures().ethType(),
-                            "ip_protocol", context.packetFeatures().ipProto(),
-                            "source_port", context.packetFeatures().srcPort(),
-                            "destination_port", context.packetFeatures().dstPort(),
-                            "class_name", classification.className(),
-                            "confidence", classification.confidence(),
+                            "observed_direction", flowDirection,
+                            "pair_key", decision.pairKey(),
+                            "service_key", decision.serviceKey().normalizedValue(),
+                            "consensus_status", decision.consensusStatus(),
+                            "preemption_decision", decision.preemptionDecision(),
+                            "processed_direction_keys", decision.applications().stream()
+                                    .map(application -> application.directionKey()).toList(),
+                            "classification_class", classification.className(),
                             "profile_name", classification.policy().profileName(),
-                            "bandwidth_kbps", constraints.requestedBandwidthKbps(),
-                            "source_graph_node", path.sourceGraphNodeId(),
-                            "destination_graph_node", path.destinationGraphNodeId(),
-                            "ero", path.eroSubobjects(),
-                            "action", action,
-                            "lsp_name", lsp.lspName(),
-                            "plsp_id", lsp.plspId(),
-                            "tunnel_interface", lsp.tunnelInterfaceName(),
-                            "operational_state", lsp.operationalState()));
+                            "lsp_application_statuses", decision.applications().stream()
+                                    .map(application -> application.status()).toList(),
+                            "suppression_flow_enabled", false));
         }
+    }
+
+    private DirectionalPolicyEvidence buildEvidence(final PacketClassificationContext context,
+            final TunnelDirection direction, final ClassificationResult classification) {
+        final Instant observedAt = context.receivedAt() == null ? Instant.now() : context.receivedAt();
+        final var serviceKey = serviceKeyResolver.resolve(context.packetFeatures());
+        final var pair = pairRegistry.requirePairForDirection(direction.directionKey());
+        final String bandwidth = BandwidthTranslator.kbpsToPcepBandwidthBase64Float32(
+                classification.policy().pathConstraints().requestedBandwidthKbps());
+        final DirectionalPolicyEvidence partial = new DirectionalPolicyEvidence(pair.pairKey(), direction.directionKey(),
+                context.ingressSwitchName(), context.ingressConnectorName(), context.packetFeatures(), serviceKey,
+                classification.className(), classification.policy().profileName(), classification.policy().dscp(),
+                classification.policy().mplsTc(), (int) classification.policy().pathConstraints().requestedBandwidthKbps(),
+                bandwidth, classification.policy().pathConstraints().setupPriority(),
+                classification.policy().pathConstraints().holdPriority(), "classifier-policy-v1", "", observedAt,
+                observedAt.plus(config.pairConsensusEvidenceTtl()));
+        final DirectionalPolicyEvidence evidence = new DirectionalPolicyEvidence(partial.pairKey(), partial.directionKey(),
+                partial.ingressSwitchName(), partial.ingressConnectorName(), partial.packetFeatures(), partial.serviceKey(),
+                partial.className(), partial.profileName(), partial.dscp(), partial.mplsTc(),
+                partial.requestedBandwidthKbps(), partial.requestedBandwidthBase64(), partial.setupPriority(),
+                partial.holdPriority(), partial.policySchemaVersion(), hashService.hashDirectionalEvidence(partial),
+                partial.observedAt(), partial.expiresAt());
+        LOG.debug("directional_policy_evidence_built", "buildEvidence", "Se construyo evidencia direccional para consenso.",
+                StructuredLogger.fields("pair_key", evidence.pairKey(), "service_key", evidence.serviceKey().normalizedValue(),
+                        "class_name", evidence.className(), "policy_hash", evidence.policyHash()));
+        return evidence;
     }
 }

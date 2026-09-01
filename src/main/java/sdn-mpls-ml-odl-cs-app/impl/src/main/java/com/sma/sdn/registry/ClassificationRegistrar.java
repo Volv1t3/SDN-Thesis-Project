@@ -105,11 +105,11 @@ public final class ClassificationRegistrar {
      * </ol>
      */
     public synchronized void expireOldEntries() {
-        final int previousSize = size();
+        final int previousSize = entryCount();
         final Instant now = Instant.now();
         expire(exactBySwitch, now);
         expire(serviceBySwitch, now);
-        final int expiredCount = previousSize - size();
+        final int expiredCount = previousSize - entryCount();
         if (expiredCount > 0) {
             LOG.debug("classification_registry_entries_expired", "expireOldEntries",
                     "Se eliminaron clasificaciones vencidas",
@@ -130,6 +130,11 @@ public final class ClassificationRegistrar {
      * @return resultado calculado, estado encontrado o modelo construido por la operacion
      */
     public synchronized int size() {
+        expireOldEntries();
+        return entryCount();
+    }
+
+    private int entryCount() {
         return exactBySwitch.values().stream().mapToInt(Map::size).sum()
                 + serviceBySwitch.values().stream().mapToInt(Map::size).sum();
     }

@@ -14,6 +14,7 @@ import com.sma.sdn.observability.StructuredLogger;
 import com.sma.sdn.util.XmlSupport;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -25,6 +26,9 @@ import org.w3c.dom.NodeList;
  * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
  */
 public final class PathComputationResponseXmlDeserializer {
+    private static final Set<String> VALID_STATUSES = Set.of(
+            "idle", "in-progress", "active", "completed", "failed", "no-path", "no-source",
+            "no-destination", "equal-endpoints");
     private static final StructuredLogger LOG =
             StructuredLogger.getLogger(PathComputationResponseXmlDeserializer.class);
     /**
@@ -46,6 +50,10 @@ public final class PathComputationResponseXmlDeserializer {
     public PathComputationResponse deserialize(final String xml) {
         final Document document = XmlSupport.parse(xml);
         final String status = XmlSupport.string(document, "//*[local-name()='status'][1]");
+        if (status == null || !VALID_STATUSES.contains(status)) {
+            throw new IllegalArgumentException(
+                    "La respuesta de calculo de camino tiene un estado invalido: " + status);
+        }
         final Integer metric = XmlSupport.integer(document, "//*[local-name()='computed-te-metric'][1]");
         final NodeList pathDescriptions = XmlSupport.nodes(document, "//*[local-name()='path-description']");
         final List<PathHop> hops = new ArrayList<>();

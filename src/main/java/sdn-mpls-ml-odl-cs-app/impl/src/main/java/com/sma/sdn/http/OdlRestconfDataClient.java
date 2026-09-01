@@ -31,6 +31,7 @@ public final class OdlRestconfDataClient {
     private final HttpClient httpClient;
     private final URI baseUrl;
     private final Duration timeout;
+    private final com.sma.sdn.model.OdlXmlBodyLogLevel xmlBodyLogLevel;
     private final String authorization;
 
     /**
@@ -51,6 +52,7 @@ public final class OdlRestconfDataClient {
         this.httpClient = httpClient;
         this.baseUrl = stripTrailingSlash(config.odlRestconfDataBaseUrl());
         this.timeout = config.httpRequestTimeout();
+        this.xmlBodyLogLevel = config.odlXmlBodyLogLevel();
         this.authorization = basic(config.odlUsername(), config.odlPassword());
     }
 
@@ -200,7 +202,7 @@ public final class OdlRestconfDataClient {
                 .header("Content-Type", "application/xml")
                 .header("Authorization", authorization)
                 .PUT(HttpRequest.BodyPublishers.ofString(xml, StandardCharsets.UTF_8))
-                .build());
+                .build(), xml);
     }
 
     /**
@@ -325,19 +327,34 @@ public final class OdlRestconfDataClient {
      * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
      */
     private HttpResponse<String> send(final HttpRequest request) {
+        return send(request, null);
+    }
+
+    /**
+     * Ejecuta una solicitud RESTCONF y registra su intercambio XML completo.
+     *
+     * <p>Pasos:
+     * <ol>
+     *   <li>Registra el metodo, los encabezados de negociacion y el cuerpo XML de solicitud.</li>
+     *   <li>Ejecuta la solicitud autenticada contra OpenDaylight.</li>
+     *   <li>Registra la respuesta XML completa, su estado HTTP y su duracion.</li>
+     * </ol>
+     *
+     * @param request solicitud RESTCONF preparada
+     * @param requestBody cuerpo XML enviado o {@code null} cuando no existe
+     * @return respuesta textual producida por OpenDaylight
+     * @throws IllegalStateException si la comunicacion RESTCONF falla o es interrumpida
+     */
+    private HttpResponse<String> send(final HttpRequest request, final String requestBody) {
         final long startedAt = System.nanoTime();
-        LOG.debug("odl_data_request_started", "send",
-                "Se inicio una solicitud RESTCONF contra ODL",
-                StructuredLogger.fields("method", request.method(), "endpoint", request.uri()));
+        OdlXmlExchangeLogger.requestStarted(
+                LOG, "RESTCONF", "odl_data_request_started", "send", request, requestBody, xmlBodyLogLevel);
         try {
             final HttpResponse<String> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            LOG.debug("odl_data_request_completed", "send",
-                    "La solicitud RESTCONF contra ODL finalizo",
-                    StructuredLogger.fields("method", request.method(), "endpoint", request.uri(),
-                            "status_code", response.statusCode(),
-                            "response_bytes", response.body().getBytes(StandardCharsets.UTF_8).length,
-                            "duration_ms", elapsedMillis(startedAt)));
+            OdlXmlExchangeLogger.responseReceived(
+                    LOG, "RESTCONF", "odl_data_response_received", "send", request, response,
+                    elapsedMillis(startedAt), xmlBodyLogLevel);
             return response;
         } catch (IOException e) {
             LOG.error("odl_data_request_failed", "send",

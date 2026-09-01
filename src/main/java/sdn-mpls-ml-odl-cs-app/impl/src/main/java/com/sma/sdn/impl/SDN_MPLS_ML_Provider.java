@@ -31,6 +31,7 @@ import com.sma.sdn.openflow.OpenflowFlowXmlSerializer;
 import com.sma.sdn.openflow.OpenflowInventoryService;
 import com.sma.sdn.openflow.OpenflowInventoryXmlDeserializer;
 import com.sma.sdn.openflow.OpenflowSwitchRegistry;
+import com.sma.sdn.operational.ControllerOperationalStatePublisher;
 import com.sma.sdn.packet.PacketInFeatureExtractor;
 import com.sma.sdn.path.CalculatedPathToEroTranslator;
 import com.sma.sdn.path.PathComputationService;
@@ -53,6 +54,15 @@ import com.sma.sdn.serialization.xml.UpdateLspResponseXmlDeserializer;
 import com.sma.sdn.topology.TopologyDiscoveryService;
 import com.sma.sdn.topology.TopologyRefreshService;
 import com.sma.sdn.tunnel.DelegatedLspService;
+import com.sma.sdn.tunnel.DirectionalLspApplicationService;
+import com.sma.sdn.policy.PairPolicyCoordinator;
+import com.sma.sdn.policy.PairPolicyConsensusService;
+import com.sma.sdn.policy.PairPolicyHashService;
+import com.sma.sdn.policy.PolicyPreemptionEvaluator;
+import com.sma.sdn.policy.ServiceKeyResolver;
+import com.sma.sdn.registry.ActivePairPolicyRegistry;
+import com.sma.sdn.registry.DirectionalClassificationEvidenceRegistry;
+import com.sma.sdn.registry.TunnelPairRegistry;
 import com.sma.sdn.util.RetryPolicy;
 import java.net.http.HttpClient;
 import java.util.Map;
@@ -65,6 +75,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.opendaylight.mdsal.binding.api.NotificationService;
+import org.opendaylight.mdsal.binding.api.DataBroker;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.packet.service.rev130709.PacketReceived;
 import org.opendaylight.yangtools.concepts.Registration;
 
@@ -76,6 +87,7 @@ public final class SDN_MPLS_ML_Provider
     private static final StructuredLogger LOG = StructuredLogger.getLogger(SDN_MPLS_ML_Provider.class);
 
     private final NotificationService notificationService;
+    private final DataBroker dataBroker;
     private final AtomicLong packetInCounter = new AtomicLong();
     private final AtomicBoolean controlPlaneReady = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -90,6 +102,7 @@ public final class SDN_MPLS_ML_Provider
     private TopologyRefreshService topologyRefreshService;
     private DelegatedLspService delegatedLspService;
     private OpenflowBootstrapService openflowBootstrapService;
+    private ControllerOperationalStatePublisher operationalStatePublisher;
 
     /**
      * Ejecuta la operacion {@code SDN_MPLS_ML_Provider} dentro del componente correspondiente.
@@ -103,8 +116,11 @@ public final class SDN_MPLS_ML_Provider
      *
      * @param notificationService valor requerido para ejecutar esta operacion
      */
-    public SDN_MPLS_ML_Provider(final NotificationService notificationService) {
+    public SDN_MPLS_ML_Provider(
+            final NotificationService notificationService,
+            final DataBroker dataBroker) {
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService");
+        this.dataBroker = Objects.requireNonNull(dataBroker, "dataBroker");
     }
 
     /**
@@ -171,7 +187,8 @@ public final class SDN_MPLS_ML_Provider
                 new BgpLsTopologyXmlDeserializer(),
                 bgpLsNodeRegistry,
                 topologyOutcomeClassifier,
-                metrics);
+                metrics,
+                this::publishOperationalState);
 
         final EroXmlSerializer eroXmlSerializer = new EroXmlSerializer();
         final ClassificationService classificationService = new ClassificationService(
@@ -221,15 +238,49 @@ public final class SDN_MPLS_ML_Provider
                 delegatedLspRegistry,
                 retryPolicy,
                 metrics);
+        final TunnelPairRegistry tunnelPairRegistry = new TunnelPairRegistry(config);
+        final ServiceKeyResolver serviceKeyResolver = new ServiceKeyResolver();
+        final PairPolicyHashService pairPolicyHashService = new PairPolicyHashService(config.pairPolicyHashVersion());
+        final DirectionalClassificationEvidenceRegistry evidenceRegistry =
+                new DirectionalClassificationEvidenceRegistry(tunnelPairRegistry);
+        final ActivePairPolicyRegistry activePairPolicyRegistry = new ActivePairPolicyRegistry();
+        final PairPolicyCoordinator pairPolicyCoordinator = new PairPolicyCoordinator(
+                config,
+                tunnelPairRegistry,
+                evidenceRegistry,
+                new PairPolicyConsensusService(config.pairConsensusRequireBothDirections(),
+                        config.pairConsensusSingleSideProvisionalEnabled(), config.pairConsensusEqualPriorityAction(),
+                        serviceKeyResolver),
+                activePairPolicyRegistry,
+                new PolicyPreemptionEvaluator(),
+                new DirectionalLspApplicationService(pathComputationService, delegatedLspService, pairPolicyHashService, metrics),
+                metrics);
+        operationalStatePublisher = new ControllerOperationalStatePublisher(
+                dataBroker,
+                config,
+                bgpLsNodeRegistry,
+                classificationRegistrar,
+                calculatedPathRegistry,
+                delegatedLspRegistry,
+                openflowSwitchRegistry,
+                evidenceRegistry,
+                activePairPolicyRegistry,
+                topologyRefreshService,
+                controlPlaneReady::get,
+                closed::get,
+                packetInCounter::get);
         workflowService = new SdnMplsMlWorkflowService(
-                new PacketInFeatureExtractor(config),
+                config,
+                new PacketInFeatureExtractor(config, openflowSwitchRegistry),
                 classificationService,
                 new DirectionRegistry(config),
-                pathComputationService,
-                delegatedLspService,
+                tunnelPairRegistry,
+                serviceKeyResolver,
+                pairPolicyHashService,
+                pairPolicyCoordinator,
                 metrics,
                 controlPlaneReady::get,
-                () -> topologyRefreshService == null || !topologyRefreshService.staleBeyondThreshold());
+                () -> topologyRefreshService != null && topologyRefreshService.ensureFresh());
 
         packetInRegistration = notificationService.registerListener(PacketReceived.class, this);
         LOG.info(
@@ -239,6 +290,7 @@ public final class SDN_MPLS_ML_Provider
                 StructuredLogger.fields(
                         "forward_lsp_name", config.forwardLspName(),
                         "reverse_lsp_name", config.reverseLspName()));
+        publishOperationalState();
         scheduleReadinessAttempt(config, 1, 0L);
         LOG.info(
                 "control_plane_readiness_scheduled",
@@ -309,6 +361,7 @@ public final class SDN_MPLS_ML_Provider
                 StructuredLogger.fields("attempt", attempt));
         try {
             topologyDiscoveryService.initialize();
+            topologyRefreshService.markInitialDiscoverySuccessful();
             if (closed.get()) {
                 return;
             }
@@ -325,6 +378,7 @@ public final class SDN_MPLS_ML_Provider
             }
             topologyRefreshService.start();
             controlPlaneReady.set(true);
+            publishOperationalState();
             LOG.info(
                     "control_plane_ready",
                     "runReadinessAttempt",
@@ -332,6 +386,7 @@ public final class SDN_MPLS_ML_Provider
                     StructuredLogger.fields("attempt", attempt));
         } catch (RuntimeException e) {
             controlPlaneReady.set(false);
+            publishOperationalState();
             if (closed.get()) {
                 return;
             }
@@ -424,6 +479,8 @@ public final class SDN_MPLS_ML_Provider
                     "Fallo el procesamiento de la notificacion PacketReceived.",
                     StructuredLogger.fields("packet_sequence", packetSequence),
                     e);
+        } finally {
+            publishOperationalState();
         }
     }
 
@@ -441,6 +498,7 @@ public final class SDN_MPLS_ML_Provider
     public void close() {
         closed.set(true);
         controlPlaneReady.set(false);
+        publishOperationalState();
         readinessExecutor.shutdownNow();
         if (packetInRegistration != null) {
             packetInRegistration.close();
@@ -455,5 +513,11 @@ public final class SDN_MPLS_ML_Provider
                 "close",
                 "Se desregistro el listener PacketReceived y se cerraron los servicios auxiliares.",
                 StructuredLogger.fields("processed_packet_count", packetInCounter.get()));
+    }
+
+    private void publishOperationalState() {
+        if (operationalStatePublisher != null) {
+            operationalStatePublisher.publish();
+        }
     }
 }

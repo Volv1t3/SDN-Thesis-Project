@@ -187,7 +187,7 @@ public final class DelegatedLspService {
      *
      * <p>Pasos:
      * <ol>
-     *   <li>Obtiene el LSP valido de la direccion.</li>
+     *   <li>Vuelve a leer y parsear la topologia PCEP antes de seleccionar el LSP de la direccion.</li>
      *   <li>Codifica el ancho de banda solicitado como float32 Base64.</li>
      *   <li>Compara exactamente el orden de la ERO y el valor de ancho de banda.</li>
      * </ol>
@@ -201,7 +201,7 @@ public final class DelegatedLspService {
             final TunnelDirection direction,
             final CalculatedPath path,
             final PathConstraints constraints) {
-        final DelegatedLspRecord record = requireDelegatedLsp(direction.directionKey());
+        final DelegatedLspRecord record = refreshDirection(direction.directionKey());
         final String bandwidth = BandwidthTranslator.kbpsToPcepBandwidthBase64Float32(
                 constraints.requestedBandwidthKbps());
         final boolean matches = stateMatches(record, path.eroSubobjects(), bandwidth);
@@ -263,7 +263,7 @@ public final class DelegatedLspService {
                         "updateDelegatedLsp",
                         "Se omitio update-lsp porque el estado activo ya coincide con la solicitud.",
                         lspFields(current));
-                return new UpdateLspResult(true, false, false, null);
+                return new UpdateLspResult(true, false, false, null, 0);
             }
 
             final UpdateLspRequest request = new UpdateLspRequest(
@@ -305,7 +305,7 @@ public final class DelegatedLspService {
                             "provisional_success", initialResult.provisionalSuccess(),
                             "hard_failure", initialResult.hardFailure(),
                             "failure_reason", initialResult.failureReason()));
-            if (response.statusCode() != 200 || initialResult.hardFailure()) {
+            if (!initialResult.success() || initialResult.hardFailure()) {
                 final IllegalStateException failure = new IllegalStateException(
                         "update-lsp fallo para " + current.lspName() + ": "
                                 + (initialResult.failureReason() == null
@@ -319,7 +319,7 @@ public final class DelegatedLspService {
                 final DelegatedLspRecord confirmed = retryPolicy.retryUntilPresent(() -> {
                     try {
                         final DelegatedLspRecord refreshed = refreshDirection(direction.directionKey());
-                        return stateMatches(refreshed, path.eroSubobjects(), bandwidth)
+                        return refreshed.activeEro().equals(path.eroSubobjects())
                                 ? Optional.of(refreshed) : Optional.empty();
                     } catch (RuntimeException refreshFailure) {
                         LOG.warn(
@@ -335,6 +335,18 @@ public final class DelegatedLspService {
                         direction.directionKey(), confirmed.activeEro(),
                         confirmed.reportedBandwidthBase64(), Instant.now());
                 metrics.increment("sma_update_lsp_success_total");
+                final boolean bandwidthConfirmed = Objects.equals(
+                        confirmed.reportedBandwidthBase64(), bandwidth);
+                if (!bandwidthConfirmed) {
+                    LOG.warn(
+                            "delegated_lsp_update_bandwidth_unconfirmed",
+                            "updateDelegatedLsp",
+                            "PCEP confirmo la ERO, pero reporto un ancho de banda distinto al solicitado.",
+                            StructuredLogger.fields(
+                                    "requested_bandwidth_base64", bandwidth,
+                                    "reported_bandwidth_base64", confirmed.reportedBandwidthBase64()),
+                            null);
+                }
                 LOG.info(
                         "delegated_lsp_update_confirmed",
                         "updateDelegatedLsp",
@@ -343,7 +355,8 @@ public final class DelegatedLspService {
                                 "active_ero", confirmed.activeEro(),
                                 "reported_bandwidth_base64", confirmed.reportedBandwidthBase64(),
                                 "provisional_response", initialResult.provisionalSuccess()));
-                return new UpdateLspResult(true, initialResult.provisionalSuccess(), false, null);
+                return new UpdateLspResult(
+                        true, initialResult.provisionalSuccess(), false, null, initialResult.httpStatus());
             } catch (RuntimeException confirmationFailure) {
                 metrics.increment("sma_update_lsp_failure_total");
                 LOG.error(

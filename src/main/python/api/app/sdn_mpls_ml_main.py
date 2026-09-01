@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+from hashlib import sha256
 from contextlib import asynccontextmanager
 
 #! Imports desde Starlette y FastAPI usados internamente por la aplicacion
@@ -381,6 +382,32 @@ def _contains_invalid_json_error(errors: list[dict[str, object]]) -> bool:
     return any(error.get("type") == "json_invalid" for error in errors)
 
 
+def _validation_body_metadata(body: object) -> dict[str, object]:
+    """Resume el cuerpo observado por FastAPI sin exponer su contenido en logs."""
+
+    metadata: dict[str, object] = {
+        "fastapi_observed_body_type": type(body).__name__,
+        "fastapi_observed_body_is_none": body is None,
+    }
+    if isinstance(body, bytes):
+        metadata["fastapi_observed_body_bytes"] = len(body)
+        metadata["fastapi_observed_body_sha256"] = sha256(body).hexdigest()
+    elif isinstance(body, str):
+        encoded = body.encode("utf-8")
+        metadata["fastapi_observed_body_bytes"] = len(encoded)
+        metadata["fastapi_observed_body_sha256"] = sha256(encoded).hexdigest()
+    return metadata
+
+
+def _validation_error_summary(errors: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Conserva ubicacion y tipo del fallo sin registrar valores enviados por el cliente."""
+
+    return [
+        {key: error[key] for key in ("type", "loc", "msg") if key in error}
+        for error in errors
+    ]
+
+
 @app.exception_handler(AppError)
 async def handle_app_error(request: Request, exc: AppError):
     """
@@ -520,6 +547,11 @@ async def handle_request_validation(request: Request, exc: RequestValidationErro
     # ? de validacion que viene de un sistema interno sea de FastAPI o de Pydantic sin transcribirlo directamente a la respuesta
     # ? de la API
     errors = jsonable_encoder(exc.errors())
+    validation_metadata = {
+        "asgi_layer": "fastapi_validation",
+        **_validation_body_metadata(exc.body),
+        "validation_errors": _validation_error_summary(errors),
+    }
     if _contains_invalid_json_error(errors):
         record_request_error(
             error_code=InvalidJsonError.code,
@@ -536,6 +568,7 @@ async def handle_request_validation(request: Request, exc: RequestValidationErro
             failed_stage=InvalidJsonError.failed_stage,
             failed_check=InvalidJsonError.failed_check,
             retryable=InvalidJsonError.retryable,
+            extra_fields={"metadata": validation_metadata},
         )
         return _error_response(
             HTTP_400_BAD_REQUEST,
@@ -564,6 +597,7 @@ async def handle_request_validation(request: Request, exc: RequestValidationErro
         failed_stage=RequestValidationAppError.failed_stage,
         failed_check=RequestValidationAppError.failed_check,
         retryable=RequestValidationAppError.retryable,
+        extra_fields={"metadata": validation_metadata},
     )
     return _error_response(
         HTTP_422_UNPROCESSABLE_ENTITY,

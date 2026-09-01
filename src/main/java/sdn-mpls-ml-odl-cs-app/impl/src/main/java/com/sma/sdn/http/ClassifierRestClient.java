@@ -67,6 +67,7 @@ public final class ClassifierRestClient {
      */
     public HttpResponse<String> classify(final String jsonBody) {
         final HttpRequest request = HttpRequest.newBuilder(endpoint)
+                .version(HttpClient.Version.HTTP_1_1)
                 .timeout(config.httpRequestTimeout())
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
@@ -76,7 +77,8 @@ public final class ClassifierRestClient {
         LOG.debug("classifier_http_request_started", "classify",
                 "Se inicio la solicitud HTTP al clasificador",
                 StructuredLogger.fields("method", "POST", "endpoint", endpoint,
-                        "request_bytes", jsonBody.getBytes(StandardCharsets.UTF_8).length));
+                        "request_bytes", jsonBody.getBytes(StandardCharsets.UTF_8).length,
+                        "request_body", jsonBody));
         try {
             final HttpResponse<String> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -85,6 +87,7 @@ public final class ClassifierRestClient {
                     StructuredLogger.fields("method", "POST", "endpoint", endpoint,
                             "status_code", response.statusCode(),
                             "response_bytes", response.body().getBytes(StandardCharsets.UTF_8).length,
+                            "response_body", response.body(),
                             "duration_ms", elapsedMillis(startedAt)));
             return response;
         } catch (IOException e) {

@@ -8,8 +8,13 @@
 
 package com.sma.sdn.config;
 
+import com.sma.sdn.model.FlowDirection;
+import com.sma.sdn.model.OdlXmlBodyLogLevel;
+import com.sma.sdn.model.PairConsensusEqualPriorityAction;
+import com.sma.sdn.model.PairPolicyLspApplicationScope;
 import com.sma.sdn.model.TunnelDirection;
 import com.sma.sdn.model.TunnelEndpoint;
+import com.sma.sdn.model.TunnelUpdateScope;
 import com.sma.sdn.observability.StructuredLogger;
 import java.net.URI;
 import java.time.Duration;
@@ -63,7 +68,33 @@ public record AppConfig(
         int openflowArpPriority,
         int openflowIpv4Priority,
         boolean openflowInstallDefaultDrop,
-        int openflowDefaultDropPriority) {
+        int openflowDefaultDropPriority,
+        TunnelUpdateScope tunnelUpdateScope,
+        Duration tunnelIntentTtl,
+        Duration tunnelPendingTtl,
+        int tunnelOperationJournalMaxEntries,
+        Duration tunnelOperationLockTimeout,
+        boolean openflowSuppressionEnabled,
+        int openflowSuppressionIdleTimeoutSeconds,
+        int openflowSuppressionHardTimeoutSeconds,
+        int openflowSuppressionPriority,
+        long openflowSuppressionCookieBase,
+        OdlXmlBodyLogLevel odlXmlBodyLogLevel,
+        boolean pairConsensusEnabled,
+        boolean pairConsensusRequireBothDirections,
+        Duration pairConsensusEvidenceTtl,
+        boolean pairConsensusSingleSideProvisionalEnabled,
+        PairConsensusEqualPriorityAction pairConsensusEqualPriorityAction,
+        Duration activePairPolicyIdleTtl,
+        boolean activePairPolicySweeperEnabled,
+        Duration activePairPolicySweeperInterval,
+        boolean pairPolicyPriorityPreemptionEnabled,
+        int pairPolicyHashVersion,
+        PairPolicyLspApplicationScope pairPolicyLspApplicationScope,
+        boolean lspApplicationRequireAllDirections,
+        boolean lspApplicationReapplyOnBandwidthMismatch,
+        boolean lspApplicationReapplyOnEroMismatch,
+        boolean lspApplicationReapplyOnPriorityMismatch) {
 
     private static final StructuredLogger LOG = StructuredLogger.getLogger(AppConfig.class);
     private static final String DEFAULT_DATA_URL = "http://172.21.121.100:8182/restconf/data";
@@ -107,6 +138,16 @@ public record AppConfig(
         Objects.requireNonNull(topologyCacheTtl, "topologyCacheTtl");
         Objects.requireNonNull(operationalValidationTimeout, "operationalValidationTimeout");
         Objects.requireNonNull(httpRequestTimeout, "httpRequestTimeout");
+        Objects.requireNonNull(tunnelUpdateScope, "tunnelUpdateScope");
+        Objects.requireNonNull(tunnelIntentTtl, "tunnelIntentTtl");
+        Objects.requireNonNull(tunnelPendingTtl, "tunnelPendingTtl");
+        Objects.requireNonNull(tunnelOperationLockTimeout, "tunnelOperationLockTimeout");
+        Objects.requireNonNull(odlXmlBodyLogLevel, "odlXmlBodyLogLevel");
+        Objects.requireNonNull(pairConsensusEvidenceTtl, "pairConsensusEvidenceTtl");
+        Objects.requireNonNull(pairConsensusEqualPriorityAction, "pairConsensusEqualPriorityAction");
+        Objects.requireNonNull(activePairPolicyIdleTtl, "activePairPolicyIdleTtl");
+        Objects.requireNonNull(activePairPolicySweeperInterval, "activePairPolicySweeperInterval");
+        Objects.requireNonNull(pairPolicyLspApplicationScope, "pairPolicyLspApplicationScope");
         Objects.requireNonNull(ovsEchoManagementIp, "ovsEchoManagementIp");
         Objects.requireNonNull(ovsEchoHostPortName, "ovsEchoHostPortName");
         Objects.requireNonNull(ovsEchoCorePortName, "ovsEchoCorePortName");
@@ -117,6 +158,54 @@ public record AppConfig(
                 || openflowDefaultDropPriority < 0) {
             throw new IllegalArgumentException("Los identificadores y prioridades OpenFlow no pueden ser negativos");
         }
+        if (classificationCacheTtl.isNegative() || classificationCacheTtl.isZero()
+                || pathCacheTtl.isNegative() || pathCacheTtl.isZero()
+                || topologyCacheTtl.isNegative() || topologyCacheTtl.isZero()) {
+            throw new IllegalArgumentException("Los TTL de clasificacion, camino y topologia deben ser positivos");
+        }
+        if (tunnelIntentTtl.isNegative() || tunnelIntentTtl.isZero()
+                || tunnelPendingTtl.isNegative() || tunnelPendingTtl.isZero()
+                || tunnelOperationLockTimeout.isNegative() || tunnelOperationLockTimeout.isZero()) {
+            throw new IllegalArgumentException("Los TTL y el tiempo de bloqueo deben ser positivos");
+        }
+        if (tunnelOperationJournalMaxEntries <= 0 || openflowSuppressionIdleTimeoutSeconds < 0
+                || openflowSuppressionHardTimeoutSeconds < 0 || openflowSuppressionPriority < 0
+                || openflowSuppressionCookieBase < 0L) {
+            throw new IllegalArgumentException("La configuracion de operaciones y supresion no es valida");
+        }
+        if (pairConsensusEvidenceTtl.isNegative() || pairConsensusEvidenceTtl.isZero()
+                || activePairPolicyIdleTtl.isNegative() || activePairPolicyIdleTtl.isZero()
+                || activePairPolicySweeperInterval.isNegative() || activePairPolicySweeperInterval.isZero()
+                || pairPolicyHashVersion <= 0) {
+            throw new IllegalArgumentException("La configuracion de consenso y politica de par no es valida");
+        }
+    }
+
+    /**
+     * Resuelve la direccion de clasificacion para los unicos conectores de host autorizados a generar PacketIn.
+     * Los nombres logicos son publicados por el registro OpenFlow despues de correlacionar la identidad dinamica
+     * del inventario con las IP de gestion configuradas. Los conectores de nucleo no forman parte de esta regla y
+     * por tanto nunca habilitan la clasificacion de trafico.
+     *
+     * <p>Pasos:
+     * <ol>
+     *   <li>Compara la identidad logica ECHO con su conector de host configurado.</li>
+     *   <li>Compara la identidad logica FOXTROT con su conector de host configurado.</li>
+     *   <li>Devuelve una direccion desconocida para cualquier otro conmutador o conector.</li>
+     * </ol>
+     *
+     * @param switchName nombre logico resuelto del conmutador OpenFlow
+     * @param connectorName nombre OVS resuelto del conector de ingreso
+     * @return direccion de tunel asociada al host, o {@code UNKNOWN} cuando no es un ingreso autorizado
+     */
+    public FlowDirection resolveClassificationIngress(final String switchName, final String connectorName) {
+        if ("ECHO".equals(switchName) && ovsEchoHostPortName.equals(connectorName)) {
+            return FlowDirection.HEADEND_TO_TAILEND;
+        }
+        if ("FOXTROT".equals(switchName) && ovsFoxtrotHostPortName.equals(connectorName)) {
+            return FlowDirection.TAILEND_TO_HEADEND;
+        }
+        return FlowDirection.UNKNOWN;
     }
 
     /**
@@ -149,10 +238,11 @@ public record AppConfig(
      *
      * @return resultado calculado, estado encontrado o modelo construido por la operacion
      */
-    static AppConfig from(final Map<String, String> env) {
+    public static AppConfig from(final Map<String, String> env) {
         final TunnelCreationMode mode = parseMode(value(
                 env, "TUNNEL_CREATION_MODE", "DELEGATED_TUNNEL_UPDATE"));
-        final URI dataUrl = uri(value(env, "ODL_RESTCONF_DATA_BASE_URL", DEFAULT_DATA_URL));
+        final URI dataUrl = uri(value(env, "SMA_ODL_RESTCONF_DATA_BASE_URL",
+                value(env, "ODL_RESTCONF_DATA_BASE_URL", DEFAULT_DATA_URL)));
         final URI operationsUrl = uri(value(env, "ODL_RESTS_OPERATIONS_BASE_URL", DEFAULT_OPERATIONS_URL));
         final String classifierBase = stripTrailingSlash(
                 value(env, "CLASSIFIER_BASE_URL", DEFAULT_CLASSIFIER_BASE_URL));
@@ -213,7 +303,35 @@ public record AppConfig(
                 (int) longValue(env, "SMA_OPENFLOW_ARP_PRIORITY", 300),
                 (int) longValue(env, "SMA_OPENFLOW_IPV4_PRIORITY", 200),
                 booleanValue(env, "SMA_OPENFLOW_INSTALL_DEFAULT_DROP", false),
-                (int) longValue(env, "SMA_OPENFLOW_DEFAULT_DROP_PRIORITY", 0));
+                (int) longValue(env, "SMA_OPENFLOW_DEFAULT_DROP_PRIORITY", 0),
+                parseTunnelUpdateScope(value(env, "SMA_TUNNEL_UPDATE_SCOPE", "OBSERVED_DIRECTION")),
+                seconds(env, "SMA_TUNNEL_INTENT_TTL_SECONDS", 30),
+                seconds(env, "SMA_TUNNEL_PENDING_TTL_SECONDS", 10),
+                (int) longValue(env, "SMA_TUNNEL_OPERATION_JOURNAL_MAX_ENTRIES", 500),
+                Duration.ofMillis(longValue(env, "SMA_TUNNEL_OPERATION_LOCK_TIMEOUT_MS", 5000)),
+                booleanValue(env, "SMA_OPENFLOW_SUPPRESSION_ENABLED", false),
+                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_IDLE_TIMEOUT_SECONDS", 10),
+                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_HARD_TIMEOUT_SECONDS", 60),
+                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_PRIORITY", 250),
+                longValue(env, "SMA_OPENFLOW_SUPPRESSION_COOKIE_BASE", 0x8ADC00L),
+                parseOdlXmlBodyLogLevel(value(env, "SMA_ODL_XML_BODY_LOG_LEVEL", "DEBUG")),
+                booleanValue(env, "SMA_PAIR_CONSENSUS_ENABLED", true),
+                booleanValue(env, "SMA_PAIR_CONSENSUS_REQUIRE_BOTH_DIRECTIONS", true),
+                seconds(env, "SMA_PAIR_CONSENSUS_EVIDENCE_TTL_SECONDS", 10),
+                booleanValue(env, "SMA_PAIR_CONSENSUS_SINGLE_SIDE_PROVISIONAL_ENABLED", false),
+                parsePairConsensusEqualPriorityAction(value(env,
+                        "SMA_PAIR_CONSENSUS_EQUAL_PRIORITY_ACTION", "KEEP_CURRENT_OR_DEFER")),
+                seconds(env, "SMA_ACTIVE_PAIR_POLICY_IDLE_TTL_SECONDS", 60),
+                booleanValue(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_ENABLED", true),
+                seconds(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_INTERVAL_SECONDS", 15),
+                "PRIORITY_PREEMPT".equalsIgnoreCase(value(env, "SMA_PAIR_POLICY_PREEMPTION_MODE", "PRIORITY_PREEMPT")),
+                (int) longValue(env, "SMA_PAIR_POLICY_HASH_VERSION", 1),
+                parsePairPolicyLspApplicationScope(value(env,
+                        "SMA_PAIR_POLICY_LSP_APPLICATION_SCOPE", "BIDIRECTIONAL_PAIR")),
+                booleanValue(env, "SMA_LSP_APPLICATION_REQUIRE_ALL_DIRECTIONS", true),
+                booleanValue(env, "SMA_LSP_APPLICATION_REAPPLY_ON_BANDWIDTH_MISMATCH", true),
+                booleanValue(env, "SMA_LSP_APPLICATION_REAPPLY_ON_ERO_MISMATCH", true),
+                booleanValue(env, "SMA_LSP_APPLICATION_REAPPLY_ON_PRIORITY_MISMATCH", true));
         LOG.info("application_configuration_loaded", "from",
                 "Se cargo y valido la configuracion de la aplicacion desde el entorno",
                 StructuredLogger.fields("tunnel_creation_mode", config.tunnelCreationMode(),
@@ -227,6 +345,13 @@ public record AppConfig(
                         "reverse_direction_key", config.tailendToHeadend().directionKey(),
                         "openflow_bootstrap_enabled", config.openflowBootstrapEnabled(),
                         "openflow_table_id", config.openflowTableId(),
+                        "tunnel_update_scope", config.tunnelUpdateScope(),
+                        "tunnel_intent_ttl_seconds", config.tunnelIntentTtl().toSeconds(),
+                        "openflow_suppression_enabled", false,
+                        "pair_consensus_require_both_directions", config.pairConsensusRequireBothDirections(),
+                        "pair_consensus_evidence_ttl_seconds", config.pairConsensusEvidenceTtl().toSeconds(),
+                        "active_pair_policy_idle_ttl_seconds", config.activePairPolicyIdleTtl().toSeconds(),
+                        "odl_xml_body_log_level", config.odlXmlBodyLogLevel(),
                         "http_timeout_seconds", config.httpRequestTimeout().toSeconds(),
                         "topology_cache_ttl_seconds", config.topologyCacheTtl().toSeconds()));
         return config;
@@ -279,6 +404,42 @@ public record AppConfig(
             return TunnelCreationMode.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("El valor de TUNNEL_CREATION_MODE no es reconocido: " + rawValue, e);
+        }
+    }
+
+    private static TunnelUpdateScope parseTunnelUpdateScope(final String rawValue) {
+        try {
+            return TunnelUpdateScope.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("El valor de SMA_TUNNEL_UPDATE_SCOPE no es reconocido: "
+                    + rawValue, e);
+        }
+    }
+
+    private static OdlXmlBodyLogLevel parseOdlXmlBodyLogLevel(final String rawValue) {
+        try {
+            return OdlXmlBodyLogLevel.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("El valor de SMA_ODL_XML_BODY_LOG_LEVEL no es reconocido: "
+                    + rawValue, e);
+        }
+    }
+
+    private static PairConsensusEqualPriorityAction parsePairConsensusEqualPriorityAction(final String rawValue) {
+        try {
+            return PairConsensusEqualPriorityAction.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("El valor de SMA_PAIR_CONSENSUS_EQUAL_PRIORITY_ACTION no es reconocido: "
+                    + rawValue, e);
+        }
+    }
+
+    private static PairPolicyLspApplicationScope parsePairPolicyLspApplicationScope(final String rawValue) {
+        try {
+            return PairPolicyLspApplicationScope.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("El valor de SMA_PAIR_POLICY_LSP_APPLICATION_SCOPE no es reconocido: "
+                    + rawValue, e);
         }
     }
 
@@ -350,7 +511,9 @@ public record AppConfig(
         if (value == null || value.isBlank()) {
             return defaultValue;
         }
-        return Long.parseLong(value.trim());
+        final String normalized = value.trim();
+        return normalized.startsWith("0x") || normalized.startsWith("0X")
+                ? Long.decode(normalized) : Long.parseLong(normalized);
     }
 
     /**

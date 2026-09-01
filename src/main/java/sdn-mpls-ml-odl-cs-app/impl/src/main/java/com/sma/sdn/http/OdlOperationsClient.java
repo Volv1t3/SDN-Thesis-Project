@@ -118,19 +118,15 @@ public final class OdlOperationsClient {
                 .POST(HttpRequest.BodyPublishers.ofString(xmlBody, StandardCharsets.UTF_8))
                 .build();
         final long startedAt = System.nanoTime();
-        LOG.debug("odl_operation_request_started", "post",
-                "Se inicio una operacion RESTS contra ODL",
-                StructuredLogger.fields("method", "POST", "endpoint", endpoint,
-                        "request_bytes", xmlBody.getBytes(StandardCharsets.UTF_8).length));
+        OdlXmlExchangeLogger.requestStarted(
+                LOG, "RESTS", "odl_operation_request_started", "post", request, xmlBody,
+                config.odlXmlBodyLogLevel());
         try {
             final HttpResponse<String> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            LOG.debug("odl_operation_request_completed", "post",
-                    "La operacion RESTS contra ODL finalizo",
-                    StructuredLogger.fields("method", "POST", "endpoint", endpoint,
-                            "status_code", response.statusCode(),
-                            "response_bytes", response.body().getBytes(StandardCharsets.UTF_8).length,
-                            "duration_ms", elapsedMillis(startedAt)));
+            OdlXmlExchangeLogger.responseReceived(
+                    LOG, "RESTS", "odl_operation_response_received", "post", request, response,
+                    elapsedMillis(startedAt), config.odlXmlBodyLogLevel());
             return response;
         } catch (IOException e) {
             LOG.error("odl_operation_request_failed", "post",

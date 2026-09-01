@@ -14,6 +14,7 @@ Pasos:
 from __future__ import annotations
 
 import logging
+from hashlib import sha256
 from collections.abc import Awaitable, Callable
 
 from starlette.responses import JSONResponse
@@ -92,6 +93,22 @@ class RequestSizeLimitMiddleware:
         max_body_bytes = _request_size_limit_from_scope(scope)
         request_id = _request_id_from_scope(scope)
         declared_length = _parse_content_length(scope)
+        _log_middleware_event(
+            scope,
+            level=logging.DEBUG,
+            event="request_size_validation_started",
+            code="REQUEST_BODY_INSPECTION",
+            request_id=request_id,
+            component="request_size_limit_middleware",
+            metadata={
+                "asgi_layer": "request_size_limit",
+                "method": scope.get("method"),
+                "path": scope.get("path"),
+                "request_headers": _selected_request_headers(scope),
+                "declared_content_length": declared_length if isinstance(declared_length, int) else None,
+                "max_body_bytes": max_body_bytes,
+            },
+        )
 
         #? 1. Si el contenido declara una longitud que no es correcta, habra retornado un sentinel que es un marcado
         #? de una clase interna que se puede usar para marcar un error de validacion.
@@ -161,16 +178,35 @@ class RequestSizeLimitMiddleware:
         #? 3. Si llegamos aqui no tenemos ni header con error ni valor declarado por lo que empezamos a leer
         #? la request en su totalidad para evaluar mientras llega si supera la cantidad de bytes tolerados
         #? por la aplicacion
-        buffered_messages: list[Message] = []
+        # Conservamos los bytes, no los mensajes ASGI originales. Reinyectar la
+        # secuencia original deja a la aplicacion interna expuesta a mensajes de
+        # transporte (por ejemplo ``http.disconnect``) y a fragmentacion que ya
+        # fue consumida por este middleware. FastAPI debe recibir un unico cuerpo
+        # HTTP completo e identico al que llego por la red.
+        buffered_body = bytearray()
         received_bytes = 0
+        chunk_count = 0
 
         #? Iternamos indefinidamente mediante un loop para recibir los mensajes de una request que pueden venir en
         #? fragmentos
         while True:
 
-           #? Rceptamos un fragmento del mensaje o cada mensaje que llega
+            #? Rceptamos un fragmento del mensaje o cada mensaje que llega
             message = await receive()
-            buffered_messages.append(message)
+
+            # Una desconexion antes de completar el cuerpo no debe entrar en un
+            # ciclo de lectura infinito ni convertirse en un cuerpo vacio.
+            if message["type"] == "http.disconnect":
+                _log_middleware_event(
+                    scope,
+                    level=logging.DEBUG,
+                    event="request_size_client_disconnected",
+                    code="REQUEST_BODY_INSPECTION",
+                    request_id=request_id,
+                    component="request_size_limit_middleware",
+                    metadata={"asgi_layer": "request_size_limit", "received_bytes": received_bytes},
+                )
+                break
 
             #? Si no es HTTP.request entonces lo evitamos
             if message["type"] != "http.request":
@@ -179,7 +215,25 @@ class RequestSizeLimitMiddleware:
             #? Obtenemos todos los bytes del body y los acumulamos. Si este acumulado supera el limite definido en las
             #? reglas de la aplicacion entonces se lanza el short circuit y se devuelve una respuesta rapida
             body = message.get("body", b"")
+            chunk_count += 1
             received_bytes += len(body)
+            buffered_body.extend(body)
+            _log_middleware_event(
+                scope,
+                level=logging.DEBUG,
+                event="request_size_body_chunk_received",
+                code="REQUEST_BODY_INSPECTION",
+                request_id=request_id,
+                component="request_size_limit_middleware",
+                metadata={
+                    "asgi_layer": "request_size_limit",
+                    "chunk_index": chunk_count,
+                    "chunk_bytes": len(body),
+                    "received_bytes": received_bytes,
+                    "more_body": message.get("more_body", False),
+                    "max_body_bytes": max_body_bytes,
+                },
+            )
             if received_bytes > max_body_bytes:
                 _record_rejection(scope, reason="actual_size_exceeded", error=RequestTooLargeError)
                 _log_middleware_event(
@@ -212,11 +266,52 @@ class RequestSizeLimitMiddleware:
 
         #? 4. Si llegamos aqui entonces ya tenemos el cuerpo completo y validado, por lo que lo reenviamos a la app
         #? envuelta, pero esta vez con el cuerpo ya validado y sin riesgo de DoS
-        replay_receive = _build_replay_receive(buffered_messages)
+        validated_body = bytes(buffered_body)
+        _log_middleware_event(
+            scope,
+            level=logging.DEBUG,
+            event="request_size_body_validated",
+            code="REQUEST_BODY_INSPECTION",
+            request_id=request_id,
+            component="request_size_limit_middleware",
+            metadata={
+                "asgi_layer": "request_size_limit",
+                "chunk_count": chunk_count,
+                "body_bytes": len(validated_body),
+                "body_sha256": sha256(validated_body).hexdigest(),
+                "declared_content_length": declared_length if isinstance(declared_length, int) else None,
+                "body_length_matches_declared": (
+                    len(validated_body) == declared_length
+                    if isinstance(declared_length, int)
+                    else None
+                ),
+                "max_body_bytes": max_body_bytes,
+                "next_asgi_layer": "fastapi",
+            },
+        )
+        replay_receive = _build_replay_receive(validated_body, scope, request_id)
+
+        async def send_with_trace(message: Message) -> None:
+            _log_middleware_event(
+                scope,
+                level=logging.DEBUG,
+                event="request_size_response_forwarded",
+                code="REQUEST_BODY_INSPECTION",
+                request_id=request_id,
+                component="request_size_limit_middleware",
+                metadata={
+                    "asgi_layer": "request_size_limit",
+                    "message_type": message["type"],
+                    "status_code": message.get("status"),
+                    "body_bytes": len(message.get("body", b"")),
+                    "more_body": message.get("more_body", False),
+                },
+            )
+            await send(message)
 
         #? Realizamos una llamada a la aplicacion ASGI tope que seria la aplicacion real con los endpoints reales a
         #? donde enviamos los mensajes validados con el nuevo receive
-        await self.app(scope, replay_receive, send)
+        await self.app(scope, replay_receive, send_with_trace)
 
 
 class _InvalidContentLengthSentinel:
@@ -363,32 +458,31 @@ def _parse_content_length(scope: Scope) -> int | _InvalidContentLengthSentinel |
     return None
 
 
-def _build_replay_receive(messages: list[Message]) -> Callable[[], Awaitable[Message]]:
+def _build_replay_receive(
+    body: bytes, scope: Scope, request_id: str | None
+) -> Callable[[], Awaitable[Message]]:
     """
-    Construye un `receive` que reproduce mensajes ASGI ya bufferizados. En este caso, dado que la aplicacion,
-    espedcificamente este modulo de Middlware recibio todos los mensajes internamente, el sistema tiene que regenerar
-    el comportamiento de la cola asincrona de mensajes de receive para que la siguiente capa, en nuestro caso la
-    aplicacion, pueda iterar sobre esos mensajes nuevamente y responder a los mensajes que estan esperando en la cola de la API.
+    Construye un `receive` que reproduce el cuerpo ASGI ya validado como un unico mensaje. En este caso, dado que la
+    capa de middleware consumio todos los fragmentos del canal original, debe construir una nueva cola para la
+    aplicacion interna.
 
     Para realizar esto, dado que ya consumimos toda la cola con nuestro await receive() (dado que el contrato de una
     app ASGI establece que el receive() es una cola de elementos asincrona) entonces nosotros ya usamos todos los
     datos y no queda mas que generar un generador asincrono nuevo para la siguiente capa.
 
     Args:
-        messages: mensajes recibidos y validados previamente. Estos mensajes se usaran para alimentar a un generador
-        asincrono (callable en si) que se transforma en una cola asincrona para la siguienmte capa
+        body: bytes completos y validados recibidos desde el canal ASGI original.
 
     Returns:
         Callable[[], Awaitable[Message]]: funcion `receive` para la app interna.
     """
 
-    pending_messages = list(messages)
+    body_pending = True
 
     async def replay_receive() -> Message:
         """
-        Reproduce un mensaje ASGI previamente bufferizado. Estos mensajes son los que proveyeron de nuestra capa de
-        Middleware cuando leimos la cantidad de bytes que venian, cada mensaje que llegaba lo leiamos y si tenia mas
-        partes seguiamos. Como ya leimos todo tenemos que volver a lanzar el receive y para esto generamos este iterador
+        Reproduce el cuerpo validado. El primer consumo siempre entrega el contenido
+        completo con ``more_body=False``; los siguientes consumos indican desconexion.
 
         Pasos:
         - Devuelve mensajes pendientes en el mismo orden original.
@@ -398,10 +492,35 @@ def _build_replay_receive(messages: list[Message]) -> Callable[[], Awaitable[Mes
             Message: siguiente mensaje ASGI disponible para la app interna.
         """
 
-        #? Como esta nested function toma el scope exterior tambien, usamos ese scope para jalar el objeto de los
-        #? mensajes y enviarlos uno por uno hasta enviar http.disconnect cuando no hay mas mensajes
-        if pending_messages:
-            return pending_messages.pop(0)
+        nonlocal body_pending
+        if body_pending:
+            body_pending = False
+            _log_middleware_event(
+                scope,
+                level=logging.DEBUG,
+                event="request_size_body_replayed",
+                code="REQUEST_BODY_INSPECTION",
+                request_id=request_id,
+                component="request_size_limit_middleware",
+                metadata={
+                    "asgi_layer": "request_size_limit",
+                    "message_type": "http.request",
+                    "body_bytes": len(body),
+                    "body_sha256": sha256(body).hexdigest(),
+                    "more_body": False,
+                    "next_asgi_layer": "fastapi",
+                },
+            )
+            return {"type": "http.request", "body": body, "more_body": False}
+        _log_middleware_event(
+            scope,
+            level=logging.DEBUG,
+            event="request_size_replay_exhausted",
+            code="REQUEST_BODY_INSPECTION",
+            request_id=request_id,
+            component="request_size_limit_middleware",
+            metadata={"asgi_layer": "request_size_limit", "message_type": "http.disconnect"},
+        )
         return {"type": "http.disconnect"}
 
     #? Retornamos la funcion anidada como un callable que sera usado por la app interna
@@ -419,6 +538,7 @@ def _log_middleware_event(
     failed_stage: str | None = None,
     failed_check: str | None = None,
     retryable: bool | None = None,
+    metadata: dict | None = None,
 ) -> None:
     """Registra un evento estructurado asociado al middleware de tamano.
 
@@ -432,6 +552,7 @@ def _log_middleware_event(
         failed_stage: etapa logica asociada cuando aplica.
         failed_check: chequeo puntual asociado cuando aplica.
         retryable: bandera de reintento cuando aplica.
+        metadata: datos de transporte acotados para trazabilidad ASGI.
     """
 
     event_messages = {
@@ -450,5 +571,17 @@ def _log_middleware_event(
             "failed_check": failed_check,
             "retryable": retryable,
             "error_code": code,
+            "metadata": metadata or {},
         },
     )
+
+
+def _selected_request_headers(scope: Scope) -> dict[str, str]:
+    """Expone solo headers relevantes para diagnosticar el cuerpo HTTP."""
+
+    allowed = {b"content-type", b"content-length", b"transfer-encoding", b"accept"}
+    return {
+        name.decode("latin-1").lower(): value.decode("latin-1")
+        for name, value in scope.get("headers", [])
+        if name.lower() in allowed
+    }

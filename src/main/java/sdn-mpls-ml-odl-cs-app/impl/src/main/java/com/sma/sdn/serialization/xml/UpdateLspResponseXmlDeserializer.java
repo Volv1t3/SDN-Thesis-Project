@@ -40,24 +40,23 @@ public final class UpdateLspResponseXmlDeserializer {
     public UpdateLspResult deserialize(final HttpResponse<String> response) {
         final UpdateLspResult result;
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            result = new UpdateLspResult(false, false, true, "HTTP " + response.statusCode());
+            result = new UpdateLspResult(false, false, true, "HTTP " + response.statusCode(), response.statusCode());
         } else {
             final String body = response.body();
             if (body == null || body.isBlank()) {
-                result = new UpdateLspResult(true, false, false, null);
+                result = new UpdateLspResult(true, false, false, null, response.statusCode());
             } else {
                 final org.w3c.dom.Document document = XmlSupport.parse(body);
                 final String failure = XmlSupport.string(document, "//*[local-name()='failure'][1]");
-                final String pcepError = XmlSupport.string(
-                        document, "//*[local-name()='error' or local-name()='error-object'][1]");
-                if (pcepError != null) {
-                    result = new UpdateLspResult(false, false, true, "Error PCEP: " + pcepError);
+                final String error = errorDescription(document);
+                if (error != null) {
+                    result = new UpdateLspResult(false, false, true, "Error PCEP: " + error, response.statusCode());
                 } else if (failure == null || failure.isBlank()) {
-                    result = new UpdateLspResult(true, false, false, null);
+                    result = new UpdateLspResult(true, false, false, null, response.statusCode());
                 } else if ("no-ack".equalsIgnoreCase(failure)) {
-                    result = new UpdateLspResult(true, true, false, failure);
+                    result = new UpdateLspResult(true, true, false, failure, response.statusCode());
                 } else {
-                    result = new UpdateLspResult(false, false, true, failure);
+                    result = new UpdateLspResult(false, false, true, failure, response.statusCode());
                 }
             }
         }
@@ -67,5 +66,52 @@ public final class UpdateLspResponseXmlDeserializer {
                         "provisional_success", result.provisionalSuccess(), "hard_failure", result.hardFailure(),
                         "failure_present", result.failureReason() != null));
         return result;
+    }
+
+    /**
+     * Extrae el detalle de error de la estructura {@code error/error-object} publicada por update-lsp.
+     *
+     * <p>Pasos:
+     * <ol>
+     *   <li>Busca el objeto de error anidado definido por el esquema PCEP.</li>
+     *   <li>Lee tipo, valor y el identificador de solicitud faltante cuando existen.</li>
+     *   <li>Devuelve una descripcion compacta o {@code null} si ODL no reporto error.</li>
+     * </ol>
+     *
+     * @param document documento XML de salida producido por update-lsp
+     * @return descripcion estructurada del error o {@code null}
+     */
+    private static String errorDescription(final org.w3c.dom.Document document) {
+        final String errorType = XmlSupport.string(
+                document, "//*[local-name()='error-object']/*[local-name()='type'][1]");
+        final String errorValue = XmlSupport.string(
+                document, "//*[local-name()='error-object']/*[local-name()='value'][1]");
+        final String missingRequest = XmlSupport.string(
+                document,
+                "//*[local-name()='error-object']//*[local-name()='req-missing']"
+                        + "/*[local-name()='request-id'][1]");
+        if (errorType == null && errorValue == null && missingRequest == null) {
+            return XmlSupport.string(document, "//*[local-name()='error'][not(*)][1]");
+        }
+        return "type=" + valueOrUnknown(errorType)
+                + ", value=" + valueOrUnknown(errorValue)
+                + ", request_id=" + valueOrUnknown(missingRequest);
+    }
+
+    /**
+     * Sustituye valores XML ausentes por una marca estable de diagnostico.
+     *
+     * <p>Pasos:
+     * <ol>
+     *   <li>Comprueba si el valor fue publicado por OpenDaylight.</li>
+     *   <li>Conserva el texto no vacio recibido.</li>
+     *   <li>Devuelve {@code desconocido} cuando el campo esta ausente.</li>
+     * </ol>
+     *
+     * @param value valor XML opcional
+     * @return valor recibido o marca de ausencia
+     */
+    private static String valueOrUnknown(final String value) {
+        return value == null ? "desconocido" : value;
     }
 }

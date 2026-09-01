@@ -12,7 +12,9 @@ import com.sma.sdn.config.AppConfig;
 import com.sma.sdn.model.FlowDirection;
 import com.sma.sdn.model.PacketClassificationContext;
 import com.sma.sdn.model.TunnelDirection;
+import com.sma.sdn.model.TunnelUpdateScope;
 import com.sma.sdn.observability.StructuredLogger;
+import java.util.List;
 
 /**
  * Define la clase {@code DirectionRegistry} dentro del controlador SDN-MPLS-ML.
@@ -60,14 +62,9 @@ public final class DirectionRegistry {
         final FlowDirection resolved;
         if (context.direction() != FlowDirection.UNKNOWN) {
             resolved = context.direction();
-        } else if (config.headendToTailendIngress()
-                .matches(context.ingressSwitchName(), context.ingressConnectorName())) {
-            resolved = FlowDirection.HEADEND_TO_TAILEND;
-        } else if (config.tailendToHeadendIngress()
-                .matches(context.ingressSwitchName(), context.ingressConnectorName())) {
-            resolved = FlowDirection.TAILEND_TO_HEADEND;
         } else {
-            resolved = FlowDirection.UNKNOWN;
+            resolved = config.resolveClassificationIngress(
+                    context.ingressSwitchName(), context.ingressConnectorName());
         }
         LOG.debug("flow_direction_resolved", "resolve",
                 "Se resolvio la direccion logica del flujo",
@@ -98,6 +95,40 @@ public final class DirectionRegistry {
             case TAILEND_TO_HEADEND -> config.tailendToHeadend();
             case UNKNOWN -> throw new IllegalStateException(
                     "No fue posible resolver la direccion del tunel desde la notificacion PacketReceived");
+        };
+    }
+
+    /**
+     * Devuelve las dos direcciones de LSP que deben recalcularse para una clasificacion de ingreso autorizada.
+     * La direccion observada se conserva en primer lugar para reducir la latencia del trafico que activo el flujo,
+     * seguida por la direccion opuesta con su PCC, PLSP ID y destino propios.
+     *
+     * <p>Pasos:
+     * <ol>
+     *   <li>Resuelve la direccion asociada al conector de ingreso.</li>
+     *   <li>Selecciona la direccion inversa configurada.</li>
+     *   <li>Devuelve ambas direcciones en un orden determinista.</li>
+     * </ol>
+     *
+     * @param ingressDirection direccion resuelta desde el PacketIn
+     * @return direcciones de ida y retorno que deben procesarse
+     * @throws IllegalStateException si la direccion de ingreso es desconocida
+     */
+    public List<TunnelDirection> requireBidirectionalTunnelDirections(final FlowDirection ingressDirection) {
+        return switch (ingressDirection) {
+            case HEADEND_TO_TAILEND -> List.of(config.headendToTailend(), config.tailendToHeadend());
+            case TAILEND_TO_HEADEND -> List.of(config.tailendToHeadend(), config.headendToTailend());
+            case UNKNOWN -> throw new IllegalStateException(
+                    "No fue posible resolver las direcciones de tunel desde el PacketReceived");
+        };
+    }
+
+    /** Resuelve las direcciones permitidas por el alcance configurado para el PacketIn. */
+    public List<TunnelDirection> requireTunnelDirectionsForScope(
+            final FlowDirection ingressDirection, final TunnelUpdateScope updateScope) {
+        return switch (updateScope) {
+            case OBSERVED_DIRECTION -> List.of(requireTunnelDirection(ingressDirection));
+            case BIDIRECTIONAL_PAIR -> requireBidirectionalTunnelDirections(ingressDirection);
         };
     }
 }

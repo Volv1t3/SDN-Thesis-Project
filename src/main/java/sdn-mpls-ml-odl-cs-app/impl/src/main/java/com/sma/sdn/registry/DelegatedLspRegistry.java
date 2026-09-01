@@ -101,6 +101,11 @@ public final class DelegatedLspRegistry {
         return record;
     }
 
+    /** Returns the number of currently discovered delegated LSPs. */
+    public synchronized int size() {
+        return byDirectionKey.size();
+    }
+
     /**
      * Exige un LSP valido y actualizable para la direccion indicada.
      *

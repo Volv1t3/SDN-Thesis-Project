@@ -143,7 +143,7 @@ public final class PathComputationService {
                 .map(path -> {
                     metrics.increment("sma_path_cache_hit_total");
                     LOG.debug(
-                            "path_cache_hit",
+                            "calculated_path_cache_hit",
                             "computeOrGetCached",
                             "Se reutilizo un camino calculado vigente desde cache.",
                             StructuredLogger.fields(
@@ -175,6 +175,21 @@ public final class PathComputationService {
      */
     private CalculatedPath compute(final TunnelDirection direction, final CalculatedPathKey key) {
         metrics.increment("sma_path_cache_miss_total");
+        LOG.debug(
+                "calculated_path_cache_miss",
+                "compute",
+                "No existe un camino vigente para la clave direccional solicitada.",
+                StructuredLogger.fields(
+                        "source_graph_node_id", key.sourceGraphNodeId(),
+                        "destination_graph_node_id", key.destinationGraphNodeId(),
+                        "bandwidth_bytes_per_second", key.bandwidthBytesPerSecond(),
+                        "algorithm", key.algorithm(),
+                        "class_type", key.classType()));
+        LOG.debug(
+                "calculated_path_cache_miss_reason",
+                "compute",
+                "El registro no contiene una entrada vigente para la clave solicitada.",
+                StructuredLogger.fields("reason", "MISSING_OR_EXPIRED", "registry_size", pathRegistry.size()));
         metrics.increment("sma_path_computation_request_total");
         final CalculatedPathRequest request = new CalculatedPathRequest(
                 config.pathComputationGraphName(),

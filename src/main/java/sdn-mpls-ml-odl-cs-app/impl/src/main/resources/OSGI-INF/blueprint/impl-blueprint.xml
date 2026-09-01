@@ -12,12 +12,15 @@
 
     <reference id="notificationService"
                interface="org.opendaylight.mdsal.binding.api.NotificationService"/>
+    <reference id="dataBroker"
+               interface="org.opendaylight.mdsal.binding.api.DataBroker"/>
 
     <bean id="sdnMplsMlProvider"
           class="com.sma.sdn.impl.SDN_MPLS_ML_Provider"
           init-method="init"
           destroy-method="close">
         <argument ref="notificationService"/>
+        <argument ref="dataBroker"/>
     </bean>
 
 </blueprint>

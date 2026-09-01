@@ -38,9 +38,12 @@ class UpdateLspRequestXmlSerializerTest {
         assertTrue(xml.contains("<plsp-id>111</plsp-id>"));
         assertTrue(xml.contains("<pst>rsvp-te</pst>"));
         assertTrue(xml.contains("<bandwidth>RhxAAA==</bandwidth>"));
-        assertTrue(xml.contains("<processing-rule>false</processing-rule>"));
+        assertTrue(xml.contains("<processing-rule>true</processing-rule>"));
         assertTrue(xml.contains("<ip-prefix>14.14.14.14/32</ip-prefix>"));
-        assertTrue(xml.contains("nt:topology-id=\"pcep-topology\""));
+        assertTrue(xml.contains(
+                "<network-topology-ref xmlns:nt=\"urn:TBD:params:xml:ns:yang:network-topology\">"
+                        + "/nt:network-topology/nt:topology[nt:topology-id=\"pcep-topology\"]"
+                        + "</network-topology-ref>"));
     }
 
     /**

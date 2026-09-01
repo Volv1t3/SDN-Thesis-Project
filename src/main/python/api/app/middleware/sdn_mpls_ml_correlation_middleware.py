@@ -98,6 +98,15 @@ class CorrelationIdMiddleware:
         request_id = str(uuid.uuid4())
         state = scope.setdefault("state", {})
         state["request_id"] = request_id
+        logger.debug(
+            "Se recibio la solicitud HTTP en la capa de correlacion.",
+            extra=_middleware_log_extra(
+                scope,
+                request_id,
+                "correlation_request_received",
+                {"asgi_layer": "correlation", **_request_metadata(scope)},
+            ),
+        )
 
         async def send_with_correlation(message: Message) -> None:
             """
@@ -115,11 +124,47 @@ class CorrelationIdMiddleware:
                     headers.append((_CORRELATION_ID_HEADER_LOWER, request_id.encode("ascii")))
                 #? Estructuramos el mensaje con el header incluido
                 message = {**message, "headers": headers}
+                logger.debug(
+                    "La capa de correlacion agrego el identificador a la respuesta.",
+                    extra=_middleware_log_extra(
+                        scope,
+                        request_id,
+                        "correlation_response_start_forwarded",
+                        {
+                            "asgi_layer": "correlation",
+                            "status_code": message.get("status"),
+                            "response_headers": _selected_headers(message.get("headers", [])),
+                        },
+                    ),
+                )
+            elif message["type"] == "http.response.body":
+                logger.debug(
+                    "La capa de correlacion reenvio un fragmento de respuesta.",
+                    extra=_middleware_log_extra(
+                        scope,
+                        request_id,
+                        "correlation_response_body_forwarded",
+                        {
+                            "asgi_layer": "correlation",
+                            "body_bytes": len(message.get("body", b"")),
+                            "more_body": message.get("more_body", False),
+                        },
+                    ),
+                )
             await send(message)
 
         try:
             #? Enviamos la informacion del mensaje modificado hacia el Middleware de Request Size enviando el mensaje
             # en la cola asincrona de send
+            logger.debug(
+                "La capa de correlacion entrego la solicitud a la siguiente capa ASGI.",
+                extra=_middleware_log_extra(
+                    scope,
+                    request_id,
+                    "correlation_request_forwarded",
+                    {"asgi_layer": "correlation", "next_asgi_layer": "request_size_limit"},
+                ),
+            )
             await self.app(scope, receive, send_with_correlation)
         except Exception:
             _record_internal_error(scope)
@@ -188,3 +233,37 @@ def _record_internal_error(scope: Scope) -> None:
         component=INTERNAL_ERROR_COMPONENT,
         enabled=settings is not None and settings.enable_prometheus_metrics,
     )
+
+
+def _middleware_log_extra(scope: Scope, request_id: str, event: str, metadata: dict) -> dict:
+    """Construye campos JSON estructurados comunes para trazas ASGI de depuracion."""
+
+    return {
+        "service": _service_name_from_scope(scope),
+        "event": event,
+        "request_id": request_id,
+        "component": "http_middleware",
+        "metadata": metadata,
+    }
+
+
+def _request_metadata(scope: Scope) -> dict:
+    """Devuelve metadata de transporte permitida, sin registrar secretos de headers."""
+
+    return {
+        "method": scope.get("method"),
+        "path": scope.get("path"),
+        "http_version": scope.get("http_version"),
+        "request_headers": _selected_headers(scope.get("headers", [])),
+    }
+
+
+def _selected_headers(headers: list[tuple[bytes, bytes]]) -> dict[str, str]:
+    """Selecciona solamente los headers que afectan el parseo y transporte del cuerpo."""
+
+    allowed = {b"content-type", b"content-length", b"transfer-encoding", b"accept"}
+    return {
+        name.decode("latin-1").lower(): value.decode("latin-1")
+        for name, value in headers
+        if name.lower() in allowed
+    }

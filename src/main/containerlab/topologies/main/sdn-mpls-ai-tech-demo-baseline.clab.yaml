@@ -258,9 +258,9 @@ topology:
         ENABLE_POLICY_MAPPING: true
         HOST: 0.0.0.0
         PORT: 33761
-        LOG_LEVEL: INFO 
+        LOG_LEVEL: DEBUG   
         MAX_REQUEST_BODY_BYTES: 16384 
-        MAX_TUNNEL_BANDWIDTH_KBPS: 100000
+        MAX_TUNNEL_BANDWIDTH_KBPS: 75000
         MIN_TUNNEL_BANDWIDTH_KBPS: 10000
         MIN_POLICY_CONFIDENCE: 0.75 
         MODEL_DIR: models 
@@ -311,83 +311,437 @@ topology:
         - ../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
         - ../../data-folders/prometheus-data:/prometheus
 
+    sma-link-bandwidth-bootstrap:
+        kind: host
+        exec:
+        # ---------------------------------------------------------
+        # MPLS LSR Core: Baseline rhombus links
+        # ---------------------------------------------------------
 
+        # LSR1 Alpha <-> LSR2 Bravo
+        # Subnet: 10.0.11.0/30
+        # Capacity: 50,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/1 --rate 50000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/1 --rate 50000
+
+        # LSR1 Alpha <-> LSR3 Charlie
+        # Subnet: 10.0.12.0/30
+        # Revised Capacity: 75,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/2 --rate 75000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/2 --rate 75000
+
+        # LSR2 Bravo <-> LSR4 Delta
+        # Subnet: 10.0.21.0/30
+        # Capacity: 50,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/0 --rate 50000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/2 --rate 50000
+
+        # LSR3 Charlie <-> LSR4 Delta
+        # Subnet: 10.0.22.0/30
+        # Revised Capacity: 75,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/1 --rate 75000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/1 --rate 75000
+
+        # ---------------------------------------------------------
+        # Extended Topology Links: Additional constrained links
+        # ---------------------------------------------------------
+
+        # LSR1 Alpha <-> LSR2 Bravo additional diagonal
+        # Subnet: 10.0.13.0/30
+        # Capacity: 25,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/4 --rate 25000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/2 --rate 25000
+
+        # LSR1 Alpha <-> LSR4 Delta direct constrained shortcut
+        # Subnet: 10.0.14.0/30
+        # Capacity: 10,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/5 --rate 10000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/6 --rate 10000
+
+        # LSR2 Bravo <-> LSR3 Charlie vertical interconnection
+        # Subnet: 10.0.23.0/30
+        # Capacity: 10,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/5 --rate 10000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/4 --rate 10000
+
+        # LSR2 Bravo <-> LSR4 Delta additional diagonal
+        # Subnet: 10.0.24.0/30
+        # Capacity: 25,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/4 --rate 25000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/4 --rate 25000
+
+        # LSR3 Charlie <-> LSR4 Delta additional high-bandwidth path
+        # Subnet: 10.0.25.0/30
+        # Capacity: 75,000 kbps
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/0 --rate 75000
+        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/5 --rate 75000
+
+        # ---------------------------------------------------------
+        # Verification
+        # ---------------------------------------------------------
+        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha
+        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo
+        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie
+        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta
+
+  # links:
+  #   # ---------------------------------------------------------
+  #   # Left host edge: Ubuntu host Golf -> OVS Echo -> LSR1 Alpha
+  #   # ---------------------------------------------------------
+  #   - endpoints:
+  #       - sma-ubuntu-edge-golf:eth1
+  #       - sma-ovs-pe1-echo:host-golf
+
+  #   - endpoints:
+  #       - sma-ovs-pe1-echo:core-lsr1
+  #       - sma-xrv-lsr1-alpha:Gi0/0/0/0
+
+  #   # ---------------------------------------------------------
+  #   # Right host edge: LSR4 Delta -> OVS Foxtrot -> Ubuntu host Hotel
+  #   # ---------------------------------------------------------
+  #   - endpoints:
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/0
+  #       - sma-ovs-pe2-foxtrot:core-lsr4
+
+  #   - endpoints:
+  #       - sma-ovs-pe2-foxtrot:host-hotel
+  #       - sma-ubuntu-edge-hotel:eth1
+
+  #   # ---------------------------------------------------------
+  #   # MPLS LSR Core: LSR1 Alpha, LSR2 Bravo, LSR3 Charlie and LSR4 Delta
+  #   # ---------------------------------------------------------
+  #   - endpoints:
+  #       - sma-xrv-lsr1-alpha:Gi0/0/0/1
+  #       - sma-xrv-lsr2-bravo:Gi0/0/0/1
+
+  #   - endpoints:
+  #       - sma-xrv-lsr1-alpha:Gi0/0/0/2
+  #       - sma-xrv-lsr3-charlie:Gi0/0/0/2
+
+  #   - endpoints:
+  #       - sma-xrv-lsr2-bravo:Gi0/0/0/0
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/2
+
+  #   - endpoints:
+  #       - sma-xrv-lsr3-charlie:Gi0/0/0/1
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/1
+
+  #   # ---------------------------------------------------------
+  #   # BGP-LS & PCE/PCC Links: LSR1, LSR2, LSR3, LSR4 to ODL India
+  #   # ---------------------------------------------------------
+  #   - endpoints:
+  #       - sma-xrv-lsr1-alpha:Gi0/0/0/3
+  #       - sma-odl-controller-india:eth1
+
+  #   - endpoints:
+  #       - sma-xrv-lsr2-bravo:Gi0/0/0/3
+  #       - sma-odl-controller-india:eth2
+
+  #   - endpoints:
+  #       - sma-xrv-lsr3-charlie:Gi0/0/0/3
+  #       - sma-odl-controller-india:eth3
+
+  #   - endpoints:
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/3
+  #       - sma-odl-controller-india:eth4
+
+  #   # ---------------------------------------------------------
+  #   # Extended Topology Links: Additional constrainted bandwidth links
+  #   # ---------------------------------------------------------
+  #   - endpoints:
+  #       - sma-xrv-lsr1-alpha:Gi0/0/0/4
+  #       - sma-xrv-lsr2-bravo:Gi0/0/0/2
+  #   - endpoints:
+  #       - sma-xrv-lsr1-alpha:Gi0/0/0/5
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/6
+  #   - endpoints: 
+  #       - sma-xrv-lsr2-bravo:Gi0/0/0/5
+  #       - sma-xrv-lsr3-charlie:Gi0/0/0/4
+  #   - endpoints:
+  #       - sma-xrv-lsr2-bravo:Gi0/0/0/4
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/4
+  #   - endpoints: 
+  #       - sma-xrv-lsr3-charlie:Gi0/0/0/0
+  #       - sma-xrv-lsr4-delta:Gi0/0/0/5
   links:
     # ---------------------------------------------------------
     # Left host edge: Ubuntu host Golf -> OVS Echo -> LSR1 Alpha
     # ---------------------------------------------------------
-    - endpoints:
-        - sma-ubuntu-edge-golf:eth1
-        - sma-ovs-pe1-echo:host-golf
+    - type: veth
+      endpoints:
+        - node: sma-ubuntu-edge-golf
+          interface: eth1
+        - node: sma-ovs-pe1-echo
+          interface: host-golf
+      vars:
+        link_role: access_host_to_ovs
+        bandwidth_enforced: "false"
 
-    - endpoints:
-        - sma-ovs-pe1-echo:core-lsr1
-        - sma-xrv-lsr1-alpha:Gi0/0/0/0
+    - type: veth
+      endpoints:
+        - node: sma-ovs-pe1-echo
+          interface: core-lsr1
+        - node: sma-xrv-lsr1-alpha
+          interface: Gi0/0/0/0
+      vars:
+        link_role: access_ovs_to_lsr
+        subnet: 192.168.10.0/24
+        bandwidth_enforced: "false"
 
     # ---------------------------------------------------------
     # Right host edge: LSR4 Delta -> OVS Foxtrot -> Ubuntu host Hotel
     # ---------------------------------------------------------
-    - endpoints:
-        - sma-xrv-lsr4-delta:Gi0/0/0/0
-        - sma-ovs-pe2-foxtrot:core-lsr4
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/0
+        - node: sma-ovs-pe2-foxtrot
+          interface: core-lsr4
+      vars:
+        link_role: access_lsr_to_ovs
+        subnet: 192.168.20.0/24
+        bandwidth_enforced: "false"
 
-    - endpoints:
-        - sma-ovs-pe2-foxtrot:host-hotel
-        - sma-ubuntu-edge-hotel:eth1
+    - type: veth
+      endpoints:
+        - node: sma-ovs-pe2-foxtrot
+          interface: host-hotel
+        - node: sma-ubuntu-edge-hotel
+          interface: eth1
+      vars:
+        link_role: access_ovs_to_host
+        bandwidth_enforced: "false"
 
     # ---------------------------------------------------------
-    # MPLS LSR Core: LSR1 Alpha, LSR2 Bravo, LSR3 Charlie and LSR4 Delta
+    # MPLS LSR Core: Baseline rhombus links
+    # Bandwidth values must be mirrored in IOS XR interface
+    # bandwidth and RSVP bandwidth configuration.
     # ---------------------------------------------------------
-    - endpoints:
-        - sma-xrv-lsr1-alpha:Gi0/0/0/1
-        - sma-xrv-lsr2-bravo:Gi0/0/0/1
 
-    - endpoints:
-        - sma-xrv-lsr1-alpha:Gi0/0/0/2
-        - sma-xrv-lsr3-charlie:Gi0/0/0/2
+    # LSR1 Alpha <-> LSR2 Bravo
+    # Subnet: 10.0.11.0/30
+    # Capacity: 50,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr1-alpha
+          interface: Gi0/0/0/1
+        - node: sma-xrv-lsr2-bravo
+          interface: Gi0/0/0/1
+      vars:
+        link_role: mpls_core
+        subnet: 10.0.11.0/30
+        bandwidth_kbps: 50000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core
+        sma.subnet: 10.0.11.0/30
+        sma.bandwidth-kbps: "50000"
 
-    - endpoints:
-        - sma-xrv-lsr2-bravo:Gi0/0/0/0
-        - sma-xrv-lsr4-delta:Gi0/0/0/2
+    # LSR1 Alpha <-> LSR3 Charlie
+    # Subnet: 10.0.12.0/30
+    # Previous capacity: 100,000 kbps
+    # Revised capacity: 75,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr1-alpha
+          interface: Gi0/0/0/2
+        - node: sma-xrv-lsr3-charlie
+          interface: Gi0/0/0/2
+      vars:
+        link_role: mpls_core
+        subnet: 10.0.12.0/30
+        bandwidth_kbps: 75000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core
+        sma.subnet: 10.0.12.0/30
+        sma.bandwidth-kbps: "75000"
 
-    - endpoints:
-        - sma-xrv-lsr3-charlie:Gi0/0/0/1
-        - sma-xrv-lsr4-delta:Gi0/0/0/1
+    # LSR2 Bravo <-> LSR4 Delta
+    # Subnet: 10.0.21.0/30
+    # Capacity: 50,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr2-bravo
+          interface: Gi0/0/0/0
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/2
+      vars:
+        link_role: mpls_core
+        subnet: 10.0.21.0/30
+        bandwidth_kbps: 50000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core
+        sma.subnet: 10.0.21.0/30
+        sma.bandwidth-kbps: "50000"
+
+    # LSR3 Charlie <-> LSR4 Delta
+    # Subnet: 10.0.22.0/30
+    # Previous capacity: 100,000 kbps
+    # Revised capacity: 75,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr3-charlie
+          interface: Gi0/0/0/1
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/1
+      vars:
+        link_role: mpls_core
+        subnet: 10.0.22.0/30
+        bandwidth_kbps: 75000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core
+        sma.subnet: 10.0.22.0/30
+        sma.bandwidth-kbps: "75000"
 
     # ---------------------------------------------------------
     # BGP-LS & PCE/PCC Links: LSR1, LSR2, LSR3, LSR4 to ODL India
+    # These are control-plane links and are not part of the
+    # MPLS-TE constrained-bandwidth data-plane model.
     # ---------------------------------------------------------
-    - endpoints:
-        - sma-xrv-lsr1-alpha:Gi0/0/0/3
-        - sma-odl-controller-india:eth1
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr1-alpha
+          interface: Gi0/0/0/3
+        - node: sma-odl-controller-india
+          interface: eth1
+      vars:
+        link_role: odl_control
+        subnet: 10.100.10.0/30
+        bandwidth_enforced: "false"
 
-    - endpoints:
-        - sma-xrv-lsr2-bravo:Gi0/0/0/3
-        - sma-odl-controller-india:eth2
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr2-bravo
+          interface: Gi0/0/0/3
+        - node: sma-odl-controller-india
+          interface: eth2
+      vars:
+        link_role: odl_control
+        subnet: 10.100.20.0/30
+        bandwidth_enforced: "false"
 
-    - endpoints:
-        - sma-xrv-lsr3-charlie:Gi0/0/0/3
-        - sma-odl-controller-india:eth3
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr3-charlie
+          interface: Gi0/0/0/3
+        - node: sma-odl-controller-india
+          interface: eth3
+      vars:
+        link_role: odl_control
+        subnet: 10.100.30.0/30
+        bandwidth_enforced: "false"
 
-    - endpoints:
-        - sma-xrv-lsr4-delta:Gi0/0/0/3
-        - sma-odl-controller-india:eth4
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/3
+        - node: sma-odl-controller-india
+          interface: eth4
+      vars:
+        link_role: odl_control
+        subnet: 10.100.40.0/30
+        bandwidth_enforced: "false"
 
     # ---------------------------------------------------------
-    # Extended Topology Links: Additional constrainted bandwidth links
+    # Extended Topology Links: Additional constrained-bandwidth links
+    # Bandwidth values must be mirrored in IOS XR interface
+    # bandwidth and RSVP bandwidth configuration.
     # ---------------------------------------------------------
-    - endpoints:
-        - sma-xrv-lsr1-alpha:Gi0/0/0/4
-        - sma-xrv-lsr2-bravo:Gi0/0/0/2
-    - endpoints:
-        - sma-xrv-lsr1-alpha:Gi0/0/0/5
-        - sma-xrv-lsr4-delta:Gi0/0/0/6
-    - endpoints: 
-        - sma-xrv-lsr2-bravo:Gi0/0/0/5
-        - sma-xrv-lsr3-charlie:Gi0/0/0/4
-    - endpoints:
-        - sma-xrv-lsr2-bravo:Gi0/0/0/4
-        - sma-xrv-lsr4-delta:Gi0/0/0/4
-    - endpoints: 
-        - sma-xrv-lsr3-charlie:Gi0/0/0/0
-        - sma-xrv-lsr4-delta:Gi0/0/0/5
+
+    # LSR1 Alpha <-> LSR2 Bravo additional diagonal
+    # Subnet: 10.0.13.0/30
+    # Capacity: 25,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr1-alpha
+          interface: Gi0/0/0/4
+        - node: sma-xrv-lsr2-bravo
+          interface: Gi0/0/0/2
+      vars:
+        link_role: mpls_core_extended
+        subnet: 10.0.13.0/30
+        bandwidth_kbps: 25000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core-extended
+        sma.subnet: 10.0.13.0/30
+        sma.bandwidth-kbps: "25000"
+
+    # LSR1 Alpha <-> LSR4 Delta direct constrained shortcut
+    # Subnet: 10.0.14.0/30
+    # Capacity: 10,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr1-alpha
+          interface: Gi0/0/0/5
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/6
+      vars:
+        link_role: mpls_core_extended
+        subnet: 10.0.14.0/30
+        bandwidth_kbps: 10000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core-extended
+        sma.subnet: 10.0.14.0/30
+        sma.bandwidth-kbps: "10000"
+
+    # LSR2 Bravo <-> LSR3 Charlie vertical interconnection
+    # Subnet: 10.0.23.0/30
+    # Capacity: 10,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr2-bravo
+          interface: Gi0/0/0/5
+        - node: sma-xrv-lsr3-charlie
+          interface: Gi0/0/0/4
+      vars:
+        link_role: mpls_core_extended
+        subnet: 10.0.23.0/30
+        bandwidth_kbps: 10000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core-extended
+        sma.subnet: 10.0.23.0/30
+        sma.bandwidth-kbps: "10000"
+
+    # LSR2 Bravo <-> LSR4 Delta additional diagonal
+    # Subnet: 10.0.24.0/30
+    # Capacity: 25,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr2-bravo
+          interface: Gi0/0/0/4
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/4
+      vars:
+        link_role: mpls_core_extended
+        subnet: 10.0.24.0/30
+        bandwidth_kbps: 25000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core-extended
+        sma.subnet: 10.0.24.0/30
+        sma.bandwidth-kbps: "25000"
+
+    # LSR3 Charlie <-> LSR4 Delta additional diagonal/high-bandwidth path
+    # Subnet: 10.0.25.0/30
+    # Capacity: 75,000 kbps
+    - type: veth
+      endpoints:
+        - node: sma-xrv-lsr3-charlie
+          interface: Gi0/0/0/0
+        - node: sma-xrv-lsr4-delta
+          interface: Gi0/0/0/5
+      vars:
+        link_role: mpls_core_extended
+        subnet: 10.0.25.0/30
+        bandwidth_kbps: 75000
+        bandwidth_enforced: "true"
+      labels:
+        sma.link-role: mpls-core-extended
+        sma.subnet: 10.0.25.0/30
+        sma.bandwidth-kbps: "75000"

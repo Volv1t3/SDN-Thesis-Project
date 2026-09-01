@@ -59,16 +59,34 @@ public final class UpdateLspRequestXmlSerializer {
         if (request.bandwidthBase64() == null || request.bandwidthBase64().isBlank()) {
             throw new IllegalArgumentException("bandwidthBase64 es obligatorio");
         }
+        if (request.pccNode() == null || request.pccNode().isBlank()) {
+            throw new IllegalArgumentException("pccNode es obligatorio");
+        }
+        if (request.lspName() == null || request.lspName().isBlank()) {
+            throw new IllegalArgumentException("lspName es obligatorio");
+        }
+        if (request.pcepTopologyId() == null || request.pcepTopologyId().isBlank()) {
+            throw new IllegalArgumentException("pcepTopologyId es obligatorio");
+        }
+        if (request.eroSubobjects() == null || request.eroSubobjects().isEmpty()) {
+            throw new IllegalArgumentException("eroSubobjects debe contener al menos un subobjeto");
+        }
+        final String networkTopologyReference = "/nt:network-topology/nt:topology[nt:topology-id=\""
+                + XmlSupport.escape(request.pcepTopologyId()) + "\"]";
+        final String networkTopologyReferenceElement =
+                "<network-topology-ref xmlns:nt=\"urn:TBD:params:xml:ns:yang:network-topology\">"
+                        + networkTopologyReference + "</network-topology-ref>";
         final String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
-                    <node>%s</node>
-                    <name>%s</name>
+                    %s
                     <arguments>
                         <path-setup-type>
                             <pst>rsvp-te</pst>
                         </path-setup-type>
+                        <metadata/>
                         <lsp>
+                            <processing-rule>true</processing-rule>
                             <plsp-id>%d</plsp-id>
                             <lsp-flags>
                                 <delegate>true</delegate>
@@ -76,26 +94,25 @@ public final class UpdateLspRequestXmlSerializer {
                             </lsp-flags>
                         </lsp>
                         <bandwidth>
-                            <processing-rule>false</processing-rule>
+                            <processing-rule>true</processing-rule>
                             <bandwidth>%s</bandwidth>
                             <ignore>false</ignore>
                         </bandwidth>
                         <ero>
-                            <processing-rule>false</processing-rule>
+                            <processing-rule>true</processing-rule>
                 %s            <ignore>false</ignore>
                         </ero>
                     </arguments>
-                    <network-topology-ref
-                        xmlns:nt="urn:TBD:params:xml:ns:yang:network-topology">%s</network-topology-ref>
+                    <name>%s</name>
+                    <node>%s</node>
                 </input>
                 """.formatted(
-                XmlSupport.escape(request.pccNode()),
-                XmlSupport.escape(request.lspName()),
+                networkTopologyReferenceElement,
                 request.plspId(),
                 XmlSupport.escape(request.bandwidthBase64()),
                 eroXmlSerializer.serialize(request.eroSubobjects()),
-                "/nt:network-topology/nt:topology[nt:topology-id=\""
-                        + XmlSupport.escape(request.pcepTopologyId()) + "\"]");
+                XmlSupport.escape(request.lspName()),
+                XmlSupport.escape(request.pccNode()));
         LOG.debug("update_lsp_request_serialized", "serialize",
                 "Se serializo la solicitud XML para actualizar el LSP delegado",
                 StructuredLogger.fields("pcc_node", request.pccNode(), "lsp_name", request.lspName(),

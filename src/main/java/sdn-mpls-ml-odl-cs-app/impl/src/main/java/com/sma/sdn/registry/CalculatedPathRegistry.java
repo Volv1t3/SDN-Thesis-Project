@@ -116,4 +116,10 @@ public final class CalculatedPathRegistry {
                 "Se elimino el contenido del registro de caminos calculados",
                 StructuredLogger.fields("removed_count", previousSize));
     }
+
+    /** Devuelve el numero de caminos vigentes o pendientes de expiracion en el registro. */
+    public synchronized int size() {
+        expireOldEntries();
+        return paths.size();
+    }
 }

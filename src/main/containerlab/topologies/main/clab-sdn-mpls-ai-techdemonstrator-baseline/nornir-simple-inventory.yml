@@ -19,6 +19,11 @@ sma-xrv-lsr4-delta:
     password: clab@123
     platform: cisco_xrv
     hostname: 172.21.121.14
+sma-link-bandwidth-bootstrap:
+    username: 
+    password: 
+    platform: host
+    hostname: 
 sma-obs-grafana-lima:
     username: 
     password: 

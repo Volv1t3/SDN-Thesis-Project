@@ -14,5 +14,6 @@ package com.sma.sdn.model;
  * responsabilidad
  * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
  */
-public record UpdateLspResult(boolean success, boolean provisionalSuccess, boolean hardFailure, String failureReason) {
+public record UpdateLspResult(
+        boolean success, boolean provisionalSuccess, boolean hardFailure, String failureReason, int httpStatus) {
 }

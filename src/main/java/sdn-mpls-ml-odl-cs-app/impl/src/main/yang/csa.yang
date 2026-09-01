@@ -1,0 +1,151 @@
+/*
+ * Copyright (c) 2026 Santiago Arellano and others.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License v1.0 which accompanies this distribution,
+ * and is available at http://www.eclipse.org/legal/epl-v10.html
+ */
+
+module csa {
+  yang-version 1.1;
+  namespace "urn:sma:sdn:csa";
+  prefix csa;
+
+  organization "SMA SDN-MPLS-ML";
+  description
+    "Read-only operational state for the SDN-MPLS-ML controller side application.";
+
+  revision 2026-08-31 {
+    description "Initial operational-state model.";
+  }
+
+  container controller-state {
+    config false;
+    description "Current controller-side application state for external validation.";
+
+    leaf generated-at {
+      type string;
+      description "UTC instant at which this snapshot was generated.";
+    }
+    leaf processed-packet-count {
+      type uint64;
+    }
+
+    container control-plane {
+      leaf ready {
+        type boolean;
+      }
+      leaf closed {
+        type boolean;
+      }
+      leaf topology-id {
+        type string;
+      }
+      leaf topology-ttl-millis {
+        type uint64;
+      }
+      leaf topology-fresh {
+        type boolean;
+      }
+      leaf topology-refresh-in-progress {
+        type boolean;
+      }
+      leaf topology-last-successful-refresh {
+        type string;
+      }
+      leaf topology-last-refresh-attempt {
+        type string;
+      }
+      leaf topology-fresh-until {
+        type string;
+      }
+      leaf topology-last-failure {
+        type string;
+      }
+      leaf topology-refresh-success-count {
+        type uint64;
+      }
+      leaf topology-refresh-failure-count {
+        type uint64;
+      }
+    }
+
+    container cache-state {
+      leaf classification-entry-count {
+        type uint32;
+      }
+      leaf calculated-path-entry-count {
+        type uint32;
+      }
+      leaf policy-evidence-bucket-count {
+        type uint32;
+      }
+      leaf active-pair-policy-count {
+        type uint32;
+      }
+      leaf delegated-lsp-count {
+        type uint32;
+      }
+      leaf openflow-switch-count {
+        type uint32;
+      }
+    }
+
+    list bgp-ls-node {
+      key "router-id";
+      leaf router-id {
+        type string;
+      }
+      leaf topology-id {
+        type string;
+      }
+      leaf node-id {
+        type string;
+      }
+      leaf te-router-id-ipv4 {
+        type string;
+      }
+      leaf graph-node-id {
+        type uint64;
+      }
+    }
+
+    list openflow-switch {
+      key "logical-name";
+      leaf logical-name {
+        type string;
+      }
+      leaf management-ip {
+        type string;
+      }
+      leaf node-id {
+        type string;
+      }
+      leaf encoded-node-id {
+        type string;
+      }
+
+      list connector {
+        key "connector-id";
+        leaf connector-id {
+          type string;
+        }
+        leaf name {
+          type string;
+        }
+        leaf port-number {
+          type uint32;
+        }
+        leaf hardware-address {
+          type string;
+        }
+        leaf live {
+          type boolean;
+        }
+        leaf link-down {
+          type boolean;
+        }
+      }
+    }
+  }
+}
