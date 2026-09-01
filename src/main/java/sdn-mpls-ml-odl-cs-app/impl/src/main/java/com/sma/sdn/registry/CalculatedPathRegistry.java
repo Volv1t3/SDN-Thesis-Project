@@ -8,6 +8,7 @@
 
 package com.sma.sdn.registry;
 
+import com.sma.sdn.metrics.SdnMplsMlMetrics;
 import com.sma.sdn.model.CalculatedPath;
 import com.sma.sdn.model.CalculatedPathKey;
 import com.sma.sdn.observability.StructuredLogger;
@@ -26,6 +27,15 @@ import java.util.Optional;
 public final class CalculatedPathRegistry {
     private static final StructuredLogger LOG = StructuredLogger.getLogger(CalculatedPathRegistry.class);
     private final Map<CalculatedPathKey, CalculatedPath> paths = new HashMap<>();
+    private final SdnMplsMlMetrics metrics;
+
+    public CalculatedPathRegistry() {
+        this(null);
+    }
+
+    public CalculatedPathRegistry(final SdnMplsMlMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     /**
      * Ejecuta la operacion {@code findValid} dentro del componente correspondiente.
@@ -92,6 +102,7 @@ public final class CalculatedPathRegistry {
             }
         }
         final int expiredCount = previousSize - paths.size();
+        recordEvictions(expiredCount);
         if (expiredCount > 0) {
             LOG.debug("calculated_path_registry_entries_expired", "expireOldEntries",
                     "Se eliminaron caminos calculados vencidos",
@@ -121,5 +132,20 @@ public final class CalculatedPathRegistry {
     public synchronized int size() {
         expireOldEntries();
         return paths.size();
+    }
+
+    /** Returns all unexpired calculated paths as an immutable operational snapshot. */
+    public synchronized Map<CalculatedPathKey, CalculatedPath> snapshot() {
+        expireOldEntries();
+        return Map.copyOf(paths);
+    }
+
+    private void recordEvictions(final int count) {
+        if (metrics == null) {
+            return;
+        }
+        for (int index = 0; index < count; index++) {
+            metrics.increment("sma_registry_calculated_path_expired_evictions_total");
+        }
     }
 }

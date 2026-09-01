@@ -8,6 +8,7 @@
 
 package com.sma.sdn.registry;
 
+import com.sma.sdn.metrics.SdnMplsMlMetrics;
 import com.sma.sdn.model.DirectionalPolicyEvidence;
 import com.sma.sdn.model.PairConsensusBucket;
 import com.sma.sdn.model.ServiceKey;
@@ -21,16 +22,25 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class DirectionalClassificationEvidenceRegistry {
     private final TunnelPairRegistry pairRegistry;
     private final Map<String, PairConsensusBucket> buckets = new ConcurrentHashMap<>();
+    private final SdnMplsMlMetrics metrics;
 
     public DirectionalClassificationEvidenceRegistry(final TunnelPairRegistry pairRegistry) {
+        this(pairRegistry, null);
+    }
+
+    public DirectionalClassificationEvidenceRegistry(
+            final TunnelPairRegistry pairRegistry,
+            final SdnMplsMlMetrics metrics) {
         this.pairRegistry = pairRegistry;
+        this.metrics = metrics;
     }
 
     public synchronized PairConsensusBucket recordEvidence(final DirectionalPolicyEvidence evidence) {
         expireOldEvidence(evidence.observedAt());
         final String key = key(evidence.pairKey(), evidence.serviceKey());
         final PairConsensusBucket previous = buckets.get(key);
-        final boolean left = "LEFT".equals(pairRegistry.sideForSwitch(evidence.pairKey(), evidence.ingressSwitchName()));
+        final boolean left = "LEFT".equals(
+                pairRegistry.sideForSwitch(evidence.pairKey(), evidence.ingressSwitchName()));
         final Optional<DirectionalPolicyEvidence> leftEvidence = left ? Optional.of(evidence)
                 : previous == null ? Optional.empty() : previous.leftEvidence();
         final Optional<DirectionalPolicyEvidence> rightEvidence = left
@@ -50,10 +60,13 @@ public final class DirectionalClassificationEvidenceRegistry {
     }
 
     public synchronized void expireOldEvidence(final Instant now) {
+        final int previousSize = buckets.size();
         buckets.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
+        recordEvictions(previousSize - buckets.size());
     }
 
-    public Map<String, PairConsensusBucket> snapshot() {
+    public synchronized Map<String, PairConsensusBucket> snapshot() {
+        expireOldEvidence(Instant.now());
         return Map.copyOf(new LinkedHashMap<>(buckets));
     }
 
@@ -72,5 +85,14 @@ public final class DirectionalClassificationEvidenceRegistry {
 
     private static String key(final String pairKey, final ServiceKey serviceKey) {
         return pairKey + "|" + serviceKey.normalizedValue();
+    }
+
+    private void recordEvictions(final int count) {
+        if (metrics == null) {
+            return;
+        }
+        for (int index = 0; index < count; index++) {
+            metrics.increment("sma_registry_directional_evidence_expired_evictions_total");
+        }
     }
 }

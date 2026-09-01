@@ -10,6 +10,7 @@ package com.sma.sdn.classification;
 
 import com.sma.sdn.http.ClassifierRestClient;
 import com.sma.sdn.metrics.SdnMplsMlMetrics;
+import com.sma.sdn.model.ClassificationLookupResult;
 import com.sma.sdn.model.ClassificationResult;
 import com.sma.sdn.model.PacketClassificationContext;
 import com.sma.sdn.observability.StructuredLogger;
@@ -20,6 +21,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Define la clase {@code ClassificationService} dentro del controlador SDN-MPLS-ML.
@@ -84,7 +86,7 @@ public final class ClassificationService {
      *
      * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
      */
-    public ClassificationResult classifyOrGetCached(final PacketClassificationContext context) {
+    public ClassificationLookupResult classifyOrGetCached(final PacketClassificationContext context) {
         LOG.debug(
                 "classification_lookup_started",
                 "classifyOrGetCached",
@@ -105,7 +107,7 @@ public final class ClassificationService {
                                     "class_name", result.className(),
                                     "confidence", result.confidence(),
                                     "request_id", result.requestId()));
-                    return result;
+                    return new ClassificationLookupResult(result, true);
                 })
                 .orElseGet(() -> classify(context));
     }
@@ -126,7 +128,7 @@ public final class ClassificationService {
      *
      * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
      */
-    private ClassificationResult classify(final PacketClassificationContext context) {
+    private ClassificationLookupResult classify(final PacketClassificationContext context) {
         metrics.increment("sma_classification_cache_miss_total");
         metrics.increment("sma_classifier_request_total");
         final String body = requestSerializer.serialize(context.packetFeatures());
@@ -139,10 +141,13 @@ public final class ClassificationService {
                         "request_body", body));
         final HttpResponse<String> response;
         final Instant startedAt = Instant.now();
+        final long roundTripStartedAt = System.nanoTime();
         try {
             response = client.classify(body);
         } catch (RuntimeException e) {
             metrics.increment("sma_classifier_failure_total");
+            metrics.observeHistogram("sma_classifier_round_trip_duration_seconds",
+                    Map.of("outcome", "transport_error"), elapsedSeconds(roundTripStartedAt));
             LOG.error(
                     "classifier_request_failed",
                     "classify",
@@ -163,6 +168,8 @@ public final class ClassificationService {
                         "duration_ms", Duration.between(startedAt, Instant.now()).toMillis()));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             metrics.increment("sma_classifier_failure_total");
+            metrics.observeHistogram("sma_classifier_round_trip_duration_seconds",
+                    Map.of("outcome", "http_error"), elapsedSeconds(roundTripStartedAt));
             LOG.warn(
                     "classifier_response_rejected",
                     "classify",
@@ -174,7 +181,17 @@ public final class ClassificationService {
                     null);
             throw new IllegalStateException("La solicitud al clasificador fallo: HTTP " + response.statusCode());
         }
-        final ClassificationResult result = responseDeserializer.deserialize(response.body());
+        final ClassificationResult result;
+        try {
+            result = responseDeserializer.deserialize(response.body());
+        } catch (RuntimeException e) {
+            metrics.increment("sma_classifier_failure_total");
+            metrics.observeHistogram("sma_classifier_round_trip_duration_seconds",
+                    Map.of("outcome", "deserialization_error"), elapsedSeconds(roundTripStartedAt));
+            throw e;
+        }
+        metrics.observeHistogram("sma_classifier_round_trip_duration_seconds",
+                Map.of("outcome", "success"), elapsedSeconds(roundTripStartedAt));
         if (result.policy().policyFallback()) {
             LOG.warn(
                     "classifier_fallback_policy",
@@ -199,6 +216,10 @@ public final class ClassificationService {
                         "profile_name", result.policy().profileName(),
                         "bandwidth_kbps", result.policy().pathConstraints().requestedBandwidthKbps(),
                         "expires_at", result.expiresAt()));
-        return result;
+        return new ClassificationLookupResult(result, false);
+    }
+
+    private static double elapsedSeconds(final long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000_000.0d;
     }
 }

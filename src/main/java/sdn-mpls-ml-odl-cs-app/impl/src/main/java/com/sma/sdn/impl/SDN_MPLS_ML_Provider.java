@@ -21,6 +21,7 @@ import com.sma.sdn.http.OdlOperationsClient;
 import com.sma.sdn.http.OdlRestconfDataClient;
 import com.sma.sdn.http.PathComputationOutcomeClassifier;
 import com.sma.sdn.http.TopologyDiscoveryOutcomeClassifier;
+import com.sma.sdn.metrics.PrometheusMetricsServlet;
 import com.sma.sdn.metrics.SdnMplsMlMetrics;
 import com.sma.sdn.observability.LogContext;
 import com.sma.sdn.observability.StructuredLogger;
@@ -35,11 +36,19 @@ import com.sma.sdn.operational.ControllerOperationalStatePublisher;
 import com.sma.sdn.packet.PacketInFeatureExtractor;
 import com.sma.sdn.path.CalculatedPathToEroTranslator;
 import com.sma.sdn.path.PathComputationService;
+import com.sma.sdn.policy.PairPolicyConsensusService;
+import com.sma.sdn.policy.PairPolicyCoordinator;
+import com.sma.sdn.policy.PairPolicyHashService;
+import com.sma.sdn.policy.PolicyPreemptionEvaluator;
+import com.sma.sdn.policy.ServiceKeyResolver;
+import com.sma.sdn.registry.ActivePairPolicyRegistry;
 import com.sma.sdn.registry.BgpLsNodeRegistry;
 import com.sma.sdn.registry.CalculatedPathRegistry;
 import com.sma.sdn.registry.ClassificationRegistrar;
+import com.sma.sdn.registry.DirectionalClassificationEvidenceRegistry;
 import com.sma.sdn.registry.DirectionRegistry;
 import com.sma.sdn.registry.DelegatedLspRegistry;
+import com.sma.sdn.registry.TunnelPairRegistry;
 import com.sma.sdn.serialization.json.ClassificationRequestJsonSerializer;
 import com.sma.sdn.serialization.json.ClassificationResponseJsonDeserializer;
 import com.sma.sdn.serialization.xml.BgpLsTopologyXmlDeserializer;
@@ -55,14 +64,6 @@ import com.sma.sdn.topology.TopologyDiscoveryService;
 import com.sma.sdn.topology.TopologyRefreshService;
 import com.sma.sdn.tunnel.DelegatedLspService;
 import com.sma.sdn.tunnel.DirectionalLspApplicationService;
-import com.sma.sdn.policy.PairPolicyCoordinator;
-import com.sma.sdn.policy.PairPolicyConsensusService;
-import com.sma.sdn.policy.PairPolicyHashService;
-import com.sma.sdn.policy.PolicyPreemptionEvaluator;
-import com.sma.sdn.policy.ServiceKeyResolver;
-import com.sma.sdn.registry.ActivePairPolicyRegistry;
-import com.sma.sdn.registry.DirectionalClassificationEvidenceRegistry;
-import com.sma.sdn.registry.TunnelPairRegistry;
 import com.sma.sdn.util.RetryPolicy;
 import java.net.http.HttpClient;
 import java.util.Map;
@@ -74,10 +75,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import org.opendaylight.mdsal.binding.api.NotificationService;
+import javax.servlet.ServletException;
 import org.opendaylight.mdsal.binding.api.DataBroker;
+import org.opendaylight.mdsal.binding.api.NotificationService;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.packet.service.rev130709.PacketReceived;
 import org.opendaylight.yangtools.concepts.Registration;
+import org.osgi.service.http.HttpService;
+import org.osgi.service.http.NamespaceException;
 
 /**
  * Administra el ciclo de vida principal de la aplicacion SDN-MPLS-ML ejecutada dentro del controlador OpenDaylight.
@@ -88,6 +92,7 @@ public final class SDN_MPLS_ML_Provider
 
     private final NotificationService notificationService;
     private final DataBroker dataBroker;
+    private final HttpService httpService;
     private final AtomicLong packetInCounter = new AtomicLong();
     private final AtomicBoolean controlPlaneReady = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -103,6 +108,7 @@ public final class SDN_MPLS_ML_Provider
     private DelegatedLspService delegatedLspService;
     private OpenflowBootstrapService openflowBootstrapService;
     private ControllerOperationalStatePublisher operationalStatePublisher;
+    private String metricsServletAlias;
 
     /**
      * Ejecuta la operacion {@code SDN_MPLS_ML_Provider} dentro del componente correspondiente.
@@ -118,9 +124,11 @@ public final class SDN_MPLS_ML_Provider
      */
     public SDN_MPLS_ML_Provider(
             final NotificationService notificationService,
-            final DataBroker dataBroker) {
+            final DataBroker dataBroker,
+            final HttpService httpService) {
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService");
         this.dataBroker = Objects.requireNonNull(dataBroker, "dataBroker");
+        this.httpService = Objects.requireNonNull(httpService, "httpService");
     }
 
     /**
@@ -167,9 +175,10 @@ public final class SDN_MPLS_ML_Provider
                 .registerModule(new Jdk8Module())
                 .registerModule(new JavaTimeModule());
         final SdnMplsMlMetrics metrics = new SdnMplsMlMetrics();
+        registerMetricsServlet(metrics);
         final BgpLsNodeRegistry bgpLsNodeRegistry = new BgpLsNodeRegistry();
-        final CalculatedPathRegistry calculatedPathRegistry = new CalculatedPathRegistry();
-        final ClassificationRegistrar classificationRegistrar = new ClassificationRegistrar();
+        final CalculatedPathRegistry calculatedPathRegistry = new CalculatedPathRegistry(metrics);
+        final ClassificationRegistrar classificationRegistrar = new ClassificationRegistrar(metrics);
         final DelegatedLspRegistry delegatedLspRegistry = new DelegatedLspRegistry();
 
         final TopologyDiscoveryOutcomeClassifier topologyOutcomeClassifier = new TopologyDiscoveryOutcomeClassifier();
@@ -242,8 +251,8 @@ public final class SDN_MPLS_ML_Provider
         final ServiceKeyResolver serviceKeyResolver = new ServiceKeyResolver();
         final PairPolicyHashService pairPolicyHashService = new PairPolicyHashService(config.pairPolicyHashVersion());
         final DirectionalClassificationEvidenceRegistry evidenceRegistry =
-                new DirectionalClassificationEvidenceRegistry(tunnelPairRegistry);
-        final ActivePairPolicyRegistry activePairPolicyRegistry = new ActivePairPolicyRegistry();
+                new DirectionalClassificationEvidenceRegistry(tunnelPairRegistry, metrics);
+        final ActivePairPolicyRegistry activePairPolicyRegistry = new ActivePairPolicyRegistry(metrics);
         final PairPolicyCoordinator pairPolicyCoordinator = new PairPolicyCoordinator(
                 config,
                 tunnelPairRegistry,
@@ -253,7 +262,8 @@ public final class SDN_MPLS_ML_Provider
                         serviceKeyResolver),
                 activePairPolicyRegistry,
                 new PolicyPreemptionEvaluator(),
-                new DirectionalLspApplicationService(pathComputationService, delegatedLspService, pairPolicyHashService, metrics),
+                new DirectionalLspApplicationService(
+                        pathComputationService, delegatedLspService, pairPolicyHashService, metrics),
                 metrics);
         operationalStatePublisher = new ControllerOperationalStatePublisher(
                 dataBroker,
@@ -265,7 +275,9 @@ public final class SDN_MPLS_ML_Provider
                 openflowSwitchRegistry,
                 evidenceRegistry,
                 activePairPolicyRegistry,
+                tunnelPairRegistry,
                 topologyRefreshService,
+                metrics,
                 controlPlaneReady::get,
                 closed::get,
                 packetInCounter::get);
@@ -508,6 +520,10 @@ public final class SDN_MPLS_ML_Provider
             topologyRefreshService.close();
             topologyRefreshService = null;
         }
+        if (metricsServletAlias != null) {
+            httpService.unregister(metricsServletAlias);
+            metricsServletAlias = null;
+        }
         LOG.info(
                 "packet_listener_unregistered",
                 "close",
@@ -518,6 +534,20 @@ public final class SDN_MPLS_ML_Provider
     private void publishOperationalState() {
         if (operationalStatePublisher != null) {
             operationalStatePublisher.publish();
+        }
+    }
+
+    private void registerMetricsServlet(final SdnMplsMlMetrics metrics) {
+        try {
+            httpService.registerServlet("/csa/metrics", new PrometheusMetricsServlet(metrics), null, null);
+            metricsServletAlias = "/csa/metrics";
+            LOG.info(
+                    "prometheus_metrics_servlet_registered",
+                    "registerMetricsServlet",
+                    "Se registro el endpoint Prometheus del controlador.",
+                    StructuredLogger.fields("path", "/csa/metrics"));
+        } catch (NamespaceException | ServletException e) {
+            throw new IllegalStateException("No se pudo registrar el endpoint Prometheus", e);
         }
     }
 }

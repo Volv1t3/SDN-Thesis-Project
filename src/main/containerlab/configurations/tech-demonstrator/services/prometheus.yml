@@ -13,3 +13,60 @@ scrape_configs:
           service: sma-ml-api-kilo
           component: inference-api
           environment: tech-demonstrator
+  - job_name: sdn-mpls-odl-csa-india
+    metrics_path: /csa/metrics
+    static_configs:
+      - targets:
+          - 172.21.121.100:8181
+        labels:
+          service: sma-odl-csa-india
+          component: odl-controller-side-application
+  - job_name: sdn-mpls-xrv-snmp
+    metrics_path: /snmp
+
+    params:
+      auth:
+        - sma_monitor_v2
+      module:
+        - if_mib
+
+    static_configs:
+      - targets:
+          - 172.21.121.11
+        labels:
+          router: sma-xrv-lsr1-alpha
+          component: mpls-lsr
+          environment: tech-demonstrator
+
+      - targets:
+          - 172.21.121.12
+        labels:
+          router: sma-xrv-lsr2-bravo
+          component: mpls-lsr
+          environment: tech-demonstrator
+
+      - targets:
+          - 172.21.121.13
+        labels:
+          router: sma-xrv-lsr3-charlie
+          component: mpls-lsr
+          environment: tech-demonstrator
+
+      - targets:
+          - 172.21.121.14
+        labels:
+          router: sma-xrv-lsr4-delta
+          component: mpls-lsr
+          environment: tech-demonstrator
+
+    relabel_configs:
+      - source_labels:
+          - __address__
+        target_label: __param_target
+
+      - source_labels:
+          - __param_target
+        target_label: instance
+
+      - target_label: __address__
+        replacement: 172.21.121.203:9116

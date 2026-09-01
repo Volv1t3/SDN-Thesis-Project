@@ -15,10 +15,10 @@ import com.sma.sdn.metrics.SdnMplsMlMetrics;
 import com.sma.sdn.model.CalculatedPath;
 import com.sma.sdn.model.CalculatedPathKey;
 import com.sma.sdn.model.CalculatedPathRequest;
-import com.sma.sdn.model.PathComputationResponse;
-import com.sma.sdn.model.PathConstraints;
 import com.sma.sdn.model.OdlCallOutcome;
 import com.sma.sdn.model.OdlCallOutcomeType;
+import com.sma.sdn.model.PathComputationResponse;
+import com.sma.sdn.model.PathConstraints;
 import com.sma.sdn.model.TunnelDirection;
 import com.sma.sdn.observability.StructuredLogger;
 import com.sma.sdn.registry.BgpLsNodeRegistry;
@@ -28,6 +28,7 @@ import com.sma.sdn.serialization.xml.PathComputationResponseXmlDeserializer;
 import com.sma.sdn.topology.BandwidthTranslator;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Define la clase {@code PathComputationService} dentro del controlador SDN-MPLS-ML.
@@ -191,6 +192,7 @@ public final class PathComputationService {
                 "El registro no contiene una entrada vigente para la clave solicitada.",
                 StructuredLogger.fields("reason", "MISSING_OR_EXPIRED", "registry_size", pathRegistry.size()));
         metrics.increment("sma_path_computation_request_total");
+        final long startedAt = System.nanoTime();
         final CalculatedPathRequest request = new CalculatedPathRequest(
                 config.pathComputationGraphName(),
                 key.sourceGraphNodeId(),
@@ -209,10 +211,20 @@ public final class PathComputationService {
                         "bandwidth_bytes_per_second", request.bandwidthBytesPerSecond(),
                         "class_type", request.classType(),
                         "algorithm", request.algorithm()));
-        final HttpResponse<String> response = computeWithRetry(request);
-        final PathComputationResponse parsed = responseDeserializer.deserialize(response.body());
+        final HttpResponse<String> response;
+        final PathComputationResponse parsed;
+        try {
+            response = computeWithRetry(request);
+            parsed = responseDeserializer.deserialize(response.body());
+        } catch (RuntimeException e) {
+            metrics.observeHistogram("sma_path_computation_duration_seconds",
+                    Map.of("outcome", pathOutcome(e)), elapsedSeconds(startedAt));
+            throw e;
+        }
         if (!parsed.completed()) {
             metrics.increment("sma_path_computation_failure_total");
+            metrics.observeHistogram("sma_path_computation_duration_seconds",
+                    Map.of("outcome", "invalid_response"), elapsedSeconds(startedAt));
             throw new IllegalStateException("El calculo de camino no finalizo: " + parsed.status());
         }
         final Instant now = Instant.now();
@@ -230,6 +242,8 @@ public final class PathComputationService {
                 now.plus(config.pathCacheTtl()));
         pathRegistry.put(key, path);
         metrics.increment("sma_path_computation_success_total");
+        metrics.observeHistogram("sma_path_computation_duration_seconds",
+                Map.of("outcome", "success"), elapsedSeconds(startedAt));
         LOG.info(
                 "path_computation_completed",
                 "compute",
@@ -261,6 +275,7 @@ public final class PathComputationService {
      */
     private HttpResponse<String> computeWithRetry(final CalculatedPathRequest request) {
         RuntimeException lastFailure = null;
+        String lastOutcome = "retry_exhausted";
         for (int attempt = 1; attempt <= config.topologyDiscoveryMaxAttempts(); attempt++) {
             LOG.debug(
                     "path_computation_attempt_started",
@@ -274,6 +289,7 @@ public final class PathComputationService {
                 response = operationsClient.computeConstrainedPath(requestSerializer.serialize(request));
             } catch (RuntimeException e) {
                 lastFailure = e;
+                lastOutcome = "transport_error";
                 LOG.warn(
                         "path_computation_attempt_transport_failure",
                         "computeWithRetry",
@@ -297,12 +313,37 @@ public final class PathComputationService {
             }
             if (outcome.type() == OdlCallOutcomeType.HARD_FAILURE) {
                 metrics.increment("sma_path_computation_failure_total");
-                throw new IllegalStateException("El calculo de camino fallo: " + outcome.failureReason());
+                throw new PathComputationFailedException("El calculo de camino fallo: " + outcome.failureReason(),
+                        "hard_failure", null);
             }
+            lastOutcome = "unconfirmed_response";
             lastFailure = new IllegalStateException(
                     "El resultado del calculo de camino es ambiguo: " + outcome.failureReason());
         }
         metrics.increment("sma_path_computation_failure_total");
-        throw new IllegalStateException("El calculo de camino agoto el presupuesto de reintentos", lastFailure);
+        throw new PathComputationFailedException(
+                "El calculo de camino agoto el presupuesto de reintentos", lastOutcome, lastFailure);
+    }
+
+    private static double elapsedSeconds(final long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000_000.0d;
+    }
+
+    private static String pathOutcome(final RuntimeException failure) {
+        return failure instanceof PathComputationFailedException typed ? typed.outcome() : "invalid_response";
+    }
+
+    private static final class PathComputationFailedException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+        private final String outcome;
+
+        PathComputationFailedException(final String message, final String outcome, final Throwable cause) {
+            super(message, cause);
+            this.outcome = outcome;
+        }
+
+        String outcome() {
+            return outcome;
+        }
     }
 }

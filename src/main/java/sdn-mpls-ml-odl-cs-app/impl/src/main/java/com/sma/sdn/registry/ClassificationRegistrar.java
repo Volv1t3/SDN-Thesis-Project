@@ -8,6 +8,7 @@
 
 package com.sma.sdn.registry;
 
+import com.sma.sdn.metrics.SdnMplsMlMetrics;
 import com.sma.sdn.model.ClassificationCacheKey;
 import com.sma.sdn.model.ClassificationResult;
 import com.sma.sdn.model.PacketClassificationContext;
@@ -30,6 +31,15 @@ public final class ClassificationRegistrar {
     private static final StructuredLogger LOG = StructuredLogger.getLogger(ClassificationRegistrar.class);
     private final Map<String, Map<ClassificationCacheKey, ClassificationResult>> exactBySwitch = new HashMap<>();
     private final Map<String, Map<ServiceClassCacheKey, ClassificationResult>> serviceBySwitch = new HashMap<>();
+    private final SdnMplsMlMetrics metrics;
+
+    public ClassificationRegistrar() {
+        this(null);
+    }
+
+    public ClassificationRegistrar(final SdnMplsMlMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     /**
      * Busca una entrada existente en el registro sin crear estado nuevo.
@@ -107,8 +117,10 @@ public final class ClassificationRegistrar {
     public synchronized void expireOldEntries() {
         final int previousSize = entryCount();
         final Instant now = Instant.now();
-        expire(exactBySwitch, now);
-        expire(serviceBySwitch, now);
+        final int exactExpired = expire(exactBySwitch, now);
+        final int serviceExpired = expire(serviceBySwitch, now);
+        recordEvictions("exact", exactExpired);
+        recordEvictions("service", serviceExpired);
         final int expiredCount = previousSize - entryCount();
         if (expiredCount > 0) {
             LOG.debug("classification_registry_entries_expired", "expireOldEntries",
@@ -132,6 +144,22 @@ public final class ClassificationRegistrar {
     public synchronized int size() {
         expireOldEntries();
         return entryCount();
+    }
+
+    /** Returns all unexpired exact-match entries as an immutable operational snapshot. */
+    public synchronized Map<ClassificationCacheKey, ClassificationResult> exactSnapshot() {
+        expireOldEntries();
+        final Map<ClassificationCacheKey, ClassificationResult> snapshot = new HashMap<>();
+        exactBySwitch.values().forEach(snapshot::putAll);
+        return Map.copyOf(snapshot);
+    }
+
+    /** Returns all unexpired service-class entries as an immutable operational snapshot. */
+    public synchronized Map<ServiceClassCacheKey, ClassificationResult> serviceSnapshot() {
+        expireOldEntries();
+        final Map<ServiceClassCacheKey, ClassificationResult> snapshot = new HashMap<>();
+        serviceBySwitch.values().forEach(snapshot::putAll);
+        return Map.copyOf(snapshot);
     }
 
     private int entryCount() {
@@ -245,14 +273,28 @@ public final class ClassificationRegistrar {
      *
      * @param now valor requerido para ejecutar esta operacion
      */
-    private static <K> void expire(final Map<String, Map<K, ClassificationResult>> registry, final Instant now) {
+    private static <K> int expire(final Map<String, Map<K, ClassificationResult>> registry, final Instant now) {
+        int expired = 0;
         final Iterator<Map.Entry<String, Map<K, ClassificationResult>>> switches = registry.entrySet().iterator();
         while (switches.hasNext()) {
             final Map<K, ClassificationResult> values = switches.next().getValue();
+            final int previousSize = values.size();
             values.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
+            expired += previousSize - values.size();
             if (values.isEmpty()) {
                 switches.remove();
             }
+        }
+        return expired;
+    }
+
+    private void recordEvictions(final String cacheType, final int count) {
+        if (metrics == null) {
+            return;
+        }
+        for (int index = 0; index < count; index++) {
+            metrics.incrementCounter("sma_registry_classification_expired_evictions_total",
+                    Map.of("cache_type", cacheType));
         }
     }
 }

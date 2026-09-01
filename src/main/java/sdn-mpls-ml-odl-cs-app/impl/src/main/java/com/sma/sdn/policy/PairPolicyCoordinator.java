@@ -15,6 +15,7 @@ import com.sma.sdn.model.DirectionalLspApplicationRecord;
 import com.sma.sdn.model.DirectionalPolicyEvidence;
 import com.sma.sdn.model.PairConsensusBucket;
 import com.sma.sdn.model.PairConsensusDecision;
+import com.sma.sdn.model.PairConsensusStatus;
 import com.sma.sdn.model.PairPolicyCandidate;
 import com.sma.sdn.model.PairPolicyDecision;
 import com.sma.sdn.model.PairPolicyLspApplicationScope;
@@ -30,6 +31,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -49,7 +51,8 @@ public final class PairPolicyCoordinator {
     public PairPolicyCoordinator(final AppConfig config, final TunnelPairRegistry pairRegistry,
             final DirectionalClassificationEvidenceRegistry evidenceRegistry,
             final PairPolicyConsensusService consensusService, final ActivePairPolicyRegistry activeRegistry,
-            final PolicyPreemptionEvaluator preemptionEvaluator, final DirectionalLspApplicationService lspApplicationService,
+            final PolicyPreemptionEvaluator preemptionEvaluator,
+            final DirectionalLspApplicationService lspApplicationService,
             final SdnMplsMlMetrics metrics) {
         this.config = config;
         this.pairRegistry = pairRegistry;
@@ -61,7 +64,9 @@ public final class PairPolicyCoordinator {
         this.metrics = metrics;
     }
 
-    public PairPolicyDecision handleEvidence(final DirectionalPolicyEvidence evidence, final WorkflowContext workflowContext) {
+    public PairPolicyDecision handleEvidence(
+            final DirectionalPolicyEvidence evidence,
+            final WorkflowContext workflowContext) {
         final ReentrantLock lock = locksByPair.computeIfAbsent(evidence.pairKey(), ignored -> new ReentrantLock());
         lock.lock();
         try {
@@ -75,10 +80,12 @@ public final class PairPolicyCoordinator {
             metrics.increment("sma_directional_evidence_recorded_total");
             final Optional<ActivePairPolicyState> activeBefore = activeRegistry.findActive(evidence.pairKey(), now);
             final PairConsensusDecision consensus = consensusService.evaluate(bucket, activeBefore, now);
+            recordConsensus(consensus.consensusStatus());
             if (consensus.selectedCandidate().isEmpty()) {
                 final boolean pending = consensus.consensusStatus().name().equals("PENDING_ONE_SIDE");
                 metrics.increment(pending ? "sma_pair_consensus_pending_total" : "sma_pair_consensus_unresolved_total");
-                metrics.increment(pending ? "sma_packet_workflow_pending_consensus_total" : "sma_packet_workflow_deferred_total");
+                metrics.increment(pending ? "sma_packet_workflow_pending_consensus_total"
+                        : "sma_packet_workflow_deferred_total");
                 return new PairPolicyDecision(evidence.pairKey(), evidence.serviceKey(), consensus.consensusStatus(),
                         Optional.empty(), null, activeBefore, List.of(), consensus.conflictResolutionReason());
             }
@@ -91,35 +98,53 @@ public final class PairPolicyCoordinator {
                 metrics.increment("sma_pair_consensus_priority_selected_total");
             }
             if (activeBefore.isPresent()) {
-                final PolicyPreemptionDecision preemption = preemptionEvaluator.evaluate(activeBefore.orElseThrow(), candidate, now);
+                final PolicyPreemptionDecision preemption = preemptionEvaluator.evaluate(
+                        activeBefore.orElseThrow(), candidate, now);
                 if (preemption.type() == PolicyPreemptionDecisionType.SAME_POLICY_REFRESH) {
                     final ActivePairPolicyState refreshed = activeRegistry.refresh(candidate.pairKey(), now,
                             config.activePairPolicyIdleTtl());
                     metrics.increment("sma_pair_policy_refresh_total");
-                    return new PairPolicyDecision(candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
-                            Optional.of(candidate), preemption.type(), Optional.of(refreshed), List.of(), preemption.reason());
+                    return new PairPolicyDecision(
+                            candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
+                            Optional.of(candidate), preemption.type(), Optional.of(refreshed), List.of(),
+                            preemption.reason());
                 }
                 if (!config.pairPolicyPriorityPreemptionEnabled()) {
                     metrics.increment("sma_pair_policy_deferred_total");
-                    return new PairPolicyDecision(candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
+                    metrics.increment("sma_pair_policy_retained_stronger_active_total");
+                    return new PairPolicyDecision(
+                            candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
                             Optional.of(candidate), PolicyPreemptionDecisionType.ACTIVE_POLICY_RETAINED_WEAKER_INCOMING,
                             activeBefore, List.of(), "priority preemption is disabled");
                 }
                 if (!preemption.appliesIncoming()) {
                     metrics.increment("sma_pair_policy_deferred_total");
                     metrics.increment("sma_packet_workflow_deferred_total");
-                    return new PairPolicyDecision(candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
-                            Optional.of(candidate), preemption.type(), activeBefore, List.of(), preemption.reason());
+                    if (preemption.type() == PolicyPreemptionDecisionType.ACTIVE_POLICY_RETAINED_WEAKER_INCOMING) {
+                        metrics.increment("sma_pair_policy_retained_stronger_active_total");
+                    } else if (preemption.type()
+                            == PolicyPreemptionDecisionType.ACTIVE_POLICY_RETAINED_EQUAL_PRIORITY_DIFFERENT_POLICY) {
+                        metrics.increment("sma_pair_policy_retained_equal_priority_total");
+                    }
+                    return new PairPolicyDecision(
+                            candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
+                            Optional.of(candidate), preemption.type(), activeBefore, List.of(),
+                            preemption.reason());
                 }
                 final ActivePairPolicyState installed = apply(candidate, evidence.directionKey(), workflowContext, now);
                 metrics.increment(preemption.type() == PolicyPreemptionDecisionType.INCOMING_PRIORITY_PREEMPTS
                         ? "sma_pair_policy_preempt_total" : "sma_pair_policy_expired_total");
-                return new PairPolicyDecision(candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
+                metrics.increment(preemption.type() == PolicyPreemptionDecisionType.INCOMING_PRIORITY_PREEMPTS
+                        ? "sma_pair_policy_preempted_by_priority_total" : "sma_pair_policy_replaced_expired_total");
+                return new PairPolicyDecision(
+                        candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
                         Optional.of(candidate), preemption.type(), Optional.of(installed),
                         List.copyOf(installed.lspApplications().values()), preemption.reason());
             }
             final ActivePairPolicyState installed = apply(candidate, evidence.directionKey(), workflowContext, now);
-            return new PairPolicyDecision(candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
+            metrics.increment("sma_pair_policy_replaced_expired_total");
+            return new PairPolicyDecision(
+                    candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
                     Optional.of(candidate), PolicyPreemptionDecisionType.ACTIVE_EXPIRED_REPLACE, Optional.of(installed),
                     List.copyOf(installed.lspApplications().values()), "no active pair policy");
         } finally {
@@ -150,5 +175,16 @@ public final class PairPolicyCoordinator {
                 config.activePairPolicyIdleTtl());
         metrics.increment("sma_pair_policy_active_total");
         return installed;
+    }
+
+    private void recordConsensus(final PairConsensusStatus status) {
+        metrics.incrementCounter("sma_pair_consensus_decision_total", Map.of("decision", status.name()));
+        if (status == PairConsensusStatus.PENDING_ONE_SIDE) {
+            metrics.increment("sma_pair_consensus_require_both_block_total");
+        } else if (status == PairConsensusStatus.CONSENSUS_CONFLICT_EQUAL_PRIORITY_UNRESOLVED) {
+            metrics.increment("sma_pair_consensus_equal_priority_total");
+        } else if (status == PairConsensusStatus.CONSENSUS_TIMEOUT_SINGLE_SIDE_PROVISIONAL) {
+            metrics.increment("sma_pair_consensus_single_side_provisional_total");
+        }
     }
 }

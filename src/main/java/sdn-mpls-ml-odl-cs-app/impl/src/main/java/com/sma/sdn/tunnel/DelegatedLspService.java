@@ -258,6 +258,8 @@ public final class DelegatedLspService {
                             "requested_ero", path.eroSubobjects()));
             if (stateMatches(current, path.eroSubobjects(), bandwidth)) {
                 metrics.increment("sma_update_lsp_skipped_no_change_total");
+                metrics.incrementCounter("sma_lsp_path_verification_total",
+                        Map.of("outcome", "match", "direction", direction.directionKey()));
                 LOG.debug(
                         "delegated_lsp_update_skipped",
                         "updateDelegatedLsp",
@@ -270,6 +272,7 @@ public final class DelegatedLspService {
                     current.pccNode(), current.lspName(), current.plspId(), bandwidth,
                     path.eroSubobjects(), config.pcepTopologyId());
             metrics.increment("sma_update_lsp_request_total");
+            final long updateStartedAt = System.nanoTime();
             LOG.debug(
                     "delegated_lsp_request_prepared",
                     "updateDelegatedLsp",
@@ -284,6 +287,7 @@ public final class DelegatedLspService {
                 response = operationsClient.updateLsp(requestSerializer.serialize(request));
             } catch (RuntimeException updateFailure) {
                 metrics.increment("sma_update_lsp_failure_total");
+                observeUpdateDuration("transport_error", direction.directionKey(), updateStartedAt);
                 LOG.error(
                         "delegated_lsp_update_transport_failed",
                         "updateDelegatedLsp",
@@ -294,7 +298,16 @@ public final class DelegatedLspService {
                 throw updateFailure;
             }
 
-            final UpdateLspResult initialResult = responseDeserializer.deserialize(response);
+            final UpdateLspResult initialResult;
+            try {
+                initialResult = responseDeserializer.deserialize(response);
+            } catch (RuntimeException parseFailure) {
+                metrics.increment("sma_update_lsp_failure_total");
+                observeUpdateDuration("deserialization_error", direction.directionKey(), updateStartedAt);
+                throw parseFailure;
+            }
+            observeUpdateDuration(response.statusCode() >= 200 && response.statusCode() < 300
+                    ? "success" : "http_error", direction.directionKey(), updateStartedAt);
             LOG.debug(
                     "delegated_lsp_update_response_classified",
                     "updateDelegatedLsp",
@@ -311,10 +324,13 @@ public final class DelegatedLspService {
                                 + (initialResult.failureReason() == null
                                         ? "HTTP " + response.statusCode() : initialResult.failureReason()));
                 metrics.increment("sma_update_lsp_failure_total");
+                metrics.incrementCounter("sma_lsp_path_verification_total",
+                        Map.of("outcome", "unavailable", "direction", direction.directionKey()));
                 refreshAfterFailedAttempt(failure);
                 throw failure;
             }
 
+            final long convergenceStartedAt = System.nanoTime();
             try {
                 final DelegatedLspRecord confirmed = retryPolicy.retryUntilPresent(() -> {
                     try {
@@ -335,6 +351,14 @@ public final class DelegatedLspService {
                         direction.directionKey(), confirmed.activeEro(),
                         confirmed.reportedBandwidthBase64(), Instant.now());
                 metrics.increment("sma_update_lsp_success_total");
+                final boolean eroConfirmed = confirmed.activeEro().equals(path.eroSubobjects());
+                metrics.incrementCounter("sma_lsp_path_verification_total",
+                        Map.of("outcome", eroConfirmed ? "match" : "mismatch",
+                                "direction", direction.directionKey()));
+                metrics.observeHistogram("sma_lsp_convergence_duration_seconds",
+                        Map.of("outcome", eroConfirmed ? "confirmed" : "mismatch",
+                                "direction", direction.directionKey()),
+                        elapsedSeconds(convergenceStartedAt));
                 final boolean bandwidthConfirmed = Objects.equals(
                         confirmed.reportedBandwidthBase64(), bandwidth);
                 if (!bandwidthConfirmed) {
@@ -359,6 +383,11 @@ public final class DelegatedLspService {
                         true, initialResult.provisionalSuccess(), false, null, initialResult.httpStatus());
             } catch (RuntimeException confirmationFailure) {
                 metrics.increment("sma_update_lsp_failure_total");
+                metrics.incrementCounter("sma_lsp_path_verification_total",
+                        Map.of("outcome", "unavailable", "direction", direction.directionKey()));
+                metrics.observeHistogram("sma_lsp_convergence_duration_seconds",
+                        Map.of("outcome", "timeout", "direction", direction.directionKey()),
+                        elapsedSeconds(convergenceStartedAt));
                 LOG.error(
                         "delegated_lsp_update_not_confirmed",
                         "updateDelegatedLsp",
@@ -508,5 +537,14 @@ public final class DelegatedLspService {
             final String bandwidthBase64) {
         return record.activeEro().equals(ero)
                 && Objects.equals(record.reportedBandwidthBase64(), bandwidthBase64);
+    }
+
+    private void observeUpdateDuration(final String outcome, final String directionKey, final long startedAt) {
+        metrics.observeHistogram("sma_update_lsp_duration_seconds",
+                Map.of("outcome", outcome, "direction", directionKey), elapsedSeconds(startedAt));
+    }
+
+    private static double elapsedSeconds(final long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000_000.0d;
     }
 }

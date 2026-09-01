@@ -287,7 +287,7 @@ topology:
         GF_SERVER_HTTP_PORT: 34761
         GF_SECURITY_ADMIN_USER: clab
         GF_SECURITY_ADMIN_PASSWORD: clab@123
-        GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
+        GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource,tamirsuliman-weathermap-panel
       binds:
         - ../../data-folders/grafana-data:/var/lib/grafana
         - ../../configurations/tech-demonstrator/services/provisioning:/etc/grafana/provisioning:ro
@@ -310,6 +310,19 @@ topology:
       binds:
         - ../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
         - ../../data-folders/prometheus-data:/prometheus
+
+    sma-obs-snmp-exporter-november:
+      kind: linux
+      image: docker.io/prom/snmp-exporter:v0.30.0
+      image-pull-policy: Always
+      mgmt-ipv4: 172.21.121.203
+      ports:
+        - 9116:9116
+      cmd: >
+        --config.file=/etc/snmp_exporter/snmp.yml
+        --config.file=/etc/snmp_exporter/snmp-auth.yml
+      binds:
+        - ../../configurations/tech-demonstrator/services/snmp-auth.yml:/etc/snmp_exporter/snmp-auth.yml:ro
 
     sma-link-bandwidth-bootstrap:
         kind: host

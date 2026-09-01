@@ -23,6 +23,7 @@ import com.sma.sdn.policy.PairPolicyHashService;
 import com.sma.sdn.topology.BandwidthTranslator;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,7 +48,8 @@ public final class DirectionalLspApplicationService {
 
     public DirectionalLspApplicationRecord applyPolicyToDirection(final PairPolicyCandidate candidate,
             final TunnelDirection direction, final WorkflowContext workflowContext) {
-        final ReentrantLock lock = locksByDirection.computeIfAbsent(direction.directionKey(), ignored -> new ReentrantLock());
+        final ReentrantLock lock = locksByDirection.computeIfAbsent(
+                direction.directionKey(), ignored -> new ReentrantLock());
         lock.lock();
         final Instant started = Instant.now();
         try {
@@ -55,12 +57,18 @@ public final class DirectionalLspApplicationService {
                     candidate.setupPriority(), candidate.holdPriority());
             final CalculatedPath path = pathComputationService.computeOrGetCached(direction, constraints);
             final DelegatedLspRecord current = delegatedLspService.refreshDirection(direction.directionKey());
-            final String bandwidth = BandwidthTranslator.kbpsToPcepBandwidthBase64Float32(candidate.requestedBandwidthKbps());
-            final DirectionalLspDesiredState desired = desiredState(candidate, direction, current, path.eroSubobjects(), bandwidth);
+            final String bandwidth = BandwidthTranslator.kbpsToPcepBandwidthBase64Float32(
+                    candidate.requestedBandwidthKbps());
+            final DirectionalLspDesiredState desired = desiredState(
+                    candidate, direction, current, path.eroSubobjects(), bandwidth);
             final boolean converged = current.isValidForUpdate() && current.activeEro().equals(path.eroSubobjects())
                     && bandwidth.equals(current.reportedBandwidthBase64());
             if (converged) {
                 metrics.increment("sma_lsp_update_skipped_converged_total");
+                metrics.incrementCounter("sma_lsp_application_ero_confirmed_total",
+                        Map.of("direction", direction.directionKey()));
+                metrics.incrementCounter("sma_lsp_application_bandwidth_confirmed_total",
+                        Map.of("direction", direction.directionKey()));
                 return record(candidate, direction, workflowContext, desired, current, "SKIPPED_ALREADY_CONVERGED", 0,
                         false, true, true, started);
             }
@@ -72,11 +80,21 @@ public final class DirectionalLspApplicationService {
             final DelegatedLspRecord confirmed = delegatedLspService.requireDelegatedLsp(direction.directionKey());
             final boolean eroConfirmed = confirmed.activeEro().equals(path.eroSubobjects());
             final boolean bandwidthConfirmed = bandwidth.equals(confirmed.reportedBandwidthBase64());
+            if (eroConfirmed) {
+                metrics.incrementCounter("sma_lsp_application_ero_confirmed_total",
+                        Map.of("direction", direction.directionKey()));
+            }
+            final String bandwidthMetric = bandwidthConfirmed
+                    ? "sma_lsp_application_bandwidth_confirmed_total"
+                    : "sma_lsp_application_bandwidth_unconfirmed_total";
+            metrics.incrementCounter(bandwidthMetric, Map.of("direction", direction.directionKey()));
             final String status = bandwidthConfirmed ? "UPDATE_SENT_ACCEPTED" : "ACCEPTED_PCEP_BANDWIDTH_UNCONFIRMED";
             return record(candidate, direction, workflowContext, desired, confirmed, status, result.httpStatus(),
                     true, eroConfirmed, bandwidthConfirmed, started);
         } catch (RuntimeException failure) {
             metrics.increment("sma_pair_policy_apply_failure_total");
+            metrics.incrementCounter("sma_lsp_application_failed_total",
+                    Map.of("stage", failureStage(failure), "direction", direction.directionKey()));
             final DelegatedLspRecord current = delegatedLspService.requireDelegatedLsp(direction.directionKey());
             return record(candidate, direction, workflowContext,
                     new DirectionalLspDesiredState(candidate.pairKey(), direction.directionKey(), current.pccNode(),
@@ -89,27 +107,42 @@ public final class DirectionalLspApplicationService {
         }
     }
 
-    private DirectionalLspDesiredState desiredState(final PairPolicyCandidate candidate, final TunnelDirection direction,
-            final DelegatedLspRecord current, final List<EroSubobject> ero, final String bandwidth) {
+    private DirectionalLspDesiredState desiredState(
+            final PairPolicyCandidate candidate,
+            final TunnelDirection direction,
+            final DelegatedLspRecord current,
+            final List<EroSubobject> ero,
+            final String bandwidth) {
         final String fingerprint = eroFingerprint(ero);
-        final DirectionalLspDesiredState partial = new DirectionalLspDesiredState(candidate.pairKey(), direction.directionKey(),
-                current.pccNode(), current.lspName(), current.tunnelInterfaceName(), current.plspId(), current.tunnelId(),
-                candidate.requestedBandwidthKbps(), bandwidth, candidate.setupPriority(), candidate.holdPriority(), ero,
-                fingerprint, "");
-        return new DirectionalLspDesiredState(partial.pairKey(), partial.directionKey(), partial.pccNode(), partial.lspName(),
-                partial.tunnelInterfaceName(), partial.plspId(), partial.tunnelId(), partial.requestedBandwidthKbps(),
-                partial.requestedBandwidthBase64(), partial.setupPriority(), partial.holdPriority(), partial.desiredEro(),
+        final DirectionalLspDesiredState partial = new DirectionalLspDesiredState(
+                candidate.pairKey(), direction.directionKey(), current.pccNode(), current.lspName(),
+                current.tunnelInterfaceName(), current.plspId(), current.tunnelId(),
+                candidate.requestedBandwidthKbps(), bandwidth, candidate.setupPriority(),
+                candidate.holdPriority(), ero, fingerprint, "");
+        return new DirectionalLspDesiredState(
+                partial.pairKey(), partial.directionKey(), partial.pccNode(), partial.lspName(),
+                partial.tunnelInterfaceName(), partial.plspId(), partial.tunnelId(),
+                partial.requestedBandwidthKbps(), partial.requestedBandwidthBase64(),
+                partial.setupPriority(), partial.holdPriority(), partial.desiredEro(),
                 partial.desiredEroFingerprint(), hashService.hashDesiredLspState(partial));
     }
 
-    private static DirectionalLspApplicationRecord record(final PairPolicyCandidate candidate, final TunnelDirection direction,
-            final WorkflowContext workflowContext, final DirectionalLspDesiredState desired, final DelegatedLspRecord current,
-            final String status, final Integer httpStatus, final boolean sent, final boolean eroConfirmed,
-            final boolean bandwidthConfirmed, final Instant started) {
+    private static DirectionalLspApplicationRecord record(
+            final PairPolicyCandidate candidate,
+            final TunnelDirection direction,
+            final WorkflowContext workflowContext,
+            final DirectionalLspDesiredState desired,
+            final DelegatedLspRecord current,
+            final String status,
+            final Integer httpStatus,
+            final boolean sent,
+            final boolean eroConfirmed,
+            final boolean bandwidthConfirmed,
+            final Instant started) {
         return new DirectionalLspApplicationRecord(UUID.randomUUID(), workflowContext.workflowId(),
                 workflowContext.packetSequence(), candidate.pairKey(), direction.directionKey(), candidate.policyHash(),
-                desired.desiredLspStateHash(), current.lspName(), current.pccNode(), current.plspId(), status, httpStatus,
-                sent, eroConfirmed, bandwidthConfirmed, started, Instant.now());
+                desired.desiredLspStateHash(), current.lspName(), current.pccNode(), current.plspId(), status,
+                httpStatus, sent, eroConfirmed, bandwidthConfirmed, started, Instant.now());
     }
 
     private static String eroFingerprint(final List<EroSubobject> ero) {
@@ -118,5 +151,25 @@ public final class DirectionalLspApplicationService {
             joiner.add("loose=" + subobject.loose() + ":" + subobject.ipPrefix());
         }
         return joiner.toString();
+    }
+
+    private static String failureStage(final RuntimeException failure) {
+        final String message = failure.getMessage() == null ? "" : failure.getMessage().toLowerCase();
+        if (message.contains("camino") || message.contains("path")) {
+            return "path_computation";
+        }
+        if (message.contains("topologia pcep") || message.contains("delegado")) {
+            return "pcep_refresh";
+        }
+        if (message.contains("update-lsp")) {
+            return "update_lsp";
+        }
+        if (message.contains("confirm")) {
+            return "confirmation";
+        }
+        if (message.contains("valid")) {
+            return "validation";
+        }
+        return "unknown";
     }
 }

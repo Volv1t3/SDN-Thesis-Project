@@ -1,0 +1,4 @@
+auths:
+  sma_monitor_v2:
+    version: 2
+    community: sdn-mpls-ml-tech-demo-monitor

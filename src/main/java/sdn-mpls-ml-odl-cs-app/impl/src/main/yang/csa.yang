@@ -19,6 +19,47 @@ module csa {
     description "Initial operational-state model.";
   }
 
+  grouping classification-result-fields {
+    leaf request-id { type string; }
+    leaf model-name { type string; }
+    leaf class-id { type uint32; }
+    leaf class-name { type string; }
+    leaf confidence { type string; }
+    leaf-list probability { type string; }
+    leaf profile-name { type string; }
+    leaf dscp { type uint32; }
+    leaf mpls-tc { type uint32; }
+    leaf requested-bandwidth-kbps { type uint64; }
+    leaf setup-priority { type uint32; }
+    leaf hold-priority { type uint32; }
+    leaf policy-fallback { type boolean; }
+    leaf policy-fallback-reason { type string; }
+    leaf processing-time-ms { type string; }
+    leaf cached-at { type string; }
+    leaf expires-at { type string; }
+  }
+
+  grouping service-key-fields {
+    leaf service-eth-type { type uint32; }
+    leaf service-ip-protocol { type uint32; }
+    leaf canonical-service-port { type uint32; }
+    leaf service-key { type string; }
+  }
+
+  grouping policy-fields {
+    uses service-key-fields;
+    leaf class-name { type string; }
+    leaf profile-name { type string; }
+    leaf dscp { type uint32; }
+    leaf mpls-tc { type uint32; }
+    leaf requested-bandwidth-kbps { type uint64; }
+    leaf requested-bandwidth-base64 { type string; }
+    leaf setup-priority { type uint32; }
+    leaf hold-priority { type uint32; }
+    leaf policy-schema-version { type string; }
+    leaf policy-hash { type string; }
+  }
+
   container controller-state {
     config false;
     description "Current controller-side application state for external validation.";
@@ -89,6 +130,27 @@ module csa {
       leaf openflow-switch-count {
         type uint32;
       }
+      leaf classification-exact-entry-count { type uint32; }
+      leaf classification-service-entry-count { type uint32; }
+      leaf directional-evidence-entry-count { type uint32; }
+      leaf directional-lsp-application-count { type uint32; }
+    }
+
+    container policy-state {
+      leaf consensus-enabled { type boolean; }
+      leaf require-both-directions { type boolean; }
+      leaf single-side-provisional-enabled { type boolean; }
+      leaf equal-priority-action { type string; }
+      leaf evidence-ttl-millis { type uint64; }
+      leaf active-policy-idle-ttl-millis { type uint64; }
+      leaf active-policy-sweeper-enabled { type boolean; }
+      leaf active-policy-sweeper-interval-millis { type uint64; }
+      leaf priority-preemption-enabled { type boolean; }
+      leaf policy-hash-version { type uint32; }
+      leaf lsp-application-scope { type string; }
+      leaf require-all-lsp-directions { type boolean; }
+      leaf classification-cache-ttl-millis { type uint64; }
+      leaf calculated-path-cache-ttl-millis { type uint64; }
     }
 
     list bgp-ls-node {
@@ -146,6 +208,149 @@ module csa {
           type boolean;
         }
       }
+    }
+
+    list classification-exact-cache-entry {
+      key "entry-id";
+      leaf entry-id { type string; }
+      leaf ingress-switch-name { type string; }
+      leaf ingress-connector-name { type string; }
+      leaf eth-type { type uint32; }
+      leaf ip-protocol { type uint32; }
+      leaf source-port { type uint32; }
+      leaf destination-port { type uint32; }
+      uses classification-result-fields;
+    }
+
+    list classification-service-cache-entry {
+      key "entry-id";
+      leaf entry-id { type string; }
+      leaf ingress-switch-name { type string; }
+      leaf eth-type { type uint32; }
+      leaf ip-protocol { type uint32; }
+      leaf canonical-service-port { type uint32; }
+      uses classification-result-fields;
+    }
+
+    list calculated-path-cache-entry {
+      key "entry-id";
+      leaf entry-id { type string; }
+      leaf graph-name { type string; }
+      leaf source-graph-node-id { type uint64; }
+      leaf destination-graph-node-id { type uint64; }
+      leaf bandwidth-bytes-per-second { type uint64; }
+      leaf class-type { type uint32; }
+      leaf algorithm { type string; }
+      leaf computed-te-metric { type uint32; }
+      leaf-list path-hop {
+        type string;
+        ordered-by user;
+      }
+      leaf-list ero-subobject {
+        type string;
+        ordered-by user;
+      }
+      leaf calculated-at { type string; }
+      leaf expires-at { type string; }
+    }
+
+    list delegated-lsp-entry {
+      key "direction-key";
+      leaf direction-key { type string; }
+      leaf pcc-node { type string; }
+      leaf lsp-name { type string; }
+      leaf tunnel-interface-name { type string; }
+      leaf source-router-id { type string; }
+      leaf destination-router-id { type string; }
+      leaf plsp-id { type uint64; }
+      leaf tunnel-id { type uint64; }
+      leaf lsp-id { type uint64; }
+      leaf delegated { type boolean; }
+      leaf administrative-up { type boolean; }
+      leaf operational-state { type string; }
+      leaf valid-for-update { type boolean; }
+      leaf-list active-ero-subobject {
+        type string;
+        ordered-by user;
+      }
+      leaf reported-bandwidth-base64 { type string; }
+      leaf discovered-at { type string; }
+      leaf updated-at { type string; }
+    }
+
+    list directional-policy-evidence-entry {
+      key "entry-id";
+      leaf entry-id { type string; }
+      leaf pair-key { type string; }
+      leaf side { type string; }
+      leaf direction-key { type string; }
+      leaf ingress-switch-name { type string; }
+      leaf ingress-connector-name { type string; }
+      leaf eth-type { type uint32; }
+      leaf ip-protocol { type uint32; }
+      leaf source-port { type uint32; }
+      leaf destination-port { type uint32; }
+      uses policy-fields;
+      leaf bucket-created-at { type string; }
+      leaf bucket-updated-at { type string; }
+      leaf bucket-expires-at { type string; }
+      leaf observed-at { type string; }
+      leaf expires-at { type string; }
+    }
+
+    list active-pair-policy-entry {
+      key "pair-key";
+      leaf pair-key { type string; }
+      uses policy-fields;
+      leaf generation { type uint64; }
+      leaf installed-at { type string; }
+      leaf last-refreshed-at { type string; }
+      leaf expires-at { type string; }
+    }
+
+    list directional-lsp-application-entry {
+      key "entry-id";
+      leaf entry-id { type string; }
+      leaf operation-id { type string; }
+      leaf workflow-id { type string; }
+      leaf packet-sequence { type uint64; }
+      leaf pair-key { type string; }
+      leaf direction-key { type string; }
+      leaf policy-hash { type string; }
+      leaf desired-lsp-state-hash { type string; }
+      leaf lsp-name { type string; }
+      leaf pcc-node { type string; }
+      leaf plsp-id { type uint64; }
+      leaf status { type string; }
+      leaf update-lsp-http-status { type uint32; }
+      leaf update-lsp-sent { type boolean; }
+      leaf pcep-ero-confirmed { type boolean; }
+      leaf pcep-bandwidth-confirmed { type boolean; }
+      leaf started-at { type string; }
+      leaf completed-at { type string; }
+    }
+
+    list tunnel-pair-entry {
+      key "pair-key";
+      leaf pair-key { type string; }
+      leaf left-router-id { type string; }
+      leaf right-router-id { type string; }
+      leaf left-switch-name { type string; }
+      leaf right-switch-name { type string; }
+      leaf forward-direction-key { type string; }
+      leaf reverse-direction-key { type string; }
+    }
+
+    list tunnel-direction-entry {
+      key "direction-key";
+      leaf direction-key { type string; }
+      leaf pair-key { type string; }
+      leaf source-logical-name { type string; }
+      leaf source-router-id { type string; }
+      leaf source-pcc-node { type string; }
+      leaf destination-logical-name { type string; }
+      leaf destination-router-id { type string; }
+      leaf destination-pcc-node { type string; }
     }
   }
 }

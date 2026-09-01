@@ -43,6 +43,11 @@ public final class TunnelPairRegistry {
         return requirePairForDirection(direction.directionKey()).pairKey();
     }
 
+    /** Returns the immutable managed pair definition for operational exposure. */
+    public TunnelPairDefinition snapshot() {
+        return pair;
+    }
+
     public String sideForSwitch(final String pairKey, final String ingressSwitchName) {
         requirePair(pairKey);
         final String switchName = ingressSwitchName == null ? "" : ingressSwitchName.toUpperCase(Locale.ROOT);

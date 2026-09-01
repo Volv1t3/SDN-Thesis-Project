@@ -53,6 +53,7 @@ public final class TopologyRefreshService implements AutoCloseable {
     private volatile boolean refreshInProgress;
     private volatile long successfulRefreshCount;
     private volatile long failedRefreshCount;
+    private volatile boolean ttlExpiredRecorded;
 
     /**
      * Ejecuta la operacion {@code TopologyRefreshService} dentro del componente correspondiente.
@@ -125,7 +126,9 @@ public final class TopologyRefreshService implements AutoCloseable {
         lastSuccessfulRefresh = Instant.now();
         lastRefreshAttempt = lastSuccessfulRefresh;
         lastFailure = "";
+        ttlExpiredRecorded = false;
         successfulRefreshCount++;
+        updateFreshnessGauges();
         stateChanged.run();
     }
 
@@ -159,8 +162,12 @@ public final class TopologyRefreshService implements AutoCloseable {
      */
     public boolean ensureFresh() {
         if (!staleBeyondThreshold()) {
+            updateFreshnessGauges();
             return true;
         }
+        recordTtlExpiredOnce();
+        metrics.incrementCounter("sma_bgpls_topology_refresh_on_demand_total",
+                Map.of("reason", "stale_before_packet"));
         LOG.info(
                 "topology_refresh_on_demand_started",
                 "ensureFresh",
@@ -172,6 +179,7 @@ public final class TopologyRefreshService implements AutoCloseable {
     /** Returns a consistent snapshot used by the operational RESTCONF state publisher. */
     public TopologyRefreshStatus status() {
         final Instant freshUntil = lastSuccessfulRefresh.plus(config.topologyCacheTtl());
+        updateFreshnessGauges();
         return new TopologyRefreshStatus(
                 lastSuccessfulRefresh,
                 lastRefreshAttempt,
@@ -199,18 +207,25 @@ public final class TopologyRefreshService implements AutoCloseable {
 
     private boolean refresh(final String trigger) {
         synchronized (refreshLock) {
+            if (refreshInProgress) {
+                metrics.increment("sma_bgpls_topology_refresh_deduplicated_total");
+                return false;
+            }
             if (!"periodic".equals(trigger) && !staleBeyondThreshold()) {
+                updateFreshnessGauges();
                 return true;
             }
             refreshInProgress = true;
             lastRefreshAttempt = Instant.now();
+            updateFreshnessGauges();
             stateChanged.run();
+        }
         try (LogContext ignored = LogContext.open(Map.of("refresh_id", UUID.randomUUID().toString()))) {
             LOG.debug(
-                "topology_refresh_started",
-                "refresh",
-                "Se inicio una actualizacion de BGP-LS.",
-                StructuredLogger.fields("topology_id", config.bgplsTopologyId(), "trigger", trigger));
+                    "topology_refresh_started",
+                    "refresh",
+                    "Se inicio una actualizacion de BGP-LS.",
+                    StructuredLogger.fields("topology_id", config.bgplsTopologyId(), "trigger", trigger));
             final HttpResponse<String> response = client.getBgpLsTopology(config.bgplsTopologyId());
             final OdlCallOutcome outcome = outcomeClassifier.classify(response);
             if (outcome.type() != OdlCallOutcomeType.CONFIRMED_SUCCESS) {
@@ -224,7 +239,8 @@ public final class TopologyRefreshService implements AutoCloseable {
                                 "http_status", outcome.httpStatus(),
                                 "failure_reason", outcome.failureReason()),
                         null);
-                lastFailure = outcome.failureReason() == null ? "Unconfirmed topology response" : outcome.failureReason();
+                lastFailure = outcome.failureReason() == null
+                        ? "Unconfirmed topology response" : outcome.failureReason();
                 failedRefreshCount++;
                 return false;
             }
@@ -237,8 +253,10 @@ public final class TopologyRefreshService implements AutoCloseable {
             registry.replaceAll(nodes);
             lastSuccessfulRefresh = Instant.now();
             lastFailure = "";
+            ttlExpiredRecorded = false;
             successfulRefreshCount++;
             metrics.increment("sma_odl_topology_discovery_success_total");
+            updateFreshnessGauges();
             LOG.info(
                     "topology_refresh_completed",
                     "refreshSafely",
@@ -251,6 +269,7 @@ public final class TopologyRefreshService implements AutoCloseable {
             metrics.increment("sma_odl_topology_discovery_failure_total");
             lastFailure = message(e);
             failedRefreshCount++;
+            updateFreshnessGauges();
             LOG.warn(
                     "topology_refresh_failed",
                     "refreshSafely",
@@ -260,14 +279,30 @@ public final class TopologyRefreshService implements AutoCloseable {
             return false;
         } finally {
             refreshInProgress = false;
+            updateFreshnessGauges();
             stateChanged.run();
-        }
         }
     }
 
     private static String message(final RuntimeException error) {
         final String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
         return message.length() <= 512 ? message : message.substring(0, 512);
+    }
+
+    private void recordTtlExpiredOnce() {
+        if (!ttlExpiredRecorded) {
+            ttlExpiredRecorded = true;
+            metrics.increment("sma_bgpls_topology_ttl_expired_total");
+        }
+    }
+
+    private void updateFreshnessGauges() {
+        final Instant freshUntil = lastSuccessfulRefresh.plus(config.topologyCacheTtl());
+        metrics.setGauge("sma_bgpls_topology_fresh", freshUntil.isAfter(Instant.now()) ? 1L : 0L);
+        metrics.setGauge("sma_bgpls_topology_refresh_in_progress", refreshInProgress ? 1L : 0L);
+        metrics.setGauge("sma_bgpls_topology_last_success_epoch_seconds", lastSuccessfulRefresh.getEpochSecond());
+        metrics.setGauge("sma_bgpls_topology_last_attempt_epoch_seconds", lastRefreshAttempt.getEpochSecond());
+        metrics.setGauge("sma_bgpls_topology_fresh_until_epoch_seconds", freshUntil.getEpochSecond());
     }
 
     /**

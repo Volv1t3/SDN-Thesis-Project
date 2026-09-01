@@ -11,6 +11,7 @@ package com.sma.sdn;
 import com.sma.sdn.classification.ClassificationService;
 import com.sma.sdn.config.AppConfig;
 import com.sma.sdn.metrics.SdnMplsMlMetrics;
+import com.sma.sdn.model.ClassificationLookupResult;
 import com.sma.sdn.model.ClassificationResult;
 import com.sma.sdn.model.DirectionalPolicyEvidence;
 import com.sma.sdn.model.FlowDirection;
@@ -27,8 +28,8 @@ import com.sma.sdn.registry.DirectionRegistry;
 import com.sma.sdn.registry.TunnelPairRegistry;
 import com.sma.sdn.topology.BandwidthTranslator;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.packet.service.rev130709.PacketReceived;
 
@@ -156,6 +157,7 @@ public final class SdnMplsMlWorkflowService {
             return;
         }
         if (!topologyUsable.getAsBoolean()) {
+            recordControlCycle("topology_stale", "unknown", 0L);
             LOG.warn(
                     "packet_workflow_topology_stale",
                     "handlePacket",
@@ -166,6 +168,9 @@ public final class SdnMplsMlWorkflowService {
         }
 
         final TunnelDirection ingressTunnelDirection = directionRegistry.requireTunnelDirection(flowDirection);
+        final long controlCycleStartedAt = System.nanoTime();
+        boolean controlCycleRecorded = false;
+        String controlCycleClassName = "unknown";
         try (LogContext ignored = LogContext.open(Map.of(
                 "direction_key", ingressTunnelDirection.directionKey()))) {
             LOG.debug(
@@ -175,17 +180,37 @@ public final class SdnMplsMlWorkflowService {
                     StructuredLogger.fields(
                             "source_router_id", ingressTunnelDirection.source().routerId(),
                             "destination_router_id", ingressTunnelDirection.destination().routerId()));
-            final ClassificationResult classification = classificationService.classifyOrGetCached(context);
+            final ClassificationLookupResult lookup = classificationService.classifyOrGetCached(context);
+            final ClassificationResult classification = lookup.classification();
+            controlCycleClassName = classification.className();
+            if (lookup.cacheHit()) {
+                recordControlCycle("cached_hit", classification.className(), controlCycleStartedAt);
+                controlCycleRecorded = true;
+            }
             final WorkflowContext workflowContext = WorkflowContext.current();
             final DirectionalPolicyEvidence evidence = buildEvidence(context, ingressTunnelDirection, classification);
             final var decision = pairPolicyCoordinator.handleEvidence(evidence, workflowContext);
             if (decision.candidate().isEmpty()) {
+                final String outcome = decision.consensusStatus().name().equals("PENDING_ONE_SIDE")
+                        ? "pending_consensus" : "deferred";
+                if (!lookup.cacheHit()) {
+                    recordControlCycle(outcome, classification.className(), controlCycleStartedAt);
+                    controlCycleRecorded = true;
+                }
                 LOG.info("packet_workflow_pending_consensus", "handlePacket",
                         "La evidencia fue registrada, pero aun no existe una politica de par accionable.",
-                        StructuredLogger.fields("pair_key", decision.pairKey(), "service_key", decision.serviceKey().normalizedValue(),
+                        StructuredLogger.fields("pair_key", decision.pairKey(),
+                                "service_key", decision.serviceKey().normalizedValue(),
                                 "consensus_status", decision.consensusStatus(), "observed_direction_key",
                                 ingressTunnelDirection.directionKey()));
                 return;
+            }
+            if (!lookup.cacheHit()) {
+                final boolean failed = decision.applications().stream()
+                        .anyMatch(application -> application.status().startsWith("FAILED"));
+                final String outcome = decision.applications().isEmpty() ? "deferred" : failed ? "failed" : "success";
+                recordControlCycle(outcome, classification.className(), controlCycleStartedAt);
+                controlCycleRecorded = true;
             }
             LOG.info(
                     "packet_workflow_completed",
@@ -206,6 +231,11 @@ public final class SdnMplsMlWorkflowService {
                             "lsp_application_statuses", decision.applications().stream()
                                     .map(application -> application.status()).toList(),
                             "suppression_flow_enabled", false));
+        } catch (RuntimeException e) {
+            if (!controlCycleRecorded) {
+                recordControlCycle("failed", controlCycleClassName, controlCycleStartedAt);
+            }
+            throw e;
         }
     }
 
@@ -216,22 +246,37 @@ public final class SdnMplsMlWorkflowService {
         final var pair = pairRegistry.requirePairForDirection(direction.directionKey());
         final String bandwidth = BandwidthTranslator.kbpsToPcepBandwidthBase64Float32(
                 classification.policy().pathConstraints().requestedBandwidthKbps());
-        final DirectionalPolicyEvidence partial = new DirectionalPolicyEvidence(pair.pairKey(), direction.directionKey(),
-                context.ingressSwitchName(), context.ingressConnectorName(), context.packetFeatures(), serviceKey,
-                classification.className(), classification.policy().profileName(), classification.policy().dscp(),
-                classification.policy().mplsTc(), (int) classification.policy().pathConstraints().requestedBandwidthKbps(),
-                bandwidth, classification.policy().pathConstraints().setupPriority(),
+        final DirectionalPolicyEvidence partial = new DirectionalPolicyEvidence(
+                pair.pairKey(), direction.directionKey(), context.ingressSwitchName(), context.ingressConnectorName(),
+                context.packetFeatures(), serviceKey, classification.className(), classification.policy().profileName(),
+                classification.policy().dscp(), classification.policy().mplsTc(),
+                (int) classification.policy().pathConstraints().requestedBandwidthKbps(), bandwidth,
+                classification.policy().pathConstraints().setupPriority(),
                 classification.policy().pathConstraints().holdPriority(), "classifier-policy-v1", "", observedAt,
                 observedAt.plus(config.pairConsensusEvidenceTtl()));
-        final DirectionalPolicyEvidence evidence = new DirectionalPolicyEvidence(partial.pairKey(), partial.directionKey(),
-                partial.ingressSwitchName(), partial.ingressConnectorName(), partial.packetFeatures(), partial.serviceKey(),
+        final DirectionalPolicyEvidence evidence = new DirectionalPolicyEvidence(
+                partial.pairKey(), partial.directionKey(), partial.ingressSwitchName(),
+                partial.ingressConnectorName(), partial.packetFeatures(), partial.serviceKey(),
                 partial.className(), partial.profileName(), partial.dscp(), partial.mplsTc(),
                 partial.requestedBandwidthKbps(), partial.requestedBandwidthBase64(), partial.setupPriority(),
                 partial.holdPriority(), partial.policySchemaVersion(), hashService.hashDirectionalEvidence(partial),
                 partial.observedAt(), partial.expiresAt());
-        LOG.debug("directional_policy_evidence_built", "buildEvidence", "Se construyo evidencia direccional para consenso.",
-                StructuredLogger.fields("pair_key", evidence.pairKey(), "service_key", evidence.serviceKey().normalizedValue(),
+        LOG.debug(
+                "directional_policy_evidence_built",
+                "buildEvidence",
+                "Se construyo evidencia direccional para consenso.",
+                StructuredLogger.fields("pair_key", evidence.pairKey(),
+                        "service_key", evidence.serviceKey().normalizedValue(),
                         "class_name", evidence.className(), "policy_hash", evidence.policyHash()));
         return evidence;
+    }
+
+    private void recordControlCycle(final String outcome, final String className, final long startedAt) {
+        final Map<String, String> labels = Map.of("outcome", outcome, "class_name", className);
+        metrics.incrementCounter("sma_control_cycle_total", labels);
+        if (startedAt > 0L) {
+            metrics.observeHistogram("sma_control_cycle_duration_seconds", labels,
+                    (System.nanoTime() - startedAt) / 1_000_000_000.0d);
+        }
     }
 }

@@ -8,6 +8,7 @@
 
 package com.sma.sdn.registry;
 
+import com.sma.sdn.metrics.SdnMplsMlMetrics;
 import com.sma.sdn.model.ActivePairPolicyState;
 import com.sma.sdn.model.DirectionalLspApplicationRecord;
 import com.sma.sdn.model.PairPolicyCandidate;
@@ -21,6 +22,15 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Stores exactly one live policy owner per tunnel pair. */
 public final class ActivePairPolicyRegistry {
     private final Map<String, ActivePairPolicyState> activeByPair = new ConcurrentHashMap<>();
+    private final SdnMplsMlMetrics metrics;
+
+    public ActivePairPolicyRegistry() {
+        this(null);
+    }
+
+    public ActivePairPolicyRegistry(final SdnMplsMlMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     public synchronized Optional<ActivePairPolicyState> findActive(final String pairKey, final Instant now) {
         expireIfNeeded(pairKey, now);
@@ -36,10 +46,12 @@ public final class ActivePairPolicyRegistry {
         if (current == null) {
             throw new IllegalStateException("No hay politica activa para refrescar: " + pairKey);
         }
-        final ActivePairPolicyState refreshed = new ActivePairPolicyState(current.pairKey(), current.serviceKey(),
-                current.className(), current.profileName(), current.dscp(), current.mplsTc(), current.requestedBandwidthKbps(),
-                current.requestedBandwidthBase64(), current.setupPriority(), current.holdPriority(), current.policySchemaVersion(),
-                current.policyHash(), current.generation(), current.installedAt(), now, now.plus(ttl), current.lspApplications());
+        final ActivePairPolicyState refreshed = new ActivePairPolicyState(
+                current.pairKey(), current.serviceKey(), current.className(), current.profileName(),
+                current.dscp(), current.mplsTc(), current.requestedBandwidthKbps(),
+                current.requestedBandwidthBase64(), current.setupPriority(), current.holdPriority(),
+                current.policySchemaVersion(), current.policyHash(), current.generation(), current.installedAt(),
+                now, now.plus(ttl), current.lspApplications());
         activeByPair.put(pairKey, refreshed);
         return refreshed;
     }
@@ -61,14 +73,18 @@ public final class ActivePairPolicyRegistry {
         final ActivePairPolicyState current = activeByPair.get(pairKey);
         if (current != null && !current.expiresAt().isAfter(now)) {
             activeByPair.remove(pairKey);
+            recordEvictions(1);
         }
     }
 
     public synchronized void expireOldEntries(final Instant now) {
+        final int previousSize = activeByPair.size();
         activeByPair.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
+        recordEvictions(previousSize - activeByPair.size());
     }
 
-    public Map<String, ActivePairPolicyState> snapshot() {
+    public synchronized Map<String, ActivePairPolicyState> snapshot() {
+        expireOldEntries(Instant.now());
         return Map.copyOf(new LinkedHashMap<>(activeByPair));
     }
 
@@ -76,5 +92,14 @@ public final class ActivePairPolicyRegistry {
     public synchronized int size() {
         expireOldEntries(Instant.now());
         return activeByPair.size();
+    }
+
+    private void recordEvictions(final int count) {
+        if (metrics == null) {
+            return;
+        }
+        for (int index = 0; index < count; index++) {
+            metrics.increment("sma_registry_active_pair_policy_expired_evictions_total");
+        }
     }
 }

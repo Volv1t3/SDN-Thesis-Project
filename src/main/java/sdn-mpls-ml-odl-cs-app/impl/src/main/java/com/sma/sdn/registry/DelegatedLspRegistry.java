@@ -106,6 +106,11 @@ public final class DelegatedLspRegistry {
         return byDirectionKey.size();
     }
 
+    /** Returns the latest PCEP state once per managed direction. */
+    public synchronized Map<String, DelegatedLspRecord> snapshotByDirection() {
+        return Map.copyOf(byDirectionKey);
+    }
+
     /**
      * Exige un LSP valido y actualizable para la direccion indicada.
      *
