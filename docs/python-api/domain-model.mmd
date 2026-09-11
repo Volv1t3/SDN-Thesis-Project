@@ -1,0 +1,71 @@
+classDiagram
+    direction TB
+
+    class HTTPRequest {
+        +method
+        +path
+        +headers
+        +json_body
+    }
+    class RequestContext {
+        +request_id
+        +service
+        +selected_headers
+    }
+    class RawSettings
+    class ValidatedSettings
+    class AppServices
+    class ReadinessState
+    class ArtifactPaths
+    class ModelMetadata
+    class DeterministicRuleFile
+    class PolicyFile
+    class TrafficPolicy
+    class PolicyPathConstraints
+    class ClassifierPool
+    class TrafficClassifier
+    class Predictor
+    class DeterministicClassifier
+    class PacketFeatures
+    class PredictionResult
+    class PolicyResponse
+    class ClassifyResponse
+    class ErrorResponse
+    class ErrorBody
+    class AppError
+    class ProcessIdentity
+    class BaselineMetrics
+    class ClassificationObservation
+    class PrometheusSample
+
+    HTTPRequest --> RequestContext : receives generated
+    HTTPRequest --> PacketFeatures : validates body into
+    RawSettings --> ValidatedSettings : semantic validation
+    ValidatedSettings --> ArtifactPaths : resolves artifacts
+    ArtifactPaths --> ModelMetadata : model metadata file
+    ArtifactPaths --> PolicyFile : policy mapping file
+    ArtifactPaths --> DeterministicRuleFile : deterministic rules file
+    AppServices --> RawSettings
+    AppServices --> ValidatedSettings
+    AppServices --> ReadinessState
+    AppServices --> ClassifierPool
+    AppServices --> ModelMetadata
+    AppServices --> PolicyFile
+    AppServices --> BaselineMetrics
+    ClassifierPool --> TrafficClassifier : leases
+    TrafficClassifier <|.. Predictor
+    TrafficClassifier <|.. DeterministicClassifier
+    Predictor --> ModelMetadata
+    DeterministicClassifier --> DeterministicRuleFile
+    TrafficClassifier --> PredictionResult : emits
+    PolicyFile --> TrafficPolicy : default and per-class
+    TrafficPolicy --> PolicyPathConstraints
+    PredictionResult --> PolicyResponse : enriched by policy
+    PacketFeatures --> PredictionResult : input to classification
+    PredictionResult --> ClassifyResponse
+    PolicyResponse --> ClassifyResponse
+    AppError --> ErrorBody
+    ErrorBody --> ErrorResponse
+    ProcessIdentity --> BaselineMetrics
+    ClassificationObservation --> PrometheusSample
+    BaselineMetrics --> PrometheusSample

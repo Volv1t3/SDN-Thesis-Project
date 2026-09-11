@@ -1,0 +1,123 @@
+sequenceDiagram
+    autonumber
+    actor Caller as Java CSA / Operator
+    participant ASGI as Uvicorn / ASGI server
+    participant App as FastAPI app<br/>sdn_mpls_ml_main.app
+    participant Corr as CorrelationIdMiddleware.__call__
+    participant Size as RequestSizeLimitMiddleware.__call__
+    participant Router as APIRouter<br/>/api/v1/classify
+    participant Pydantic as ClassifyRequest / PacketFeatures
+    participant Handler as classify(payload, request)
+    participant Services as AppServices / ReadinessState
+    participant Mode as validate_packet_for_classification_mode
+    participant Pool as ClassifierPool.acquire
+    participant Metrics as ClassificationObservation / Prometheus metrics
+    participant AnyIO as anyio.to_thread.run_sync
+    participant Classifier as TrafficClassifier.predict
+    participant Predictor as Predictor or DeterministicClassifier
+    participant Policy as PolicyMapper.resolve
+    participant Response as ClassifyResponse / ErrorResponse
+
+    Caller->>ASGI: HTTP POST /api/v1/classify
+    ASGI->>App: ASGI scope, receive, send
+    App->>Corr: request enters middleware chain
+    Corr->>Corr: uuid.uuid4(); scope.state.request_id = UUID
+    Corr->>Size: forward scope with request_id
+    Size->>Size: _request_size_limit_from_scope(scope)
+    Size->>Size: _parse_content_length(scope)
+    alt invalid Content-Length
+        Size->>Metrics: record_request_body_rejection(reason="invalid_content_length")
+        Size->>Response: build_error_response(400, INVALID_CONTENT_LENGTH)
+        Response-->>Caller: JSON error + X-Request-ID
+    else declared or actual body exceeds max_request_body_bytes
+        Size->>Metrics: record_request_body_rejection(reason="declared_too_large" or "actual_too_large")
+        Size->>Response: build_error_response(413, REQUEST_TOO_LARGE)
+        Response-->>Caller: JSON error + X-Request-ID
+    else body accepted
+        Size->>Size: buffer body; _build_replay_receive(validated_body)
+        Size->>Router: replay validated body to FastAPI
+    end
+
+    Router->>Pydantic: parse JSON into ClassifyRequest
+    Pydantic->>Pydantic: StrictBaseModel extra="forbid"
+    Pydantic->>Pydantic: PacketFeatures bounds and protocol rule
+    alt JSON or schema validation fails
+        Router->>App: RequestValidationError or JSONDecodeError
+        App->>Metrics: record_request_error(...)
+        App->>Response: handle_request_validation or handle_json_error
+        Response-->>Caller: structured JSON error
+    else schema valid
+        Router->>Handler: classify(payload, request)
+    end
+
+    Handler->>Services: request.app.state.services
+    Handler->>Corr: get_request_id(request)
+    Handler->>Metrics: ClassificationObservation(started_at)
+    Handler->>Metrics: CLASSIFICATION_IN_PROGRESS.inc()
+    Handler->>Services: readiness, classifier_pool, settings checks
+    alt service is not ready
+        Handler->>Metrics: observation.mark_outcome("not_ready")
+        Handler->>Response: raise ModelNotReadyError
+        App->>Response: handle_app_error()
+        Response-->>Caller: 503 ErrorResponse
+    else ready
+        Handler->>Mode: validate_packet_for_classification_mode(mode, eth_type, request_id)
+    end
+
+    alt model mode receives unsupported EtherType
+        Mode-->>Handler: raise ModelEtherTypeUnsupportedError
+        Handler->>Metrics: observation.mark_outcome("rejected")
+        App->>Response: handle_app_error()
+        Response-->>Caller: 422 ErrorResponse
+    else input accepted by active mode
+        Handler->>Pool: acquire(timeout_seconds=settings.request_timeout_seconds)
+    end
+
+    alt classifier acquisition timeout
+        Pool->>Metrics: observe_wait(outcome="timeout"); record_timeout()
+        Pool-->>Handler: raise InferenceCapacityExceededError
+        Handler->>Metrics: observation.mark_outcome("capacity_timeout")
+        App->>Response: handle_app_error()
+        Response-->>Caller: 503 ErrorResponse
+    else classifier acquired
+        Pool->>Metrics: observe_wait(outcome="acquired"); set_state(...)
+        Pool-->>Handler: classifier instance
+        Handler->>AnyIO: execute_instrumented_inference(...)
+        AnyIO->>Classifier: classifier.predict(packet_features)
+        alt CLASSIFICATION_MODE=MODEL
+            Classifier->>Predictor: Predictor.build_feature_matrix()
+            Predictor->>Predictor: xgboost.DMatrix / booster.predict()
+            Predictor->>Predictor: _normalize_output()
+            Predictor-->>Classifier: PredictionResult
+        else CLASSIFICATION_MODE=DETERMINISTIC_TEST
+            Classifier->>Predictor: DeterministicClassifier._classify()
+            Predictor-->>Classifier: one-hot PredictionResult
+        end
+        Classifier-->>AnyIO: PredictionResult
+        AnyIO->>Metrics: INFERENCE_DURATION_SECONDS.observe(outcome)
+        AnyIO-->>Handler: PredictionResult
+        Handler->>Pool: release classifier in finally
+        Pool->>Metrics: set_state(capacity, available, borrowed)
+    end
+
+    alt inference output invalid or runtime failed
+        Handler->>Metrics: observation.mark_outcome("output_invalid" or "inference_failed")
+        App->>Response: handle_app_error()
+        Response-->>Caller: ErrorResponse
+    else prediction valid
+        Handler->>Metrics: CLASSIFICATION_RESULTS_TOTAL.inc(class_name)
+        Handler->>Metrics: PREDICTION_CONFIDENCE.observe(confidence)
+        opt policy mapping enabled
+            Handler->>Policy: resolve(predicted_class, confidence)
+            Policy->>Policy: threshold and class_policies lookup
+            Policy-->>Handler: TrafficPolicy, fallback flag, fallback reason
+            Handler->>Metrics: POLICY_SELECTIONS_TOTAL.inc()
+            opt fallback
+                Handler->>Metrics: POLICY_FALLBACKS_TOTAL.inc(reason, predicted_class)
+            end
+        end
+        Handler->>Response: ClassifyResponse(...)
+        Handler->>Metrics: observation.mark_outcome("success")
+        Handler->>Metrics: observation.finish(); CLASSIFICATION_IN_PROGRESS.dec()
+        Response-->>Caller: 200 JSON classification + policy
+    end

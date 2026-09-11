@@ -1,0 +1,97 @@
+flowchart TB
+    subgraph External["External Interfaces"]
+        Caller["Java CSA / operators"]
+        Prometheus["Prometheus scraper"]
+        Files["Model and config filesystem"]
+        XGBoost["XGBoost runtime"]
+        Uvicorn["Uvicorn / ASGI"]
+    end
+
+    subgraph AppMain["app.sdn_mpls_ml_main"]
+        FastAPIApp["FastAPI application"]
+        Lifespan["lifespan(app)"]
+        ExceptionHandlers["central exception handlers"]
+    end
+
+    subgraph Middleware["app.middleware"]
+        Correlation["CorrelationIdMiddleware"]
+        SizeLimit["RequestSizeLimitMiddleware"]
+    end
+
+    subgraph Routes["app.api"]
+        Health["health route: /, /health/live, /health/ready"]
+        Inference["inference route: /api/v1/model, /api/v1/classify"]
+        MetricsRoute["metrics route: /metrics"]
+    end
+
+    subgraph Schemas["app.schemas"]
+        BaselineSchemas["StrictBaseModel, ErrorBody, ErrorResponse"]
+        HealthSchemas["RootResponse, LivenessResponse, Ready responses"]
+        InferenceSchemas["PacketFeatures, ClassifyRequest, ClassifyResponse"]
+    end
+
+    subgraph Startup["app.sdn_mpls_ml_dependencies"]
+        SettingsValidation["RawSettings -> ValidatedSettings"]
+        ArtifactValidation["artifact existence/readability checks"]
+        SchemaValidation["metadata, policy, deterministic rules validation"]
+        PoolBuild["classifier pool construction and synthetic self-test"]
+        Services["AppServices container"]
+    end
+
+    subgraph RuntimeModel["app.model"]
+        Pool["ClassifierPool"]
+        Protocol["TrafficClassifier protocol"]
+        Predictor["Predictor"]
+        Deterministic["DeterministicClassifier"]
+        Metadata["ModelMetadata"]
+        Rules["DeterministicRuleFile"]
+        InputValidation["classification-mode input validation"]
+    end
+
+    subgraph Policy["app.policy"]
+        PolicyModels["PolicyFile, TrafficPolicy, PathConstraints"]
+        Mapper["PolicyMapper"]
+    end
+
+    subgraph Observability["app.observability"]
+        Identity["ProcessIdentity"]
+        BaselineMetrics["BaselineMetrics"]
+        ClassificationMetrics["classification and inference metrics"]
+    end
+
+    subgraph Logging["logging and messages"]
+        JsonLogs["JsonFormatter / ProcessIdentityFilter"]
+        Messages["Messages constants"]
+        RequestContext["get_request_id(request)"]
+    end
+
+    Caller --> Uvicorn --> FastAPIApp
+    FastAPIApp --> Correlation --> SizeLimit --> Routes
+    Lifespan --> SettingsValidation --> ArtifactValidation --> SchemaValidation --> PoolBuild --> Services
+    Files --> ArtifactValidation
+    Files --> SchemaValidation
+    PoolBuild --> Pool
+    PoolBuild --> Predictor
+    PoolBuild --> Deterministic
+    Predictor --> XGBoost
+    Predictor --> Metadata
+    Deterministic --> Rules
+    Inference --> InferenceSchemas
+    Inference --> Services
+    Inference --> InputValidation
+    Inference --> Pool
+    Inference --> Mapper
+    Mapper --> PolicyModels
+    Health --> HealthSchemas
+    Health --> Services
+    MetricsRoute --> Prometheus
+    MetricsRoute --> BaselineMetrics
+    MetricsRoute --> ClassificationMetrics
+    Middleware --> BaselineSchemas
+    ExceptionHandlers --> BaselineSchemas
+    ExceptionHandlers --> ClassificationMetrics
+    FastAPIApp --> JsonLogs
+    JsonLogs --> Identity
+    Routes --> RequestContext
+    Messages --> ExceptionHandlers
+    Messages --> Startup

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE instance-profile
+        SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
+
+<instance-profile id="stdd"
+                 name="SDN-MPLS-ML Tech Demonstrator Documentation"
+>
+
+    <toc-element topic="sdn-mpls-ml-tech-demo-documentation-overview.md"/>
+    <toc-element toc-title="SDN-MPLS-ML Tech Demonstrator Full Application Documentation"/>
+</instance-profile>

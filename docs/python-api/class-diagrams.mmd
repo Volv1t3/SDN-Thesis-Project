@@ -1,0 +1,317 @@
+classDiagram
+    direction LR
+
+    class ClassificationMode {
+        <<StrEnum>>
+        MODEL
+        DETERMINISTIC_TEST
+        +response_value str
+    }
+    class RawSettings {
+        <<BaseSettings>>
+        +app_name str
+        +app_version str
+        +host str
+        +port str
+        +classification_mode str
+        +enable_prometheus_metrics str
+        +metrics_path str
+        +model_dir str
+        +config_dir str
+        +classifier_pool_size str
+    }
+    class ValidatedSettings {
+        <<dataclass>>
+        +app_name str
+        +app_version str
+        +port int
+        +classification_mode ClassificationMode
+        +enable_policy_mapping bool
+        +classifier_pool_size int
+        +request_timeout_seconds int
+        +max_request_body_bytes int
+    }
+    class ArtifactPaths {
+        <<dataclass>>
+        +model_path Path?
+        +metadata_path Path?
+        +policy_path Path
+        +deterministic_rule_path Path?
+    }
+    class AppServices {
+        <<dataclass>>
+        +raw_settings RawSettings
+        +settings ValidatedSettings?
+        +readiness ReadinessState
+        +classifier_pool ClassifierPool?
+        +inference_thread_limiter CapacityLimiter?
+        +model_metadata ModelMetadata?
+        +policy_mapper PolicyMapper?
+        +baseline_metrics BaselineMetrics?
+    }
+    RawSettings --> ValidatedSettings : validated into
+    ValidatedSettings --> ClassificationMode
+    AppServices --> RawSettings
+    AppServices --> ValidatedSettings
+    AppServices --> ArtifactPaths
+
+    class StartupValidationError {
+        <<dataclass Exception>>
+        +code str
+        +message str
+        +component str
+        +failed_stage str
+        +failed_check str?
+        +retryable bool
+        +__str__() str
+    }
+    class ReadinessState {
+        <<dataclass>>
+        +initialization_completed bool
+        +ready bool
+        +classification_mode str
+        +completed_at_utc str?
+        +model_loaded bool
+        +metadata_loaded bool
+        +policy_loaded bool
+        +synthetic_inference_passed bool
+        +initializing(mode) ReadinessState
+        +mark_failed(error) None
+        +mark_ready(...) None
+        +status str
+    }
+    ReadinessState ..> StartupValidationError : records failure
+    AppServices --> ReadinessState
+
+    class ErrorDetail {
+        <<dataclass>>
+        +code str
+        +message str
+        +component str?
+        +failed_stage str?
+        +failed_check str?
+        +retryable bool?
+    }
+    class AppError {
+        <<Exception>>
+        +status_code int
+        +code str
+        +message str
+        +to_error() ErrorDetail
+    }
+    class InvalidJsonError
+    class InvalidContentLengthError
+    class RequestTooLargeError
+    class RequestValidationAppError
+    class ModelEtherTypeUnsupportedError
+    class ModelNotReadyError
+    class ModelInferenceFailedError
+    class InferenceCapacityExceededError
+    class ModelOutputInvalidError
+    class PolicyMappingFailedError
+    AppError --> ErrorDetail
+    AppError <|-- InvalidJsonError
+    AppError <|-- InvalidContentLengthError
+    AppError <|-- RequestTooLargeError
+    AppError <|-- RequestValidationAppError
+    AppError <|-- ModelEtherTypeUnsupportedError
+    AppError <|-- ModelNotReadyError
+    AppError <|-- ModelInferenceFailedError
+    AppError <|-- InferenceCapacityExceededError
+    AppError <|-- ModelOutputInvalidError
+    AppError <|-- PolicyMappingFailedError
+
+    class CorrelationIdMiddleware {
+        +__call__(scope, receive, send) awaitable
+    }
+    class RequestSizeLimitMiddleware {
+        +__call__(scope, receive, send) awaitable
+    }
+    class _InvalidContentLengthSentinel
+    CorrelationIdMiddleware --> RequestSizeLimitMiddleware : forwards HTTP scope
+    RequestSizeLimitMiddleware --> _InvalidContentLengthSentinel
+
+    class StrictBaseModel {
+        <<Pydantic BaseModel>>
+        extra=forbid
+        populate_by_name=true
+    }
+    class ErrorBody {
+        +code str
+        +message str
+        +component str?
+        +failed_stage str?
+        +failed_check str?
+        +retryable bool?
+    }
+    class ErrorResponse {
+        +request_id str?
+        +error ErrorBody
+    }
+    class RootResponse
+    class LivenessResponse
+    class ReadinessError
+    class ReadySuccessResponse
+    class ReadyFailureResponse
+    class PacketFeatures {
+        +eth_type int
+        +ip_proto int
+        +src_port int
+        +dst_port int
+        +validate_protocol_rules()
+    }
+    class ClassifyRequest {
+        +packet_features PacketFeatures
+    }
+    class PredictionBody
+    class PathConstraintsSchema
+    class PolicyResponse
+    class ClassifyResponse
+    class ModelClassInfo
+    class ModelInfoResponse
+    StrictBaseModel <|-- ErrorBody
+    StrictBaseModel <|-- ErrorResponse
+    StrictBaseModel <|-- RootResponse
+    StrictBaseModel <|-- LivenessResponse
+    StrictBaseModel <|-- ReadinessError
+    StrictBaseModel <|-- ReadySuccessResponse
+    StrictBaseModel <|-- ReadyFailureResponse
+    StrictBaseModel <|-- PacketFeatures
+    StrictBaseModel <|-- ClassifyRequest
+    StrictBaseModel <|-- PredictionBody
+    StrictBaseModel <|-- PathConstraintsSchema
+    StrictBaseModel <|-- PolicyResponse
+    StrictBaseModel <|-- ClassifyResponse
+    StrictBaseModel <|-- ModelClassInfo
+    StrictBaseModel <|-- ModelInfoResponse
+    ClassifyRequest --> PacketFeatures
+    ClassifyResponse --> PredictionBody
+    ClassifyResponse --> PolicyResponse
+    PolicyResponse --> PathConstraintsSchema
+    ModelInfoResponse --> ModelClassInfo
+    ReadyFailureResponse --> ReadinessError
+    ErrorResponse --> ErrorBody
+
+    class TrafficClassifier {
+        <<Protocol>>
+        +predict(packet_features) PredictionResult
+    }
+    class ClassifierPoolObserver {
+        <<Protocol>>
+        +observe_wait(duration_seconds, outcome)
+        +set_state(capacity, available, borrowed)
+        +record_timeout()
+    }
+    class ClassifierPool~ClassifierT~ {
+        +capacity int
+        +available int
+        +borrowed int
+        +acquire(timeout_seconds) asynccontextmanager
+    }
+    class PredictionResult {
+        <<dataclass>>
+        +class_id int
+        +class_name str
+        +confidence float
+        +probabilities dict
+    }
+    class Predictor {
+        +build_feature_matrix(packet_features)
+        +predict(packet_features) PredictionResult
+        -_normalize_output(raw_output)
+    }
+    class DeterministicClassifier {
+        +predict(packet_features) PredictionResult
+        -_classify(packet_features) str
+    }
+    class ModelMetadata {
+        +schema_version str
+        +model_name str
+        +feature_order list
+        +class_to_id dict
+        +id_to_class dict
+        +classes list
+        +validate_contract()
+    }
+    class DeterministicRuleFile {
+        +schema_version str
+        +destination_port_class_map dict
+        +source_port_class_map dict
+        +streaming_class_name str
+        +validate_contract()
+    }
+    TrafficClassifier <|.. Predictor
+    TrafficClassifier <|.. DeterministicClassifier
+    Predictor --> ModelMetadata
+    Predictor --> PredictionResult
+    DeterministicClassifier --> DeterministicRuleFile
+    DeterministicClassifier --> PredictionResult
+    ClassifierPool --> TrafficClassifier
+    ClassifierPool --> ClassifierPoolObserver
+
+    class PolicyPathConstraints {
+        +requested_bandwidth_kbps int
+        +setup_priority int
+        +hold_priority int
+    }
+    class TrafficPolicy {
+        +profile_name str
+        +dscp int
+        +mpls_tc int
+        +path_constraints PolicyPathConstraints
+    }
+    class PolicyFile {
+        +schema_version str
+        +default_profile TrafficPolicy
+        +class_policies dict
+    }
+    class PolicyMapper {
+        +resolve(predicted_class, confidence) tuple
+        +default_policy TrafficPolicy
+    }
+    PolicyFile --> TrafficPolicy
+    TrafficPolicy --> PolicyPathConstraints
+    PolicyMapper --> PolicyFile
+    PolicyMapper --> TrafficPolicy
+
+    class ProcessIdentity {
+        <<dataclass frozen>>
+        +service str
+        +instance_id str
+        +worker_id str
+        +worker_pid int
+        +process_name str
+        +started_at_unix_seconds float
+    }
+    class BaselineMetrics {
+        <<dataclass>>
+        +classification_mode str
+        +initialize_worker(identity)
+        +set_readiness(ready)
+        +set_pool_state(...)
+        +observe_wait(...)
+        +record_timeout()
+    }
+    class ClassificationObservation {
+        <<dataclass>>
+        +classification_mode str
+        +started_at float
+        +outcome str
+        +mark_outcome(outcome)
+        +finish()
+    }
+    class ProcessIdentityFilter {
+        +filter(record) bool
+    }
+    class JsonFormatter {
+        +format(record) str
+    }
+    class Messages {
+        <<constants>>
+        +artifact_path_resolution(configured_filename)
+        +artifact_not_found(configured_filename)
+        +policy_file_validation_failed(details)
+    }
+    BaselineMetrics --> ProcessIdentity
+    ProcessIdentityFilter --> ProcessIdentity
+    JsonFormatter --> ProcessIdentityFilter

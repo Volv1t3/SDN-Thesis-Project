@@ -4,3 +4,6 @@
 /src/res/data/processed/figures
 /src/res/models/figures
 /src/main/containerlab/data-folders
+./.agents
+./.codex
+./.vscode
