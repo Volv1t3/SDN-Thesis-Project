@@ -1,0 +1,48 @@
+sequenceDiagram
+    autonumber
+    participant Workflow as SdnMplsMlWorkflowService
+    participant Refresh as TopologyRefreshService
+    participant Client as OdlRestconfDataClient
+    participant ODL as ODL RESTCONF data
+    participant Deser as BgpLsTopologyXmlDeserializer
+    participant Candidate as candidate BgpLsNodeRegistry
+    participant Registry as live BgpLsNodeRegistry
+    participant Metrics as SdnMplsMlMetrics
+    participant Publisher as stateChanged callback
+
+    Workflow->>Refresh: ensureFresh()
+    Refresh->>Refresh: staleBeyondThreshold()
+    alt still fresh
+        Refresh->>Metrics: update freshness gauges
+        Refresh-->>Workflow: true
+    else stale
+        Refresh->>Metrics: sma_bgpls_topology_ttl_expired_total++
+        Refresh->>Metrics: sma_bgpls_topology_refresh_on_demand_total{reason="stale_before_packet"}++
+        Refresh->>Refresh: refresh("on_demand_stale")
+        alt another refresh in progress
+            Refresh->>Metrics: sma_bgpls_topology_refresh_deduplicated_total++
+            Refresh-->>Workflow: false
+        else single-flight acquired
+            Refresh->>Metrics: refresh_in_progress=1, last_attempt=now
+            Refresh->>Publisher: publish intermediate state
+            Refresh->>Client: getBgpLsTopology(bgplsTopologyId)
+            Client->>ODL: GET topology=<bgpls>
+            ODL-->>Client: XML response
+            Client-->>Refresh: HttpResponse<String>
+            Refresh->>Refresh: TopologyDiscoveryOutcomeClassifier.classify(response)
+            alt outcome not confirmed success
+                Refresh->>Metrics: sma_odl_topology_discovery_failure_total++
+                Refresh-->>Workflow: false
+            else confirmed success
+                Refresh->>Deser: deserialize(response.body)
+                Deser-->>Refresh: List<BgpLsTopologyNode>
+                Refresh->>Candidate: replaceAll(nodes)
+                Refresh->>Candidate: resolveGraphNodeIdByRouterId(headend/tailend)
+                Refresh->>Registry: replaceAll(nodes)
+                Refresh->>Metrics: sma_odl_topology_discovery_success_total++
+                Refresh->>Metrics: freshness gauges and success timestamp
+                Refresh->>Publisher: publish updated state
+                Refresh-->>Workflow: true
+            end
+        end
+    end

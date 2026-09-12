@@ -9,8 +9,14 @@
     <toc-element topic="sdn-mpls-ml-tech-demo-documentation-overview.md"/>
     <toc-element toc-title="SDN-MPLS-ML Tech Demonstrator Full Application Documentation">
         <toc-element toc-title="Network Topology Implementation">
-            <toc-element topic="sdn-mpls-ml-tech-demo-environ-reqs.topic"/>
+            <toc-element topic="Net-Impl-—-Environment-Requirements-and-Setup.md"/>
+            <toc-element topic="Net-Impl-—-Main-Topology-Definition.md">
+                <toc-element topic="Net-Impl-—-Main-Topology-Per-Device-Configuration-Files-And-Definitions.md"/>
+            </toc-element>
         </toc-element>
-        <toc-element toc-title="Model Implementation and Deployment"/>
+        <toc-element toc-title="Model Exploration and Training">
+            <toc-element topic="Model-Exploration-and-Training-—-Exploratory-Data-Analysis.md"/>
+            <toc-element topic="Model-Exploration-and-Training-—-Model-Training.md"/>
+        </toc-element>
     </toc-element>
 </instance-profile>

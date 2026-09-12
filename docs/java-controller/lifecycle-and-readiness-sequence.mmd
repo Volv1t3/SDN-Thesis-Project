@@ -1,0 +1,72 @@
+sequenceDiagram
+    autonumber
+    participant Blueprint as OSGi Blueprint
+    participant Provider as SDN_MPLS_ML_Provider
+    participant Config as AppConfig
+    participant Http as HttpClientFactory
+    participant Metrics as SdnMplsMlMetrics
+    participant RESTCONF as OdlRestconfDataClient
+    participant RESTS as OdlOperationsClient
+    participant Classifier as ClassifierRestClient
+    participant Publisher as ControllerOperationalStatePublisher
+    participant Topology as TopologyDiscoveryService / TopologyRefreshService
+    participant PCEP as DelegatedLspService
+    participant OF as OpenflowBootstrapService
+    participant Notifications as NotificationService
+    participant Workflow as SdnMplsMlWorkflowService
+    participant ODL as OpenDaylight RESTCONF / RESTS
+
+    Blueprint->>Provider: new SDN_MPLS_ML_Provider(notificationService, dataBroker, httpService)
+    Blueprint->>Provider: init()
+    Provider->>Config: AppConfig.fromEnvironment()
+    Config-->>Provider: immutable runtime configuration
+    Provider->>Http: HttpClientFactory.create(timeout)
+    Http-->>Provider: Java HttpClient
+    Provider->>RESTCONF: construct data client
+    Provider->>RESTS: construct operations client
+    Provider->>Classifier: construct Python classifier client
+    Provider->>Metrics: new SdnMplsMlMetrics()
+    Provider->>Provider: registerMetricsServlet("/csa/metrics")
+    Provider->>Publisher: construct publisher with registries and suppliers
+    Provider->>Workflow: construct workflow and policy/control services
+    Provider->>Notifications: registerListener(PacketReceived.class, this)
+    Provider->>Publisher: publish()
+    Publisher-->>ODL: MD-SAL OPERATIONAL put(csa:controller-state)
+    Provider->>Provider: scheduleReadinessAttempt(attempt=1, delay=0)
+
+    Provider->>Provider: runReadinessAttempt()
+    Provider->>Topology: initialize()
+    Topology->>RESTCONF: getNetworkTopologyList()
+    RESTCONF->>ODL: GET /restconf/data/network-topology:network-topology
+    ODL-->>RESTCONF: XML topology list
+    Topology->>RESTCONF: getBgpLsTopology(bgplsTopologyId)
+    RESTCONF->>ODL: GET /restconf/data/.../topology=<bgpls>
+    ODL-->>RESTCONF: XML BGP-LS topology
+    Topology->>Topology: deserialize and validate headend/tailend router IDs
+    Topology-->>Provider: BgpLsNodeRegistry populated
+    Provider->>Topology: markInitialDiscoverySuccessful()
+    Provider->>PCEP: initialize()
+    PCEP->>RESTCONF: getPcepTopology(pcepTopologyId)
+    RESTCONF->>ODL: GET /restconf/data/.../topology=pcep-topology?content=all
+    ODL-->>RESTCONF: XML PCEP topology
+    PCEP->>PCEP: deserialize, validate configured delegated LSPs
+    PCEP-->>Provider: DelegatedLspRegistry populated
+    Provider->>OF: initialize()
+    OF->>RESTCONF: getOpenflowInventory()
+    RESTCONF->>ODL: GET /restconf/data/opendaylight-inventory:nodes?content=all
+    ODL-->>RESTCONF: XML OpenFlow inventory
+    OF->>OF: resolve ECHO/FOXTROT and connectors
+    OF->>RESTCONF: putOpenflowFlow(...) for ARP/IPv4 access flows
+    RESTCONF->>ODL: PUT flow config entries
+    OF->>OF: OpenflowBootstrapVerifier.verify()
+    OF-->>Provider: bootstrap ready
+    Provider->>Topology: start() periodic refresh
+    Provider->>Provider: controlPlaneReady = true
+    Provider->>Publisher: publish()
+    Publisher-->>ODL: updated csa:controller-state
+
+    alt discovery/bootstrap failure
+        Provider->>Provider: controlPlaneReady = false
+        Provider->>Publisher: publish()
+        Provider->>Provider: scheduleReadinessAttempt(next, exponential jitter)
+    end

@@ -1,0 +1,162 @@
+flowchart TB
+    subgraph External["External Systems"]
+        OFP["OpenFlow Plugin PacketReceived"]
+        ODLData["ODL RESTCONF data datastore"]
+        ODLOps["ODL RESTS operations"]
+        PyAPI["Python classifier API"]
+        Prom["Prometheus scraper"]
+        Operator["Operator RESTCONF client"]
+    end
+
+    subgraph Lifecycle["com.sma.sdn.impl"]
+        Provider["SDN_MPLS_ML_Provider"]
+    end
+
+    subgraph Config["com.sma.sdn.config"]
+        AppConfig["AppConfig"]
+        IngressMapping["IngressMapping"]
+        TunnelMode["TunnelCreationMode"]
+    end
+
+    subgraph HTTP["com.sma.sdn.http"]
+        DataClient["OdlRestconfDataClient"]
+        OpsClient["OdlOperationsClient"]
+        ClassifierClient["ClassifierRestClient"]
+        OutcomeClassifiers["ODL outcome classifiers"]
+    end
+
+    subgraph Workflow["com.sma.sdn"]
+        WorkflowSvc["SdnMplsMlWorkflowService"]
+    end
+
+    subgraph Packet["com.sma.sdn.packet"]
+        Extractor["PacketInFeatureExtractor"]
+    end
+
+    subgraph Classification["com.sma.sdn.classification"]
+        ClassificationSvc["ClassificationService"]
+    end
+
+    subgraph Policy["com.sma.sdn.policy"]
+        Coordinator["PairPolicyCoordinator"]
+        Consensus["PairPolicyConsensusService"]
+        Preemption["PolicyPreemptionEvaluator"]
+        Hash["PairPolicyHashService"]
+        ServiceKey["ServiceKeyResolver"]
+    end
+
+    subgraph Path["com.sma.sdn.path"]
+        PathSvc["PathComputationService"]
+        EroTranslator["CalculatedPathToEroTranslator"]
+    end
+
+    subgraph Tunnel["com.sma.sdn.tunnel"]
+        Delegated["DelegatedLspService"]
+        DirectionalApply["DirectionalLspApplicationService"]
+        LegacyCoordinator["TunnelOperationCoordinator"]
+    end
+
+    subgraph Topology["com.sma.sdn.topology"]
+        Discovery["TopologyDiscoveryService"]
+        Refresh["TopologyRefreshService"]
+        Bandwidth["BandwidthTranslator"]
+    end
+
+    subgraph OpenFlow["com.sma.sdn.openflow"]
+        OFBootstrap["OpenflowBootstrapService"]
+        OFInventory["OpenflowInventoryService"]
+        OFProvision["OpenflowFlowProvisioningService"]
+        OFVerify["OpenflowBootstrapVerifier"]
+        OFRegistry["OpenflowSwitchRegistry"]
+    end
+
+    subgraph Registries["com.sma.sdn.registry"]
+        DirectionRegistry["DirectionRegistry"]
+        BgpLsRegistry["BgpLsNodeRegistry"]
+        ClassRegistry["ClassificationRegistrar"]
+        PathRegistry["CalculatedPathRegistry"]
+        LspRegistry["DelegatedLspRegistry"]
+        EvidenceRegistry["DirectionalClassificationEvidenceRegistry"]
+        ActivePolicyRegistry["ActivePairPolicyRegistry"]
+        PairRegistry["TunnelPairRegistry"]
+        OperationRegistry["TunnelOperationRegistry"]
+    end
+
+    subgraph Serialization["com.sma.sdn.serialization"]
+        JsonSer["classification JSON serializers"]
+        XmlSer["ODL XML serializers/deserializers"]
+    end
+
+    subgraph Operational["com.sma.sdn.operational"]
+        Publisher["ControllerOperationalStatePublisher"]
+        Yang["csa.yang controller-state"]
+    end
+
+    subgraph Observability["com.sma.sdn.observability / metrics"]
+        Logs["StructuredLogger / LogContext"]
+        Metrics["SdnMplsMlMetrics"]
+        Servlet["PrometheusMetricsServlet"]
+    end
+
+    Provider --> AppConfig
+    Provider --> DataClient
+    Provider --> OpsClient
+    Provider --> ClassifierClient
+    Provider --> WorkflowSvc
+    Provider --> Discovery
+    Provider --> Refresh
+    Provider --> Delegated
+    Provider --> OFBootstrap
+    Provider --> Publisher
+    Provider --> Servlet
+    OFP --> Provider
+    Servlet --> Prom
+    Operator --> ODLData
+    Publisher --> Yang --> ODLData
+    DataClient --> ODLData
+    OpsClient --> ODLOps
+    ClassifierClient --> PyAPI
+    WorkflowSvc --> Extractor
+    WorkflowSvc --> DirectionRegistry
+    WorkflowSvc --> PairRegistry
+    WorkflowSvc --> Refresh
+    WorkflowSvc --> ClassificationSvc
+    WorkflowSvc --> Coordinator
+    ClassificationSvc --> ClassRegistry
+    ClassificationSvc --> ClassifierClient
+    ClassificationSvc --> JsonSer
+    Coordinator --> EvidenceRegistry
+    Coordinator --> Consensus
+    Coordinator --> Preemption
+    Coordinator --> ActivePolicyRegistry
+    Coordinator --> DirectionalApply
+    DirectionalApply --> PathSvc
+    DirectionalApply --> Delegated
+    DirectionalApply --> Hash
+    PathSvc --> BgpLsRegistry
+    PathSvc --> PathRegistry
+    PathSvc --> OpsClient
+    PathSvc --> XmlSer
+    Delegated --> LspRegistry
+    Delegated --> DataClient
+    Delegated --> OpsClient
+    Delegated --> XmlSer
+    Discovery --> DataClient
+    Discovery --> BgpLsRegistry
+    Refresh --> DataClient
+    Refresh --> BgpLsRegistry
+    OFBootstrap --> OFInventory
+    OFBootstrap --> OFProvision
+    OFBootstrap --> OFVerify
+    OFBootstrap --> OFRegistry
+    Publisher --> BgpLsRegistry
+    Publisher --> ClassRegistry
+    Publisher --> PathRegistry
+    Publisher --> LspRegistry
+    Publisher --> OFRegistry
+    Publisher --> EvidenceRegistry
+    Publisher --> ActivePolicyRegistry
+    Publisher --> PairRegistry
+    Metrics --> Servlet
+    Logs --> Provider
+    Metrics --> WorkflowSvc

@@ -8,8 +8,11 @@ This document describes the `src/main/python/api` service as it exists in the re
 |---|---|---|
 | Full classification request sequence | `docs/python-api/sequence-full-classification-request.mmd` | End-to-end flow from HTTP arrival through middleware, schema validation, classifier execution, policy mapping, metrics, and response handling. |
 | Application class diagrams | `docs/python-api/class-diagrams.mmd` | Explicit class-level map for configuration, startup, middleware, schemas, model runtime, policy, observability, logging, and errors. |
+| Per-class diagram snippets | `docs/python-api/per-class-diagrams.md` | Writerside-ready Mermaid snippets for each concrete class, dataclass, Pydantic model, enum, protocol, and internal sentinel. |
 | Module component diagram | `docs/python-api/component-diagrams.mmd` | Module-level interfaces, internal dependencies, and external integrations. |
+| Per-module component snippets | `docs/python-api/module-component-diagrams.md` | Writerside-ready Mermaid snippets for each module/package and its provided interfaces. |
 | Domain model diagram | `docs/python-api/domain-model.mmd` | Conceptual domain model connecting requests, settings, readiness, classifiers, predictions, policies, errors, and metrics. |
+| Process and method reference | `docs/python-api/process-method-reference.md` | Full tabular documentation for request processing, startup validation, middleware branches, helpers, artifacts, and tests. |
 
 ## Runtime Summary
 

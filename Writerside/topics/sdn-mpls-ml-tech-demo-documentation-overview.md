@@ -1,83 +1,209 @@
 # SDN-MPLS-ML Tech Demonstrator Documentation Overview
 
-## General Project Information and Attribution
+## General Project Information And Attribution
+
 <deflist collapsible="false" type="full">
 <def title="Project Information">
 <list type="bullet" columns="2">
 <li><b><format color="CornflowerBlue">Project Title:</format></b></li>
 <li>Diseño e Implementación de una arquitectura <i>Software Defined Networking</i> (SDN) para clasificación y control adaptativo de tráfico sobre una red MPLS-TE</li>
-
 <li><b><format color="CornflowerBlue">Project Author:</format></b></li>
 <li>Santiago Francisco Arellano Jaramillo</li>
-
 <li><b><format color="CornflowerBlue">Project Supervisor:</format></b></li>
-<li>Ricardo FLores Moyano</li>
-
+<li>Ricardo Flores Moyano</li>
 <li><b><format color="CornflowerBlue">Expected Graduation Date:</format></b></li>
 <li>December 2026</li>
 </list>
 </def>
 </deflist>
 
-<h2>
-Introduction to the project
-</h2>
-<p>
-The <b><code>SDN-MPLS-ML Tech Demonstrator</code></b> project is a networking and machine learning project that combines the notions of <b><code>Software Defined Networking</code></b> along with the traffic classification abilities of machine learning to manage a set of bidirectional MPLS-TE tunnels over an MPLS-TE core network.
-</p>
-<p>The project consists, from an implementation and technical point of view, of the implementation of three major componentes described beneath</p>
-<procedure type="choices" title="Major Implemented Components">
-<tabs>
-<tab title="MPLS-TE Core Network">
-<p>The baseline of this project, the core MPLS-TE network is a four-router network designed over the tested platform of Cisco XRv routers that are provided as images through the Cisco CML application. These images were selected due to their <b>low resource usage and easy virtualization and deployment in Containerlab</b>. </p>
-<p>The image version used was <b>Cisco XRv 6.6.3 Full</b> that provided comprehensive support for the entire testing and development procedure for the network topology. It provided all features required out of the box, including the required <i>-TE</i> extensions for most baseline protocols (e.g., OSPF-TE, RSVP-TE and MPLS-TE) with no limitations in terms of configurations until we attempted to implement a complete VRF setup. As reported by Cisco this cannot be done unless we are using a physical Cisco device as the VRF processing requires an ASCI that cannot be easily emulated.</p>
-<br/><br/>
-<p>The core responsibilities belonging to this layer of the project correspond to:</p>
-<ol>
-<li><b><format color="CornflowerBlue">Baseline MPLS Label Distribution and Configuration</format></b>: due to limitations of the SDN controller and its interaction with the Cisco XRv routers, the MPLS backbone had to handle two tunnels, one setup in the tunnel headend to tailed and another tailed and to headend direction and report it to the SDN Controller for its management. This meant that the core MPLS network was responsible for distributing the labels corresponding to each router and hop over the network between headend and tailend routers as well as intermediate hops.</li>
-<li><b><format color="CornflowerBlue">Traffic Engineering Extensions Configuration</format></b>: this base layer required a per device configuration of all traffic engineering protocols, as well as interfaces and other requirements needed to transmit TE information over OSPF-TE and its distribution between routers to allow for an initial local route to be defined for both tunnels, as well as the state reporting up to the SDN controller.</li>
-<li><b><format color="CornflowerBlue">Traffic Engineering Metrics Reporting</format></b>: this layer implemented, alongside all the traffic engineering protocols, corresponding BGP-LS definitions that allowed all routers to connect and exchange network topology information among themselves and with the SDN controller, enabling the SDN controller to extract both network topology information as well as traffic engineering metrics to be used in the path calculation algorithms employed within the SDN controller</li>
-<li><b><format color="CornflowerBlue">PCE/PCC Architecture Participation</format></b>: this layer implemented the required configuration at the interface and tunnel level to allow for the <b>previously defined LSPS at the headend and tailend routers</b> to be defined as <b><code>delegated LSPs</code></b> that the SDN controller can see and manage through its PCE components, and use this architecture to push out configuration commands to the PCC devices (headend and tailend routers) to alter the routers and bandwidth requirements the tunnels.</li>
-</ol>
+## Introduction To The Project
+
+The <b><code>SDN-MPLS-ML Tech Demonstrator</code></b> is a networking and machine learning project that combines <b><code>Software Defined Networking</code></b>, supervised traffic classification, and MPLS-TE tunnel control. Its goal is to show how an SDN controller can observe a first packet, classify the expected application type, select a deterministic traffic policy, compute or reuse an MPLS-TE path, and reconfigure bidirectional RSVP-TE delegated LSPs over a controlled core network.
+
+From an implementation perspective, the demonstrator is not a single monolithic application. It is a coordinated system built from a Cisco XRv MPLS-TE topology, a trained XGBoost traffic classifier, a FastAPI inference service, an OpenDaylight-based controller side application, and an observability layer that exposes both application and network metrics. The tabs below summarize each major component and the responsibilities that should be kept in mind while reading the rest of this documentation.
+
+<procedure type="choices" title="Major Implemented Components" collapsible="false" id="major-implemented-components">
+<tabs group="major-component">
+<tab title="MPLS-TE Core Network" group-key="mpls-te-core">
+<p>The MPLS-TE core is the physical and logical baseline of the demonstrator. It is implemented as a four-router Cisco XRv topology deployed through Containerlab and built from Cisco CML images. The selected image, <b><code>Cisco XRv 6.6.3 Full</code></b>, provides the MPLS, OSPF-TE, RSVP-TE, PCEP, and BGP-LS capabilities needed by the experiment while keeping resource usage low enough for repeatable virtual deployments.</p>
+<deflist type="full" collapsible="true">
+<def title="Responsibilities">
+<list>
+<li><b><format color="CornflowerBlue">MPLS forwarding baseline</format></b>: maintains label switching across the four-router core and provides the data-plane path used by the delegated TE tunnels.</li>
+<li><b><format color="CornflowerBlue">Traffic engineering configuration</format></b>: enables OSPF-TE, RSVP-TE, MPLS-TE, tunnel interfaces, and per-link attributes required for constrained path selection.</li>
+<li><b><format color="CornflowerBlue">Bidirectional tunnel foundation</format></b>: defines the headend-to-tailend and tailend-to-headend LSPs that later become visible as delegated LSPs to the controller.</li>
+<li><b><format color="CornflowerBlue">Topology and metric export</format></b>: advertises router, link, and traffic engineering state through BGP-LS so the controller can build a usable Traffic Engineering Database.</li>
+<li><b><format color="CornflowerBlue">PCE/PCC participation</format></b>: acts as the PCC side of the PCEP architecture, allowing OpenDaylight to inspect and update delegated LSPs without reconfiguring router CLI state directly.</li>
+</list>
+</def>
+<def title="Important Design Notes">
+<list>
+<li>The MPLS-TE layer intentionally owns low-level label distribution and tunnel viability, as the SDN layer only changes the selected explicit route and requested tunnel attributes.</li>
+<li>VRF-based designs were discarded for this image because Cisco XRv virtualization lacks the hardware support required by the target VRF behavior. This is due to a documented limitation at the Cisco XRv images were the VRF implementation requires an ASIC system that is only available in physical hardware and has yet to be emulated for these routers.</li>
+<li>The topology was validated incrementally because many controller-visible capabilities depend on exact protocol behavior rather than static configuration alone. This was specially significant during the configuration of MPLS-TE, RSVP-TE and OSPF-TE as the reported configuration from Cisco did not align directly with the commands that the Cisco IOS version running on the XRv routers offered. This difference caused many test and revision phases to be done during the definition of the baseline configurations of all routers, and most importantly on the tunnels and their implementation.</li>
+</list>
+</def>
+</deflist>
 </tab>
-<tab title="XGBoost Traffic Classification Model">
-<p>One crucial component of the implementation corresponded to the XGBoost traffic classification model. This model, implemented in Python using the XGBoost library (which is also used during inference) allowed for the training of a model capable of understanding seven different traffic classes both in the form source to destination, and destination to source packets, allowing for bidirectional classification and policy mapping in the implemented system.</p>
-<p>The model was trained on the SDNFlow dataset obtained from the IEEE Dataport publication with help of the corresponding project supervisor, from where the <i>normal</i> flows were selected (those that were not marked as attack flows) and used to train the model based on a <b><code>first-packet-in approach</code></b>, using only four parameters that can be extracted quickly from an incoming packet: <code>ethernet type, IP protocol, source port, destination port</code>.</p>
-<p>The reason this approach was taken was that the SDN overlay designed for the project allowed for a notification to be sent to the controller upon the first packet arriving of a new flow, which allowed us to test the whole end to end process much faster. In light of this, the decision was made to use the <b>first-packet-in approach</b> over the configuration of tunnels after the flow has ended as this provides a more sensible approach to the modern SD-WAN approach of dynamic application based routing for optimized resource usage.</p>
-<p>In this case, the model is responsible solely for the <b><code>traffic classification</code></b> based on its learned structures and its reporting through the inference APi built around it, which is our next component.</p>
+<tab title="XGBoost Traffic Classification Model" group-key="xgboost-model">
+<p>The traffic classification model is the machine learning component that maps safe first-packet features to a traffic class. It is trained with XGBoost using selected normal-flow samples from the SDNFlow dataset obtained from IEEE Dataport with support from the project supervisor.</p>
+<deflist type="full" collapsible="true">
+<def title="Responsibilities">
+<list>
+<li><b><format color="CornflowerBlue">First-packet classification</format></b>: predicts the traffic class from four quickly extractable fields: <code>Ethernet type, IP protocol, source port, and destination port</code>.</li>
+<li><b><format color="CornflowerBlue">Bidirectional service recognition</format></b>: supports flow and response-flow patterns so the controller can classify traffic observed from either direction.</li>
+<li><b><format color="CornflowerBlue">Controlled class vocabulary</format></b>: produces one of the known service classes used by the policy layer rather than arbitrary labels.</li>
+<li><b><format color="CornflowerBlue">Low-latency inference target</format></b>: keeps the feature set intentionally small so classification can happen in the control loop after a PacketIn notification.</li>
+</list>
+</def>
+<def title="Important Design Notes">
+<list>
+<li>The model does not directly configure the network. It provides the class evidence consumed by the API and controller-side policy logic.</li>
+<li>The first-packet approach was selected because it matches application-aware SD-WAN behavior better than waiting for a completed flow, and it allows for the intended behavior of the network as adaptable to incoming traffic rather than traffic that has already passed, and a configuration that hopes it will come back again in the same format.</li>
+<li>The model is treated as an inference artifact at runtime, while operational policy enrichment is performed by the Python API layer. In this case, the model is exported as a dual-file setup with a model and its configuration, allowing for validation to happen at the Python API side.  The rules that are applied per traffic class are added with other configurations files also available in the API, which detaches the model from traffic policy responsibilities.</li>
+</list>
+</def>
+</deflist>
 </tab>
-<tab title="Python FastAPI Traffic Classification Inference API">
-<p>The way the model is used in the project is through an <b>instrumentalized and observable FastAPI instance</b> which is implemented in Python and deployed through a standalone container which contains the model and its configuration and deterministic policies. The idea of this module is to represent a baseline API design, with proper logging, observability and load balancing through the use of classifier pools, structured logging with correlation IDs (for both requests and processing), and prometheus data enpoints for further observability instrumentalization in Grafana.</p>
-<p>While this component will be described further in upcoming chapters in this documentation effort, it is important to describe that through it, called from the Java controller side application built to manage the network, the entire system is able to classify the original flow and its response, and use that classification to drive traffic policy definition and finally LSP reconfiguration.</p>
-<p>The API is designed with the idea of it supporting at most 5 parallel classification requests, which give it room to grow, and with its configurable 
-environment variables, it can support more instances for a larger network, or less for a simpler deployment. These models are preloaded into memory and made available through a load balancing model queue with asynchronous capabilities that performs classification and returns a structured response to the application. Considering that this layer is one above the classifier model, it <b><code>adds to the classification information such as: bandwidth requirements, DSCP and MPLS TC values as well as Setup and Hold Priorities for tunnels </code></b>. This information is later used within the controller side application to define the traffic policy the network requires and configure it. </p>
+<tab title="Python FastAPI Classification API" group-key="python-api">
+<p>The Python API wraps the trained classifier in an observable and deterministic inference service. It is deployed as a standalone container and exposes a classification endpoint used by the Java controller side application during PacketIn processing.</p>
+<deflist type="full" collapsible="true">
+<def title="Responsibilities">
+<list>
+<li><b><format color="CornflowerBlue">Classifier lifecycle management</format></b>: loads model artifacts and keeps a bounded pool of classifier instances ready for concurrent inference.</li>
+<li><b><format color="CornflowerBlue">Request validation</format></b>: validates packet-feature payloads before they reach the model, preventing malformed controller requests from entering the inference path.</li>
+<li><b><format color="CornflowerBlue">Policy enrichment</format></b>: maps the predicted class to deterministic operational policy fields such as bandwidth, DSCP, MPLS TC, setup priority, and hold priority.</li>
+<li><b><format color="CornflowerBlue">Observability</format></b>: emits structured logs, correlation identifiers, and Prometheus-compatible metrics for inference behavior and API health.</li>
+<li><b><format color="CornflowerBlue">Operational isolation</format></b>: separates Python model execution from the Java controller bundle, allowing the classifier runtime to be scaled, monitored, and rebuilt independently.</li>
+</list>
+</def>
+<def title="Important Design Notes">
+<list>
+<li>The API is currently designed around a bounded queue of classifier instances, initially sized for up to five parallel classification requests. The behavior of this system can be increased or decreased depending on resource usage on the deployed system through environment variables.</li>
+<li>The API response is intentionally richer than the raw model prediction because the controller needs a directly actionable traffic policy. This information is then used within the controller side application for consensus over traffic policy and LSP modification.</li>
+<li>The service is part of the control loop, so request latency and error visibility are documented as first-class operational concerns reported through Prometheus counters and gauges alongside model classification information.</li>
+</list>
+</def>
+</deflist>
 </tab>
-<tab title="SDN Controller Implementation With Controller Side Application">
-<p>The SDN controller selected for its features corresponds to the <b><code>Opendaylight Vanadium 0.23.1</code></b>. This controller contained the required <b>NETCONF, Openflow, and BGP-LS</b> configuration requirements that were needed to allow communication between the controller and the MPLS-TE core network. While NETCONF ended up not being used in the final design for the <b>implementation or modification of router settings or tunnel information</b>, it was used initially to directly control flows and to extract the YANG models that we would need in the event that parts of the implementation were not to be available.</p>
-<p>The SDN controller selected is sadly not distributed in an up to date image, as the Opendaylight team have not udpated their official Docker Images to present this new version of their controller. Instead, an effort was done to create a complete image which can be used for deployment the controller with the required <b><code>BGP-LS, Openflow, NETCONF, RESTCONF and PCEP components</code></b> enabled, as well as introducing the required controller side application as an enabled feature in the controller.</p>
-<p>The SDN controller side application was implemented as an additional module in the underlying Apache Karaf deployment on which Opendaylight is based, that is enabled on startup such that it can learn the topology as soon as the controller itself builds its own information bases, allowing both to synchronize at the same time. Through this model, the controller side application regularly polls information from the controller and its databases, mainly its Traffic Engineering Database, as well as its Openflow Inventory databases to maintain a state of the network and the device within and use said information to detect tunnel directions, tailend and headend routers, as well as other requirements like delegated LSPs that are stored within the controller's databases. With this information, the application can implement the whole business logic of the system, from traffic classification to LSP reconfiguration.</p>
+<tab title="OpenDaylight Controller And Java CSA" group-key="odl-java-csa">
+<p>The controller layer is built around <b><code>OpenDaylight Vanadium 0.23.1</code></b> and a custom Java controller side application deployed as an Apache Karaf feature. OpenDaylight provides the southbound protocol stack and operational data stores, while the controller side application implements the project-specific workflow that ties <code>PacketIn</code> notifications, classification, policy consensus, constrained path computation, delegated LSP updates, OpenFlow bootstrap flows, RESTCONF state exposure, and metrics together.</p>
+<deflist type="full" collapsible="true">
+<def title="Responsibilities">
+<list>
+<li><b><format color="CornflowerBlue">Controller distribution</format></b>: packages OpenDaylight with the required BGP-LS, PCEP, OpenFlow, RESTCONF, and NETCONF capabilities enabled for the demonstrator environment.</li>
+<li><b><format color="CornflowerBlue">Topology discovery and freshness</format></b>: reads BGP-LS and PCEP operational state, caches it with TTL semantics, and refreshes it before workflows that require fresh topology.</li>
+<li><b><format color="CornflowerBlue">Packet workflow orchestration</format></b>: receives OpenFlow <code>PacketIn</code> notifications, extracts safe packet features, calls the classifier API, records evidence, and drives policy decisions.</li>
+<li><b><format color="CornflowerBlue">Policy consensus and preemption</format></b>: coordinates bidirectional evidence and decides when a new traffic policy should replace or retain the active pair policy.</li>
+<li><b><format color="CornflowerBlue">Constrained path and LSP control</format></b>: invokes OpenDaylight path computation and PCEP <code>update-lsp</code> operations to update delegated RSVP-TE LSPs.</li>
+<li><b><format color="CornflowerBlue">Operational state exposure</format></b>: publishes controller-side caches, policy decisions, topology snapshots, OpenFlow state, and readiness state through the <code>csa:controller-state</code> RESTCONF tree.</li>
+</list>
+</def>
+<def title="Important Design Notes">
+<list>
+<li>NETCONF remains available in the controller image, but the final design does not rely on NETCONF to change tunnel state.</li>
+<li>The controller image is custom because official OpenDaylight Docker images do not provide the exact Vanadium runtime required by this project.</li>
+<li>The Java application treats OpenDaylight as both a protocol gateway and a source of truth for operational topology, rather than as a passive library.</li>
+</list>
+</def>
+</deflist>
 </tab>
-<tab title="Grafana Dashboards and Observability">
-<p>As a final additional component over the implementation requirements, each of the major systems (the inference API and the controller side application) have been instrumented with Prometheus-style <code>/metrics</code> endpoints which allow for the exporting of gauges, counters and other metrics directly from the components and their use in Grafana Dashboards. In addition to this, all routers have been configured to export their interfaces and interface metrics through SNMP which is digsted through a secondary system such that Grafana can interact with operational, and application relevant metrics.</p>
-<p>While this component does not add or take anything from the underlying implementation requirements and the overarching system requirements for the project, it adds a layer of observability which allows for validaiton, metric evaluation, and overall allows the project to achieve its intended goal of being a production-ready system.</p>
-<p>Moreover, the controller side application is connected to the <code>RESTCONF</code> API exposed by the entire Opendaylight Controller, such that its state and operational data can be exposed not just through the Grafana endpoint but also through the controller's common operational data retrieval endpoint.</p>
+<tab title="Grafana Dashboards And Observability" group-key="observability">
+<p>The observability layer makes the system measurable outside the control loop. It combines Prometheus-style metrics from the Python API and Java controller side application with SNMP-derived router metrics and Grafana dashboards for validation, troubleshooting, and demonstration.</p>
+<deflist type="full" collapsible="true">
+<def title="Responsibilities">
+<list>
+<li><b><format color="CornflowerBlue">Application metrics collection</format></b>: scrapes classifier and controller metrics for classification, cache, topology, path computation, LSP update, consensus, and control-cycle behavior.</li>
+<li><b><format color="CornflowerBlue">Router and interface visibility</format></b>: gathers interface and network device metrics through SNMP exporters for topology-level validation.</li>
+<li><b><format color="CornflowerBlue">Operational validation</format></b>: provides dashboards that correlate control-plane decisions with network and application behavior.</li>
+<li><b><format color="CornflowerBlue">Debugging support</format></b>: exposes failure counters, latency histograms, freshness gauges, and current controller state so experiments can be explained after execution.</li>
+<li><b><format color="CornflowerBlue">RESTCONF state complement</format></b>: complements Grafana dashboards with direct controller-state retrieval through OpenDaylight RESTCONF endpoints.</li>
+</list>
+</def>
+<def title="Important Design Notes">
+<list>
+<li>Metrics are not just a presentation layer, they are part of the validation strategy for a system with several asynchronous subsystems.</li>
+<li>RESTCONF operational data and Prometheus metrics answer different questions, so both are intentionally documented.</li>
+<li>The dashboards are expected to evolve as new experiments and validation criteria are added.</li>
+</list>
+</def>
+</deflist>
 </tab>
 </tabs>
 </procedure>
-<p>All of the major components in this thesis have been implemented following strict engineering guidelines, and have been validated before implementation at every turn, from the Cisco IOS configuration files to the final grafana metrics. This approach of validating before implementation was used due to the uncertainty of the technologies and environments at play. For example, due to the nature of Cisco XRv it was possible that many features were either locked or limited due to the image being a virtualization instead of actual physical hardware, this led to the continuous testing of all configuration mechanisms, which allowed us to define a baseline configuration and to discard ideas such as VRF quickly.</p>
-<p>In other cases, this approach helped better map the API requirements of the SDN controller used, as some of the network commands described in the online documentation did not match the expected or required API contracts as described by the actual running instance,  which required validation and testing to determine which commands could be used both by the controller side application and by the operator to configure the system.</p>
-<h2>Format and Content of this Documentation</h2>
-<p>This documentation effort focuses on describing from a technical perspective the entirety of the implementation and its components, not shying away from technical definitions and concepts while mentioning and describing the implementation details of most components. While the accompanying thesis literature presents the project in a more technical manner, less implementation wise and more about results and future work, this documentation is focused solely on what has been implemented.</p>
-<p>Moreover, key tradeoffs and decisions that were identified as the implementation was done will also be discussed and presented when appropriate, and when they are deemed to add context into the decisions taken during the development of this project.</p>
-<p>As such, this documentation will be structured as follows:</p>
-<deflist type="full">
-<def title="Network Topology Information">
-<i>This section will describe the entirety of the <b>networking side of the thesis</b>, from the environment setup and requirements, virtualization tools used, complete descriptions of the configurations implemented and topologies defined, as well as any custom images or configurations that have been added alongside to make this system work</i>
+
+All major components in this thesis have been implemented with an explicit validation-before-integration mindset. Cisco XRv behavior, OpenDaylight API contracts, PCEP update semantics, RESTCONF state visibility, classifier response contracts, and metrics exposition were each validated before being treated as stable building blocks. This approach was necessary because several technologies in the stack expose behavior that depends on the exact runtime, image version, YANG model, or operational state available at the moment of testing.
+
+## Format And Content Of This Documentation
+
+This documentation focuses on the implementation details of the demonstrator. The thesis document discusses the research framing, motivation, evaluation, results, and future work. This Writerside documentation is meant to explain how the system is built, deployed, operated, inspected, and extended. It therefore includes configuration details, runtime topology descriptions, API contracts, class and module diagrams, operational endpoints, metrics, and concrete engineering tradeoffs.
+
+The content is organized around the same layers that exist in the demonstrator. Readers can use it as a deployment guide, a component reference, or a technical map for understanding how a <code>PacketIn</code> event becomes a traffic policy decision and, eventually, a delegated LSP update.
+
+<deflist type="full" collapsible="true">
+<def title="Network Topology Implementation">
+<p>This section covers the networking side of the thesis: virtualization prerequisites, Containerlab topology definitions, Cisco XRv image assumptions, router startup behavior, OSPF-TE, RSVP-TE, MPLS-TE, BGP-LS, PCEP, tunnel interfaces, and the baseline delegated LSP setup.</p>
+<list>
+<li>Environment requirements and host dependencies.</li>
+<li>Router images, licensing assumptions, and known XRv limitations.</li>
+<li>Full topology structure, addressing, interfaces, and link roles.</li>
+<li>Protocol configuration and the reason each protocol is required.</li>
+<li>Validation commands used to prove the MPLS-TE and PCEP baseline is operational.</li>
+</list>
 </def>
-<def title="Model Implementation and Deployment">
-<i>This section will describe the entirety of the <b>machine learning side of the thesis</b>, from the dataset used, to the model training and deployment, as well as the inference API and its deployment and configuration. It will use diagrams and class notations to describe the classes and methods that take part in making the whole machine learning system possible.</i>
+<def title="Model Implementation And Deployment">
+<p>This section covers the machine learning side of the thesis: dataset selection, feature reduction, model training, model packaging, inference behavior, policy mapping, and the FastAPI deployment that exposes the classifier to the controller side application.</p>
+<list>
+<li>Dataset origin, class selection, and preprocessing assumptions.</li>
+<li>Feature set rationale for the first-packet classification model.</li>
+<li>XGBoost training, evaluation, and exported model artifacts.</li>
+<li>FastAPI request and response schemas.</li>
+<li>Classifier pool behavior, runtime configuration, logging, and metrics.</li>
+</list>
 </def>
-<def title="SDN Controller Implementation and Deployment">
-<i>This section will present the entirety of the Opendaylight and controller side application implementation and deployment, including how the controller side application works internally, using diagrams to explain data transfers, as well as classes and modules and how they interact internally. In the context of the controller itself, this section will describe the kind of API requests that are required for configuring the corresponding controller, as well as the modules that are required to make this entire topology functional.</i>
+<def title="SDN Controller Implementation And Deployment">
+<p>This section covers the OpenDaylight and Java controller side application implementation: custom controller image, required OpenDaylight features, Java bundle lifecycle, service graph, topology refresh behavior, PacketIn workflow, policy consensus, path computation, delegated LSP updates, OpenFlow bootstrap, RESTCONF operational state exposure, and controller metrics.</p>
+<list>
+<li>OpenDaylight Vanadium runtime and enabled protocol features.</li>
+<li>Controller side application initialization and readiness checks.</li>
+<li>Packet workflow sequence from OpenFlow notification to LSP convergence.</li>
+<li>Registry/cache behavior and TTL-driven refresh semantics.</li>
+<li>RESTCONF operational endpoints under <code>csa:controller-state</code>.</li>
+<li>Prometheus metrics exposed through the controller side application.</li>
+</list>
+</def>
+<def title="Observability, Validation, And Demonstration Workflow">
+<p>This section covers the supporting operational material: Prometheus metrics, Grafana dashboards, SNMP-based router visibility, structured logs, validation scripts, experiment flow, and the evidence used to prove that the controller action changed the operational tunnel state.</p>
+<list>
+<li>Application metrics from the Python API and Java controller.</li>
+<li>Router and interface metrics exported through SNMP.</li>
+<li>Dashboard panels used for live demonstration and post-run analysis.</li>
+<li>Validation paths for topology freshness, classification, path computation, and LSP update confirmation.</li>
+<li>Known failure modes and the evidence expected when each one occurs.</li>
+</list>
+</def>
+</deflist>
+
+## Frequently Asked Questions
+
+<deflist type="full" collapsible="true">
+<def title="Is this documentation a replacement for the thesis document?">
+<p>No. The thesis document presents the research framing, motivation, evaluation, conclusions, and formal academic discussion. This Writerside documentation is the implementation companion, therefore, it explains how the demonstrator is assembled, configured, executed, validated, and inspected.</p>
+</def>
+<def title="Why does the system classify only the first packet instead of waiting for a complete flow?">
+<p>The first-packet approach allows the controller to make a policy decision early enough to affect the tunnel selection for the flow. Waiting for the flow to finish would be useful for offline analysis, but it would not support adaptive path control during the flow itself.</p>
+</def>
+<def title="Why are delegated LSPs used instead of creating tunnels from scratch every time?">
+<p>The project relies on preexisting RSVP-TE LSPs delegated to the PCE. This keeps router-side tunnel identity stable while allowing the controller to update path and bandwidth requirements through PCEP operations. The main reason delegated LSPs were used was due to an <b>incompatibility between Opendaylight and Cisco XRv routers</b> which caused tunnels to be created but fail to register at the controller as delegated. Specifically the <code>ipv4 unnumbered A.B.C.D</code> parameter that is required for all tunels in these routers was not explicitly supported by the controller and therefore all tunnels were created in an incomplete state.</p>
+<p>An effort was made, and is documented to use the NETCONF connections implemented for all routers to append after creation the interface IP assignment, and to attempt to bring back the tunnel. Despite being able to successfully replace the IP assignment, the tunnel never registered itself as delegated to the controller given that from the Cisco XRv side it reported failure to the controller. This caused the system to become split, the controller couldn't manage the tunnel, and the routers could only hold onto it on the state it was created in.</p>
+<p>Although it was posited that perhaps this mechanism could be kept, deletion of the tunnels was impossible, so in an effort to not introduce more <code>version and IOS dependant commands into the creation flow</code> a decision was made to use <code>previously defined delegated tunnels</code> that could allow the system to showcase its programmable prowess without the need to couple these systems more closely than needed.</p>
+</def>
+<def title="Why does the documentation include both RESTCONF state and Prometheus metrics?">
+<p>RESTCONF exposes the current structured operational state of the controller side application, including caches, topology objects, and policy state. Prometheus metrics expose counters, gauges, and latency histograms that are better suited for dashboards, trends, and failure-rate analysis. Both are needed for complete validation.</p>
+<p>In addition to representing different states of the system, the use of RESTCONF presents the system as another component within the normal RESTCONF tree exposed by the Opendaylight controller, and it allows us to register our application as a proper module within the Apache Karaf system they use. This means that our system presents its information in a documented, structured approach like any other component of the controller in both XML and JSON schemas.</p>
+</def>
+<def title="Can this demonstrator be extended to more routers, classes, or policies?">
+<p>Yes, but each extension has a different cost. More routers require topology and protocol validation. More classes require dataset and model work. More policies require deterministic mapping in the classifier API and corresponding controller-side validation. The documentation is structured so those extension points can be expanded later.</p>
 </def>
 </deflist>

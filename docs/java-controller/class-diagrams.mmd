@@ -1,0 +1,331 @@
+classDiagram
+    direction LR
+
+    class SDN_MPLS_ML_Provider {
+        +init()
+        +onNotification(PacketReceived)
+        +close()
+        -scheduleReadinessAttempt(AppConfig,long,long)
+        -runReadinessAttempt(AppConfig,long,long)
+        -publishOperationalState()
+        -registerMetricsServlet(SdnMplsMlMetrics)
+    }
+    class SdnMplsMlWorkflowService {
+        +handlePacket(PacketReceived)
+        -buildEvidence(PacketClassificationContext,TunnelDirection,ClassificationResult)
+        -recordControlCycle(String,String,long)
+    }
+    SDN_MPLS_ML_Provider --> SdnMplsMlWorkflowService
+
+    class AppConfig {
+        <<record>>
+        +fromEnvironment() AppConfig
+        +from(Map) AppConfig
+        +resolveClassificationIngress(String,String) FlowDirection
+    }
+    class IngressMapping {
+        <<record>>
+        +parse(String) IngressMapping
+        +matches(String,String) boolean
+    }
+    class TunnelCreationMode {
+        <<enum>>
+        DELEGATED_TUNNEL_UPDATE
+    }
+    AppConfig --> IngressMapping
+    AppConfig --> TunnelCreationMode
+
+    class ClassifierRestClient {
+        +classify(String) HttpResponse
+    }
+    class OdlRestconfDataClient {
+        +getNetworkTopologyList()
+        +getBgpLsTopology(String)
+        +getPcepTopology(String)
+        +getOpenflowInventory()
+        +putOpenflowFlow(String,int,String,String)
+        +getOpenflowFlowConfig(String,int,String)
+        +getOpenflowTableOperational(String,int)
+    }
+    class OdlOperationsClient {
+        +computeConstrainedPath(String)
+        +updateLsp(String)
+    }
+    class OdlXmlExchangeLogger {
+        +logRequest(...)
+        +logResponse(...)
+    }
+    class HttpClientFactory {
+        +create(Duration) HttpClient
+    }
+    class PathComputationOutcomeClassifier
+    class TopologyDiscoveryOutcomeClassifier
+    class UpdateLspOutcomeClassifier
+
+    class ClassificationService {
+        +classifyOrGetCached(PacketClassificationContext) ClassificationLookupResult
+        -classify(PacketClassificationContext) ClassificationLookupResult
+    }
+    ClassificationService --> ClassifierRestClient
+
+    class PacketInFeatureExtractor {
+        +extract(PacketReceived) Optional~PacketClassificationContext~
+    }
+    PacketInFeatureExtractor --> AppConfig
+
+    class PairPolicyCoordinator {
+        +handleEvidence(DirectionalPolicyEvidence,WorkflowContext) PairPolicyDecision
+        -apply(PairPolicyCandidate,String,WorkflowContext,Instant) ActivePairPolicyState
+    }
+    class PairPolicyConsensusService {
+        +evaluate(PairConsensusBucket,Optional~ActivePairPolicyState~,Instant) PairConsensusDecision
+    }
+    class PolicyPreemptionEvaluator {
+        +evaluate(ActivePairPolicyState,PairPolicyCandidate,Instant) PolicyPreemptionDecision
+    }
+    class PairPolicyHashService {
+        +hashDirectionalEvidence(DirectionalPolicyEvidence) String
+        +hashPolicyCandidate(PairPolicyCandidate) String
+        +hashDesiredLspState(DirectionalLspDesiredState) String
+    }
+    class ServiceKeyResolver {
+        +resolve(PacketFeatures) ServiceKey
+        +expectedClassFor(ServiceKey) Optional~String~
+        +isKnownServicePort(int) boolean
+    }
+    PairPolicyCoordinator --> PairPolicyConsensusService
+    PairPolicyCoordinator --> PolicyPreemptionEvaluator
+    PairPolicyCoordinator --> PairPolicyHashService
+    PairPolicyCoordinator --> ServiceKeyResolver
+
+    class TopologyDiscoveryService {
+        +initialize()
+    }
+    class TopologyRefreshService {
+        +start()
+        +markInitialDiscoverySuccessful()
+        +staleBeyondThreshold() boolean
+        +ensureFresh() boolean
+        +status() TopologyRefreshStatus
+        +close()
+    }
+    class TopologyRefreshStatus {
+        <<record>>
+    }
+    class BandwidthTranslator {
+        +kbpsToBytesPerSecond(long) long
+        +kbpsToPcepBandwidthBase64Float32(long) String
+        +bytesPerSecondAsXmlFloat(long) String
+    }
+    TopologyRefreshService --> TopologyRefreshStatus
+
+    class PathComputationService {
+        +computeOrGetCached(TunnelDirection,PathConstraints) CalculatedPath
+        -compute(TunnelDirection,CalculatedPathKey) CalculatedPath
+    }
+    class CalculatedPathToEroTranslator {
+        +translate(PathComputationResponse,String) List~EroSubobject~
+    }
+    PathComputationService --> CalculatedPathToEroTranslator
+
+    class DelegatedLspService {
+        +initialize()
+        +refreshDirection(String) DelegatedLspRecord
+        +requireDelegatedLsp(String) DelegatedLspRecord
+        +activeStateMatches(TunnelDirection,CalculatedPath,PathConstraints) boolean
+        +updateDelegatedLsp(TunnelDirection,CalculatedPath,PathConstraints) UpdateLspResult
+    }
+    class DirectionalLspApplicationService {
+        +applyPolicyToDirection(PairPolicyCandidate,TunnelDirection,WorkflowContext) DirectionalLspApplicationRecord
+    }
+    class TunnelOperationCoordinator {
+        +processDirection(TunnelDirection,ClassificationResult,WorkflowContext) TunnelOperationRecord
+    }
+    DirectionalLspApplicationService --> PathComputationService
+    DirectionalLspApplicationService --> DelegatedLspService
+
+    class OpenflowBootstrapService {
+        +initialize()
+        +isReady() boolean
+    }
+    class OpenflowInventoryService {
+        +discoverSwitches() List~OpenflowSwitchRecord~
+    }
+    class OpenflowInventoryXmlDeserializer {
+        +deserialize(String,String,String) List~OpenflowSwitchRecord~
+    }
+    class OpenflowFlowProvisioningService {
+        +installFlow(OpenflowFlowDefinition) OpenflowFlowInstallResult
+    }
+    class OpenflowBootstrapVerifier {
+        +verify(List~OpenflowFlowInstallResult~)
+    }
+    class OpenFlowSuppressionService {
+        +buildSuppressionIntent(...) Optional~OpenFlowSuppressionIntent~
+        +installSuppressionFlow(OpenFlowSuppressionIntent) OpenFlowProgrammingResult
+    }
+    class OpenflowSwitchRegistry {
+        +replace(List~OpenflowSwitchRecord~)
+        +findByNodeId(String)
+        +findConnector(String,String)
+        +snapshotByLogicalName()
+    }
+    OpenflowBootstrapService --> OpenflowInventoryService
+    OpenflowBootstrapService --> OpenflowFlowProvisioningService
+    OpenflowBootstrapService --> OpenflowBootstrapVerifier
+    OpenflowBootstrapService --> OpenflowSwitchRegistry
+    OpenFlowSuppressionService --> OpenFlowSuppressionFlowXmlSerializer
+
+    class ControllerOperationalStatePublisher {
+        +publish()
+        -buildState() ControllerState
+    }
+    ControllerOperationalStatePublisher --> AppConfig
+
+    class BgpLsNodeRegistry {
+        +replaceAll(Collection~BgpLsTopologyNode~)
+        +containsRouterId(String) boolean
+        +requireByRouterId(String) BgpLsTopologyNode
+        +resolveGraphNodeIdByRouterId(String) long
+        +snapshot() Map
+    }
+    class ClassificationRegistrar {
+        +find(PacketClassificationContext) Optional~ClassificationResult~
+        +put(PacketClassificationContext,ClassificationResult)
+        +expireOldEntries()
+        +exactSnapshot() Map
+        +serviceSnapshot() Map
+        +canonicalServicePort(PacketFeatures) int
+    }
+    class CalculatedPathRegistry {
+        +findValid(CalculatedPathKey) Optional~CalculatedPath~
+        +put(CalculatedPathKey,CalculatedPath)
+        +expireOldEntries()
+        +snapshot() Map
+    }
+    class DelegatedLspRegistry {
+        +replaceAll(Collection~DelegatedLspRecord~)
+        +findByDirectionKey(String)
+        +findByLspName(String)
+        +requireByDirectionKey(String) DelegatedLspRecord
+        +updateAfterSuccessfulUpdate(...)
+    }
+    class DirectionalClassificationEvidenceRegistry {
+        +recordEvidence(DirectionalPolicyEvidence) PairConsensusBucket
+        +findBucket(String,ServiceKey)
+        +expireOldEvidence(Instant)
+        +snapshot() Map
+    }
+    class ActivePairPolicyRegistry {
+        +findActive(String,Instant)
+        +refresh(String,Instant,Duration)
+        +installOrReplace(PairPolicyCandidate,Map,Instant,Duration)
+        +expireOldEntries(Instant)
+        +snapshot() Map
+    }
+    class DirectionRegistry {
+        +resolve(PacketClassificationContext) FlowDirection
+        +requireTunnelDirection(FlowDirection) TunnelDirection
+        +requireBidirectionalTunnelDirections(FlowDirection) List~TunnelDirection~
+        +requireTunnelDirectionsForScope(TunnelUpdateScope,FlowDirection) List
+    }
+    class TunnelPairRegistry {
+        +requirePairForDirection(String) TunnelPairDefinition
+        +requireManagedDirections(String) List~TunnelDirection~
+        +normalizePairKey(TunnelDirection) String
+        +snapshot() TunnelPairDefinition
+    }
+    class TunnelOperationRegistry
+
+    class ClassificationRequestJsonSerializer {
+        +serialize(PacketFeatures) String
+    }
+    class ClassificationResponseJsonDeserializer {
+        +deserialize(String) ClassificationResult
+    }
+    class BgpLsTopologyXmlDeserializer {
+        +deserialize(String) List~BgpLsTopologyNode~
+    }
+    class NetworkTopologyListXmlDeserializer {
+        +deserialize(String) Set~String~
+    }
+    class PcepTopologyXmlDeserializer {
+        +deserialize(String) List~PcepReportedLspSnapshot~
+    }
+    class PcepReportedLspDeserializer {
+        +deserialize(String,Node) PcepReportedLspSnapshot
+    }
+    class PathComputationRequestXmlSerializer
+    class PathComputationResponseXmlDeserializer
+    class UpdateLspRequestXmlSerializer
+    class UpdateLspResponseXmlDeserializer
+    class EroXmlSerializer
+    class OpenFlowSuppressionFlowXmlSerializer
+    class OpenflowFlowXmlSerializer
+
+    class SdnMplsMlMetrics {
+        +increment(String)
+        +incrementCounter(String,Map)
+        +setGauge(String,Map,double)
+        +observeHistogram(String,Map,double)
+        +snapshot() Map
+        +renderPrometheusText() String
+    }
+    class PrometheusMetricsServlet
+    class StructuredLogger
+    class LogContext
+    class RetryPolicy
+    class XmlSupport
+    PrometheusMetricsServlet --> SdnMplsMlMetrics
+
+    class PacketFeatures { <<record>> }
+    class PacketClassificationContext { <<record>> }
+    class ClassificationCacheKey { <<record>> }
+    class ServiceClassCacheKey { <<record>> }
+    class ClassificationResult { <<record>> }
+    class ClassificationLookupResult { <<record>> }
+    class TrafficPolicy { <<record>> }
+    class PathConstraints { <<record>> }
+    class ServiceKey { <<record>> }
+    class DirectionalPolicyEvidence { <<record>> }
+    class PairConsensusBucket { <<record>> }
+    class PairConsensusDecision { <<record>> }
+    class PairPolicyCandidate { <<record>> }
+    class PairPolicyDecision { <<record>> }
+    class ActivePairPolicyState { <<record>> }
+    class DirectionalLspDesiredState { <<record>> }
+    class DirectionalLspApplicationRecord { <<record>> }
+    class BgpLsTopologyNode { <<record>> }
+    class CalculatedPathKey { <<record>> }
+    class CalculatedPathRequest { <<record>> }
+    class CalculatedPath { <<record>> }
+    class PathComputationResponse { <<record>> }
+    class PathHop { <<record>> }
+    class EroSubobject { <<record>> }
+    class DelegatedLspRecord { <<record>> }
+    class PcepReportedLspSnapshot { <<record>> }
+    class UpdateLspRequest { <<record>> }
+    class UpdateLspResult { <<record>> }
+    class TunnelEndpoint { <<record>> }
+    class TunnelDirection { <<record>> }
+    class TunnelPairDefinition { <<record>> }
+    class TunnelIntentKey { <<record>> }
+    class TunnelOperationRecord { <<record>> }
+    class OpenFlowSuppressionIntent { <<record>> }
+    class OpenFlowProgrammingResult { <<record>> }
+    class OpenflowSwitchRecord { <<record>> }
+    class OpenflowConnectorRecord { <<record>> }
+    class OpenflowFlowDefinition { <<record>> }
+    class OpenflowBootstrapProfile { <<record>> }
+    class OpenflowFlowInstallResult { <<record>> }
+    class OdlCallOutcome { <<record>> }
+    class FlowDirection { <<enum>> }
+    class OdlCallOutcomeType { <<enum>> }
+    class OdlXmlBodyLogLevel { <<enum>> }
+    class TunnelUpdateScope { <<enum>> }
+    class TunnelOperationStatus { <<enum>> }
+    class PairConsensusStatus { <<enum>> }
+    class PairConsensusEqualPriorityAction { <<enum>> }
+    class PolicyPreemptionDecision { <<record>> }
+    class PolicyPreemptionDecisionType { <<enum>> }
+    class PairPolicyLspApplicationScope { <<enum>> }

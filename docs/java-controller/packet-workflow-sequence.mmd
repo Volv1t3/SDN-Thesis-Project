@@ -1,0 +1,122 @@
+sequenceDiagram
+    autonumber
+    participant OFPlugin as OpenFlow Plugin
+    participant Provider as SDN_MPLS_ML_Provider.onNotification
+    participant Context as LogContext / WorkflowContext
+    participant Workflow as SdnMplsMlWorkflowService.handlePacket
+    participant Extractor as PacketInFeatureExtractor
+    participant Direction as DirectionRegistry / TunnelPairRegistry
+    participant TopologyTTL as TopologyRefreshService.ensureFresh
+    participant Classification as ClassificationService
+    participant ClassCache as ClassificationRegistrar
+    participant Python as Python classifier API
+    participant Policy as PairPolicyCoordinator
+    participant Evidence as DirectionalClassificationEvidenceRegistry
+    participant Consensus as PairPolicyConsensusService
+    participant Preemption as PolicyPreemptionEvaluator
+    participant Active as ActivePairPolicyRegistry
+    participant Apply as DirectionalLspApplicationService
+    participant Path as PathComputationService
+    participant PathCache as CalculatedPathRegistry
+    participant LSP as DelegatedLspService
+    participant ODL as OpenDaylight RESTCONF / RESTS
+    participant Publisher as ControllerOperationalStatePublisher
+    participant Metrics as SdnMplsMlMetrics
+
+    OFPlugin->>Provider: PacketReceived notification
+    Provider->>Provider: packetInCounter.incrementAndGet()
+    Provider->>Context: LogContext.open(workflow_id, packet_sequence)
+    Provider->>Workflow: handlePacket(notification)
+    Workflow->>Metrics: sma_packet_in_total++
+    alt controlPlaneReady is false
+        Workflow->>Metrics: control-plane-not-ready counters++
+        Workflow-->>Provider: return
+    else control plane ready
+        Workflow->>Extractor: extract(notification)
+        Extractor-->>Workflow: Optional<PacketClassificationContext>
+    end
+    alt context absent or non-IPv4
+        Workflow->>Metrics: ignored ARP or unsupported EtherType
+        Workflow-->>Provider: return
+    else IPv4 context
+        Workflow->>Direction: resolve(context)
+        Direction-->>Workflow: FlowDirection
+    end
+    alt unknown ingress
+        Workflow->>Metrics: packet_ignored_unknown_ingress++
+        Workflow-->>Provider: return
+    else known ingress
+        Workflow->>TopologyTTL: ensureFresh()
+    end
+    alt BGP-LS topology stale
+        TopologyTTL->>ODL: GET fresh BGP-LS topology
+        TopologyTTL->>Metrics: ttl-expired and refresh-on-demand metrics
+        TopologyTTL-->>Workflow: true when refresh succeeds, false when refresh fails
+    end
+    alt topology refresh failed
+        Workflow->>Metrics: sma_control_cycle_total{outcome="topology_stale"}++
+        Workflow-->>Provider: return
+    else topology usable
+        Workflow->>Direction: requireTunnelDirection(flowDirection)
+        Workflow->>Classification: classifyOrGetCached(context)
+    end
+    Classification->>ClassCache: find(context)
+    alt classification cache hit
+        ClassCache-->>Classification: ClassificationResult
+        Classification->>Metrics: sma_classification_cache_hit_total++
+        Classification-->>Workflow: ClassificationLookupResult(cacheHit=true)
+        Workflow->>Metrics: sma_control_cycle_total{outcome="cached_hit"}++
+    else classification cache miss
+        Classification->>Metrics: cache miss and classifier request counters
+        Classification->>Python: POST /api/v1/classify JSON PacketFeatures
+        Python-->>Classification: JSON classification + policy
+        Classification->>ClassCache: put(context, result)
+        Classification-->>Workflow: ClassificationLookupResult(cacheHit=false)
+    end
+    Workflow->>Workflow: buildEvidence(context, direction, classification)
+    Workflow->>Policy: handleEvidence(evidence, workflowContext)
+    Policy->>Evidence: recordEvidence(evidence)
+    Evidence-->>Policy: PairConsensusBucket
+    Policy->>Consensus: evaluate(bucket, activeBefore, now)
+    Consensus-->>Policy: PairConsensusDecision
+    alt no actionable candidate
+        Policy-->>Workflow: PairPolicyDecision(candidate empty)
+        Workflow->>Metrics: pending_consensus or deferred control cycle
+        Workflow-->>Provider: return
+    else candidate selected
+        Policy->>Preemption: evaluate(activeBefore, candidate, now)
+        Preemption-->>Policy: PolicyPreemptionDecision
+    end
+    alt active policy retained or refreshed only
+        Policy->>Active: refresh or retain active policy
+        Policy-->>Workflow: PairPolicyDecision(no LSP applications)
+    else policy applies to one or both directions
+        Policy->>Apply: applyPolicyToDirection(candidate, direction, workflowContext)
+        Apply->>Path: computeOrGetCached(direction, constraints)
+        Path->>PathCache: findValid(CalculatedPathKey)
+        alt path cache miss
+            Path->>ODL: POST /rests/operations/path-computation:get-constrained-path
+            ODL-->>Path: XML constrained path response
+            Path->>PathCache: put(key, CalculatedPath)
+        end
+        Apply->>LSP: refreshDirection(directionKey)
+        LSP->>ODL: GET /restconf/data/.../topology=pcep-topology?content=all
+        ODL-->>LSP: XML PCEP topology
+        alt current LSP already converged
+            Apply->>Metrics: skipped and confirmation counters
+            Apply-->>Policy: DirectionalLspApplicationRecord(SKIPPED_ALREADY_CONVERGED)
+        else update required
+            Apply->>LSP: updateDelegatedLsp(direction, path, constraints)
+            LSP->>ODL: POST /rests/operations/network-topology-pcep:update-lsp
+            ODL-->>LSP: XML/HTTP update-lsp result
+            LSP->>ODL: poll PCEP topology until ERO confirmed
+            LSP-->>Apply: UpdateLspResult
+            Apply-->>Policy: DirectionalLspApplicationRecord(...)
+        end
+        Policy->>Active: installOrReplace(candidate, child applications, ttl)
+        Policy-->>Workflow: PairPolicyDecision(applications)
+    end
+    Workflow->>Metrics: sma_control_cycle_total / duration outcome
+    Workflow-->>Provider: return
+    Provider->>Publisher: publish()
+    Publisher-->>ODL: MD-SAL OPERATIONAL put(csa:controller-state)

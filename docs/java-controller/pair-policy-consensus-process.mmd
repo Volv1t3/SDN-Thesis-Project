@@ -1,0 +1,55 @@
+sequenceDiagram
+    autonumber
+    participant Workflow as SdnMplsMlWorkflowService
+    participant Hash as PairPolicyHashService
+    participant Coordinator as PairPolicyCoordinator
+    participant Evidence as DirectionalClassificationEvidenceRegistry
+    participant Consensus as PairPolicyConsensusService
+    participant Active as ActivePairPolicyRegistry
+    participant Preemption as PolicyPreemptionEvaluator
+    participant Apply as DirectionalLspApplicationService
+    participant Metrics as SdnMplsMlMetrics
+
+    Workflow->>Hash: hashDirectionalEvidence(partial evidence)
+    Hash-->>Workflow: policyHash
+    Workflow->>Coordinator: handleEvidence(evidence, workflowContext)
+    Coordinator->>Coordinator: acquire per-pair ReentrantLock
+    alt pairConsensusEnabled=false
+        Coordinator-->>Workflow: PairPolicyDecision(candidate empty)
+    else enabled
+        Coordinator->>Evidence: recordEvidence(evidence)
+        Evidence-->>Coordinator: PairConsensusBucket
+        Coordinator->>Metrics: sma_directional_evidence_recorded_total++
+        Coordinator->>Active: findActive(pairKey, now)
+        Active-->>Coordinator: Optional<ActivePairPolicyState>
+        Coordinator->>Consensus: evaluate(bucket, activeBefore, now)
+        Consensus-->>Coordinator: PairConsensusDecision
+        Coordinator->>Metrics: sma_pair_consensus_decision_total{decision=status}++
+    end
+    alt no selected candidate
+        Coordinator->>Metrics: pending or deferred counters
+        Coordinator-->>Workflow: PairPolicyDecision(candidate empty)
+    else candidate selected
+        alt active policy exists
+            Coordinator->>Preemption: evaluate(activeBefore, candidate, now)
+            Preemption-->>Coordinator: PolicyPreemptionDecision
+            alt same policy
+                Coordinator->>Active: refresh(pairKey, now, ttl)
+                Coordinator-->>Workflow: refreshed active policy
+            else preemption disabled or incoming weaker/equal
+                Coordinator->>Metrics: retained/deferred counters
+                Coordinator-->>Workflow: retained active policy
+            else incoming applies
+                Coordinator->>Apply: apply selected candidate to configured directions
+                Apply-->>Coordinator: DirectionalLspApplicationRecord list
+                Coordinator->>Active: installOrReplace(candidate, children, now, ttl)
+                Coordinator-->>Workflow: installed active policy
+            end
+        else no active policy
+            Coordinator->>Apply: apply selected candidate
+            Apply-->>Coordinator: DirectionalLspApplicationRecord list
+            Coordinator->>Active: installOrReplace(candidate, children, now, ttl)
+            Coordinator-->>Workflow: installed active policy
+        end
+    end
+    Coordinator->>Coordinator: release per-pair lock

@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    participant Trigger as Provider / TopologyRefreshService
+    participant Publisher as ControllerOperationalStatePublisher
+    participant Topology as TopologyRefreshService.status
+    participant Bgp as BgpLsNodeRegistry
+    participant Class as ClassificationRegistrar
+    participant Path as CalculatedPathRegistry
+    participant Lsp as DelegatedLspRegistry
+    participant OF as OpenflowSwitchRegistry
+    participant Evidence as DirectionalClassificationEvidenceRegistry
+    participant Active as ActivePairPolicyRegistry
+    participant Pair as TunnelPairRegistry
+    participant Builder as csa.yang binding builders
+    participant Metrics as SdnMplsMlMetrics
+    participant DataBroker as MD-SAL DataBroker
+    participant RESTCONF as RESTCONF clients
+
+    Trigger->>Publisher: publish()
+    Publisher->>DataBroker: newWriteOnlyTransaction()
+    Publisher->>Topology: status()
+    Topology-->>Publisher: TopologyRefreshStatus
+    Publisher->>Bgp: snapshot()
+    Publisher->>Class: exactSnapshot() and serviceSnapshot()
+    Publisher->>Path: snapshot()
+    Publisher->>Lsp: snapshotByDirection()
+    Publisher->>OF: snapshotByLogicalName()
+    Publisher->>Evidence: snapshot()
+    Publisher->>Active: snapshot()
+    Publisher->>Pair: snapshot() and managed directions
+    Publisher->>Metrics: set registry gauges from snapshot sizes
+    Publisher->>Builder: build ControllerState tree
+    Builder-->>Publisher: ControllerState
+    Publisher->>DataBroker: put(OPERATIONAL, /csa:controller-state, state)
+    Publisher->>DataBroker: commit()
+    Publisher->>Metrics: sma_controller_operational_state_publish_success_total++
+    RESTCONF->>DataBroker: GET /restconf/data/csa:controller-state...
+    DataBroker-->>RESTCONF: XML/JSON YANG-modeled state
+    alt publish runtime failure
+        Publisher->>Metrics: sma_controller_operational_state_publish_failure_total{reason="runtime_exception"}++
+    end

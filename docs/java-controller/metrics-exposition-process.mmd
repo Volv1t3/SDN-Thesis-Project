@@ -1,0 +1,22 @@
+sequenceDiagram
+    autonumber
+    participant Service as application services
+    participant Metrics as SdnMplsMlMetrics
+    participant Provider as SDN_MPLS_ML_Provider
+    participant Servlet as PrometheusMetricsServlet
+    participant Http as OSGi HttpService
+    participant Prom as Prometheus
+
+    Service->>Metrics: incrementCounter(name, labels)
+    Service->>Metrics: setGauge(name, labels, value)
+    Service->>Metrics: observeHistogram(name, labels, seconds)
+    Metrics->>Metrics: normalize labels and update in-memory maps
+    Provider->>Http: registerServlet("/csa/metrics", PrometheusMetricsServlet)
+    Prom->>Servlet: GET /csa/metrics
+    Servlet->>Metrics: renderPrometheusText()
+    Metrics->>Metrics: append HELP and TYPE for registered metrics
+    Metrics->>Metrics: append counter/gauge samples
+    Metrics->>Metrics: append histogram buckets, sum, count
+    Metrics-->>Servlet: text/plain Prometheus exposition
+    Servlet-->>Prom: 200 metrics text
+    Provider->>Http: unregister("/csa/metrics") on close()

@@ -1,0 +1,58 @@
+sequenceDiagram
+    autonumber
+    participant Provider as SDN_MPLS_ML_Provider
+    participant Bootstrap as OpenflowBootstrapService
+    participant Inventory as OpenflowInventoryService
+    participant Data as OdlRestconfDataClient
+    participant ODL as ODL RESTCONF data
+    participant Deser as OpenflowInventoryXmlDeserializer
+    participant Registry as OpenflowSwitchRegistry
+    participant Provision as OpenflowFlowProvisioningService
+    participant Serializer as OpenflowFlowXmlSerializer
+    participant Verifier as OpenflowBootstrapVerifier
+    participant Retry as RetryPolicy
+    participant Metrics as SdnMplsMlMetrics
+
+    Provider->>Bootstrap: initialize()
+    Bootstrap->>Metrics: sma_openflow_bootstrap_ready = 0
+    alt openflowBootstrapEnabled=false
+        Bootstrap->>Metrics: sma_openflow_bootstrap_ready = 1
+        Bootstrap-->>Provider: ready without flow install
+    else enabled
+        Bootstrap->>Inventory: discoverSwitches()
+        Inventory->>Data: getOpenflowInventory()
+        Data->>ODL: GET opendaylight-inventory:nodes?content=all
+        ODL-->>Data: XML inventory
+        Inventory->>Deser: deserialize(xml, configured management IPs)
+        Deser-->>Inventory: ECHO/FOXTROT switch records
+        Inventory-->>Bootstrap: List<OpenflowSwitchRecord>
+        Bootstrap->>Registry: replace(switches)
+        loop each switch
+            Bootstrap->>Bootstrap: definitionsFor(switchRecord, cookieBase)
+            loop four ARP/IPv4 access flows
+                Bootstrap->>Provision: installFlow(switchRecord, flow)
+                Provision->>Serializer: serialize(flow)
+                Provision->>Data: putOpenflowFlow(encodedNodeId, tableId, flowId, xml)
+                Data->>ODL: PUT flow config
+                ODL-->>Data: HTTP 200/201/204 or retryable/permanent error
+                alt retryable 409/503 or transport failure
+                    Provision->>Provision: waitBeforeRetry(jittered delay)
+                end
+                Provision-->>Bootstrap: OpenflowFlowInstallResult
+            end
+            Bootstrap->>Verifier: verify(switchRecord, flows)
+            loop each flow
+                Verifier->>Data: getOpenflowFlowConfig(encodedNodeId, tableId, flowId)
+                Data->>ODL: GET configured flow
+                ODL-->>Data: XML configured flow
+            end
+            Verifier->>Retry: retryUntilTrue(operationalContainsAll)
+            Retry->>Verifier: operationalContainsAll()
+            Verifier->>Data: getOpenflowTableOperational(encodedNodeId, tableId)
+            Data->>ODL: GET operational table
+            ODL-->>Data: XML operational table
+        end
+        Bootstrap->>Metrics: sma_openflow_bootstrap_ready = 1
+        Bootstrap->>Metrics: last success timestamp
+        Bootstrap-->>Provider: ready
+    end

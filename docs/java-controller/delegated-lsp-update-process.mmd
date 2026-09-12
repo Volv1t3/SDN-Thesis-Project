@@ -1,0 +1,49 @@
+sequenceDiagram
+    autonumber
+    participant Apply as DirectionalLspApplicationService
+    participant Path as PathComputationService
+    participant LSP as DelegatedLspService
+    participant Registry as DelegatedLspRegistry
+    participant ReqSer as UpdateLspRequestXmlSerializer
+    participant Ops as OdlOperationsClient
+    participant ODL as ODL RESTS operations
+    participant ResDeser as UpdateLspResponseXmlDeserializer
+    participant Retry as RetryPolicy
+    participant Metrics as SdnMplsMlMetrics
+
+    Apply->>Path: computeOrGetCached(direction, constraints)
+    Path-->>Apply: CalculatedPath with ERO
+    Apply->>LSP: refreshDirection(directionKey)
+    LSP->>Registry: replaceFromSnapshots(readSnapshots())
+    LSP-->>Apply: current DelegatedLspRecord
+    Apply->>Apply: build DirectionalLspDesiredState and desired hash
+    alt current active ERO and bandwidth already match
+        Apply->>Metrics: skipped converged and confirmation counters
+        Apply-->>Apply: DirectionalLspApplicationRecord(SKIPPED_ALREADY_CONVERGED)
+    else update required
+        Apply->>LSP: updateDelegatedLsp(direction, path, constraints)
+        LSP->>Registry: requireByDirectionKey(directionKey)
+        LSP->>LSP: stateMatches(current, requestedEro, bandwidthBase64)
+        LSP->>ReqSer: serialize(UpdateLspRequest)
+        ReqSer-->>LSP: XML input with compact network-topology-ref
+        LSP->>Ops: updateLsp(xml)
+        Ops->>ODL: POST network-topology-pcep:update-lsp
+        ODL-->>Ops: HTTP/XML response
+        Ops-->>LSP: HttpResponse<String>
+        LSP->>ResDeser: deserialize(response)
+        ResDeser-->>LSP: UpdateLspResult
+        alt hard failure
+            LSP->>Metrics: update-lsp failure and path verification unavailable
+            LSP->>LSP: refreshAfterFailedAttempt(failure)
+            LSP-->>Apply: exception
+        else accepted
+            LSP->>Retry: retryUntilPresent(refreshDirection has requested ERO)
+            Retry->>LSP: refreshDirection(directionKey)
+            LSP->>Registry: updateAfterSuccessfulUpdate(...)
+            LSP->>Metrics: success, path verification, convergence duration
+            LSP-->>Apply: UpdateLspResult
+            Apply->>LSP: requireDelegatedLsp(directionKey)
+            Apply->>Metrics: ERO and bandwidth confirmed/unconfirmed counters
+            Apply-->>Apply: DirectionalLspApplicationRecord(update result)
+        end
+    end

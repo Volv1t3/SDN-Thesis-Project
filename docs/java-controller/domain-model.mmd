@@ -1,0 +1,86 @@
+classDiagram
+    direction TB
+
+    class AppConfig
+    class PacketReceived
+    class WorkflowContext
+    class PacketClassificationContext
+    class PacketFeatures
+    class FlowDirection
+    class TunnelEndpoint
+    class TunnelDirection
+    class TunnelPairDefinition
+    class ServiceKey
+    class ClassificationResult
+    class TrafficPolicy
+    class PathConstraints
+    class DirectionalPolicyEvidence
+    class PairConsensusBucket
+    class PairConsensusDecision
+    class PairPolicyCandidate
+    class PolicyPreemptionDecision
+    class ActivePairPolicyState
+    class DirectionalLspDesiredState
+    class DirectionalLspApplicationRecord
+    class BgpLsTopologyNode
+    class CalculatedPathKey
+    class CalculatedPathRequest
+    class PathComputationResponse
+    class PathHop
+    class EroSubobject
+    class CalculatedPath
+    class PcepReportedLspSnapshot
+    class DelegatedLspRecord
+    class UpdateLspRequest
+    class UpdateLspResult
+    class OpenflowSwitchRecord
+    class OpenflowConnectorRecord
+    class OpenflowFlowDefinition
+    class OpenflowBootstrapProfile
+    class OpenflowFlowInstallResult
+    class OdlCallOutcome
+    class TopologyRefreshStatus
+
+    AppConfig --> TunnelEndpoint
+    AppConfig --> TunnelDirection
+    AppConfig --> TunnelPairDefinition
+    PacketReceived --> PacketClassificationContext
+    PacketClassificationContext --> PacketFeatures
+    PacketClassificationContext --> FlowDirection
+    WorkflowContext --> DirectionalLspApplicationRecord
+    TunnelPairDefinition --> TunnelDirection
+    TunnelDirection --> TunnelEndpoint
+    PacketFeatures --> ServiceKey
+    PacketFeatures --> ClassificationResult
+    ClassificationResult --> TrafficPolicy
+    TrafficPolicy --> PathConstraints
+    ClassificationResult --> DirectionalPolicyEvidence
+    DirectionalPolicyEvidence --> PacketFeatures
+    DirectionalPolicyEvidence --> ServiceKey
+    DirectionalPolicyEvidence --> PairConsensusBucket
+    PairConsensusBucket --> PairConsensusDecision
+    PairConsensusDecision --> PairPolicyCandidate
+    PairPolicyCandidate --> ServiceKey
+    PairPolicyCandidate --> DirectionalLspDesiredState
+    PairPolicyCandidate --> ActivePairPolicyState
+    PolicyPreemptionDecision --> ActivePairPolicyState
+    ActivePairPolicyState --> DirectionalLspApplicationRecord
+    DirectionalLspDesiredState --> EroSubobject
+    BgpLsTopologyNode --> CalculatedPathRequest
+    CalculatedPathRequest --> PathComputationResponse
+    PathComputationResponse --> PathHop
+    PathComputationResponse --> CalculatedPath
+    CalculatedPath --> CalculatedPathKey
+    CalculatedPath --> EroSubobject
+    CalculatedPath --> DirectionalLspDesiredState
+    PcepReportedLspSnapshot --> DelegatedLspRecord
+    DelegatedLspRecord --> EroSubobject
+    DelegatedLspRecord --> UpdateLspRequest
+    UpdateLspRequest --> EroSubobject
+    UpdateLspRequest --> UpdateLspResult
+    OpenflowSwitchRecord --> OpenflowConnectorRecord
+    OpenflowBootstrapProfile --> OpenflowFlowDefinition
+    OpenflowFlowDefinition --> OpenflowFlowInstallResult
+    OdlCallOutcome --> PathComputationResponse
+    OdlCallOutcome --> UpdateLspResult
+    TopologyRefreshStatus --> BgpLsTopologyNode

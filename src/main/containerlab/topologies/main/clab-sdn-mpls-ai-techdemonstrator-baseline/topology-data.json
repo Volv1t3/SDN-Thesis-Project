@@ -1,0 +1,124 @@
+{
+  "name": "sdn-mpls-ai-techdemonstrator-baseline",
+  "type": "clab",
+  "clab": {
+    "config": {
+      "prefix": "clab",
+      "mgmt": {
+        "network": "sma-mgmt",
+        "bridge": "br-cf24d60cb301",
+        "ipv4-subnet": "172.21.121.0/24",
+        "ipv4-gw": "172.21.121.1",
+        "external-access": true
+      }
+    }
+  },
+  "ssh-pub-keys": [],
+  "nodes": {
+    "sma-odl-controller-india": {
+      "index": "0",
+      "shortname": "sma-odl-controller-india",
+      "longname": "clab-sdn-mpls-ai-techdemonstrator-baseline-sma-odl-controller-india",
+      "fqdn": "sma-odl-controller-india.sdn-mpls-ai-techdemonstrator-baseline.io",
+      "group": "",
+      "labdir": "/home/santiago-arellano/Documents/Projects/SDN-Thesis-Project/src/main/containerlab/topologies/main/clab-sdn-mpls-ai-techdemonstrator-baseline/sma-odl-controller-india",
+      "kind": "linux",
+      "image": "docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-opendaylight:0.23.1-baseline",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "172.21.121.100",
+      "mgmt-ipv4-prefix-length": 24,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-cf24d60cb301",
+        "clab-node-group": "",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/santiago-arellano/Documents/Projects/SDN-Thesis-Project/src/main/containerlab/topologies/main/clab-sdn-mpls-ai-techdemonstrator-baseline/sma-odl-controller-india",
+        "clab-node-longname": "clab-sdn-mpls-ai-techdemonstrator-baseline-sma-odl-controller-india",
+        "clab-node-name": "sma-odl-controller-india",
+        "clab-node-type": "",
+        "clab-owner": "santiago-arellano",
+        "clab-topo-file": "/home/santiago-arellano/Documents/Projects/SDN-Thesis-Project/src/main/containerlab/topologies/main/sdn-mpls-ai-tech-demo-baseline.clab.yaml",
+        "containerlab": "sdn-mpls-ai-techdemonstrator-baseline"
+      },
+      "port-bindings": [
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 6633,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 6640,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 8101,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 8181,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 179,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 4189,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 4335,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 6653,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 8182,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 2830,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 35762,
+          "protocol": "tcp"
+        },
+        {
+          "host-ip": "",
+          "host-port": 0,
+          "port": 4334,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+  "links": [
+  ]
+}
