@@ -1,0 +1,53 @@
+@startuml
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+actor "Controller-Side\nApplication" as CSA
+participant "Uvicorn\nASGI Server" as ASGI
+participant "FastAPI\nApplication" as API
+participant "Validación\nde solicitud" as Validation
+participant "Classifier\nPool" as Pool
+participant "Clasificador" as Classifier
+participant "Policy\nMapper" as Policy
+participant "Instrumentación\nPrometheus" as Metrics
+
+CSA -> ASGI : POST /api/v1/classify
+ASGI -> API : Solicitud HTTP
+
+API -> Validation : Validar estructura y contenido
+
+alt Solicitud inválida
+    Validation --> API : Error de validación
+    API -> Metrics : Registrar error
+    API --> CSA : Respuesta de error
+else Solicitud válida
+
+    Validation --> API : Características validadas
+
+    API -> Pool : Solicitar clasificador disponible
+    Pool --> API : Instancia de clasificador
+
+    API -> Classifier : Ejecutar inferencia
+
+    alt Modo MODEL
+        Classifier -> Classifier : Inferencia con modelo XGBoost
+    else Modo DETERMINISTIC_TEST
+        Classifier -> Classifier : Clasificación basada en reglas
+    end
+
+    Classifier --> API : Clase + confianza
+
+    API -> Pool : Liberar clasificador
+
+    API -> Policy : Resolver política de tráfico
+    Policy --> API : DSCP, MPLS TC,\nancho de banda y prioridades
+
+    API -> Metrics : Registrar inferencia y resultado
+
+    API --> CSA : Clase + confianza + política
+end
+
+@enduml

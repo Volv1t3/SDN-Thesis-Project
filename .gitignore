@@ -1,9 +1,40 @@
-./SDNFlow_Dataset
-./1406.0440.pdf
-/src/res/data
-/src/res/data/processed/figures
-/src/res/models/figures
-/src/main/containerlab/data-folders
-./.agents
-./.codex
-./.vscode
+# IDE and editor metadata
+.idea/
+.vscode/
+*.iml
+
+# Java/Maven build outputs (including generated YANG bindings and Checkstyle files)
+**/target/
+
+# Local agent/tool state and generated repository analysis
+.agents/
+.codex/
+**/graphify-out/
+**/skills/
+
+# Runtime and operating-system artifacts
+**/logs/
+*.log
+.DS_Store
+
+# Local datasets and generated training artifacts
+SDNFlow_Dataset/
+1406.0440.pdf
+/src/res/data/
+/src/res/data/processed/figures/
+/src/res/models/figures/
+/src/main/containerlab/data-folders/
+
+# Local/reference documentation assets; canonical documentation remains versioned.
+/docs/*
+/docs/java-controller/*
+/docs/prompts/*
+/docs/python-api/*
+/docs/.DS_Store
+/docs/science-refs/
+/docs/*.docx
+/docs/*.drawio
+/docs/*.eapx
+/docs/*.ldb
+/docs/graphs/
+/docs/sequence-shortened.png
