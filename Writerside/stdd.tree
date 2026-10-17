@@ -18,5 +18,8 @@
             <toc-element topic="Model-Exploration-and-Training-—-Exploratory-Data-Analysis.md"/>
             <toc-element topic="Model-Exploration-and-Training-—-Model-Training.md"/>
         </toc-element>
+        <toc-element toc-title="OpenDaylight RESTCONF Exploration and Configuration">
+            <toc-element topic="ODL-RESTCONF-—-BGP-LS-Requests.md"/>
+        </toc-element>
     </toc-element>
 </instance-profile>

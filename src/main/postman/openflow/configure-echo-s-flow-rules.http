@@ -1,0 +1,54 @@
+# Request: Configure Echo's Flow Rules
+# Technology: Openflow Management
+# Collection path: Openflow Management / Configure Echo's Flow Rules
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8182/restconf/data/opendaylight-inventory:nodes/node=openflow%3A47147806706251/flow-node-inventory:table=0/flow=sma-arp-core-to-host
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response (recorded by Postman): 201 Created.
+
+###
+PUT http://172.21.121.100:8182/restconf/data/opendaylight-inventory:nodes/node=openflow%3A47147806706251/flow-node-inventory:table=0/flow=sma-arp-core-to-host HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="urn:opendaylight:flow:inventory">
+    <id>sma-arp-core-to-host</id>
+    <table_id>0</table_id>
+    <priority>300</priority>
+    <cookie>1002</cookie>
+    <idle-timeout>0</idle-timeout>
+    <hard-timeout>0</hard-timeout>
+    <flags>SEND_FLOW_REM</flags>
+
+    <match>
+        <in-port>47147806706251:1</in-port>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2054</type>
+            </ethernet-type>
+        </ethernet-match>
+    </match>
+
+    <instructions>
+        <instruction>
+            <order>0</order>
+            <apply-actions>
+                <action>
+                    <order>0</order>
+                    <output-action>
+                        <output-node-connector>2</output-node-connector>
+                        <max-length>0</max-length>
+                    </output-action>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+</flow>

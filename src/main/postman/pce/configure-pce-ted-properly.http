@@ -1,0 +1,30 @@
+# Request: Configure PCE TED Properly
+# Technology: PCE Management
+# Collection path: PCE Management / Configure PCE TED Properly
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8181/rests/data/network-topology:network-topology/topology=pcep-topology/topology-types/network-topology-pcep:topology-pcep
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+PUT http://172.21.121.100:8181/rests/data/network-topology:network-topology/topology=pcep-topology/topology-types/network-topology-pcep:topology-pcep HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<topology-pcep xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+  <session-config>
+    <rpc-timeout>30</rpc-timeout>
+    <listen-address>0.0.0.0</listen-address>
+    <listen-port>4189</listen-port>
+    <dead-timer-value>120</dead-timer-value>
+    <keep-alive-timer-value>30</keep-alive-timer-value>
+  </session-config>
+  <ted-name>ted://sma-bgp-linkstate-topology</ted-name>
+</topology-pcep>

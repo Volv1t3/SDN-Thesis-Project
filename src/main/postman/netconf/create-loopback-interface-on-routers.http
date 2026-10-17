@@ -1,0 +1,26 @@
+# Request: Create Loopback Interface on Routers
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Create Loopback Interface on Routers
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr1-alpha/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations/interface-configuration=act,Loopback99
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+PUT http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr1-alpha/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations/interface-configuration=act,Loopback99 HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<interface-configuration xmlns="http://cisco.com/ns/yang/Cisco-IOS-XR-ifmgr-cfg">
+
+    <active>act</active>
+    <interface-name>Loopback99</interface-name>
+    <description>ODL NETCONF configuration test</description>
+</interface-configuration>

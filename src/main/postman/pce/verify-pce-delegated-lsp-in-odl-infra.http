@@ -1,0 +1,17 @@
+# Request: Verify PCE Delegated LSP in ODL Infra
+# Technology: PCE Management
+# Collection path: PCE Management / Verify PCE Delegated LSP in ODL Infra
+# HTTP version: HTTP/1.1
+# Method: GET
+# Endpoint: http://172.21.121.100:8181/rests/data/network-topology:network-topology/topology=pcep-topology/node=pcc%3A%2F%2F10.100.10.1
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# Request body: none
+# Expected response: not recorded in the source Postman collection.
+
+###
+GET http://172.21.121.100:8181/rests/data/network-topology:network-topology/topology=pcep-topology/node=pcc%3A%2F%2F10.100.10.1 HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml

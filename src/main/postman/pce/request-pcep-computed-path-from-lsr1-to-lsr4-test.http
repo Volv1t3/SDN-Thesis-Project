@@ -1,0 +1,34 @@
+# Request: Request PCEP Computed Path From LSR1 to LSR4 Test
+# Technology: PCE Management
+# Collection path: PCE Management / Request PCEP Computed Path From LSR1 to LSR4 Test
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8181/rests/operations/path-computation:get-constrained-path
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://172.21.121.100:8181/rests/operations/path-computation:get-constrained-path HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Accept: application/xml
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<input xmlns="urn:opendaylight:params:xml:ns:yang:path:computation">
+	<graph-name>ted://sma-bgp-linkstate-topology</graph-name>
+	<source>185273099</source>
+	<destination>235802126</destination>
+	<constraints xmlns="urn:opendaylight:params:xml:ns:yang:path:computation">
+		<address-family>ipv4</address-family>
+        <bandwidth>5000000</bandwidth>
+        <class-type>0</class-type>
+	</constraints>
+	<algorithm>cspf</algorithm>
+</input>

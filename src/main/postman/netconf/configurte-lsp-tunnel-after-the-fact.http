@@ -1,0 +1,70 @@
+# Request: Configurte LSP Tunnel After the fact
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Full Flow for ODL-Enabled Tunnel Creation / Configurte LSP Tunnel After the fact
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8182/restconf/operations/network-topology-pcep:update-lsp
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://172.21.121.100:8182/restconf/operations/network-topology-pcep:update-lsp HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+    <node>pcc://10.100.40.1</node>
+    <name>sma-lsr4-lsr1-delegated</name>
+
+    <arguments>
+        <path-setup-type>
+            <pst>rsvp-te</pst>
+        </path-setup-type>
+
+        <lsp>
+            <plsp-id>411</plsp-id>
+            <lsp-flags>
+                <delegate>true</delegate>
+                <administrative>true</administrative>
+            </lsp-flags>
+        </lsp>
+
+        <bandwidth>
+            <processing-rule>false</processing-rule>
+            <bandwidth>RhxAAA==</bandwidth>
+            <ignore>false</ignore>
+        </bandwidth>
+
+        <ero>
+            <processing-rule>false</processing-rule>
+            <subobject>
+                <loose>false</loose>
+                <ip-prefix>
+                    <ip-prefix>10.0.22.1/32</ip-prefix>
+                </ip-prefix>
+            </subobject>
+            <subobject>
+                <loose>false</loose>
+                <ip-prefix>
+                    <ip-prefix>10.0.12.1/32</ip-prefix>
+                </ip-prefix>
+            </subobject>
+            <subobject>
+                <loose>false</loose>
+                <ip-prefix>
+                    <ip-prefix>11.11.11.11/32</ip-prefix>
+                </ip-prefix>
+            </subobject>
+            <ignore>false</ignore>
+        </ero>
+    </arguments>
+
+    <network-topology-ref xmlns:nt="urn:TBD:params:xml:ns:yang:network-topology">/nt:network-topology/nt:topology[nt:topology-id="pcep-topology"]</network-topology-ref>
+</input>

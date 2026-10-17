@@ -1,0 +1,25 @@
+# Request: Pull NETCONF YANG Schemas For Module
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Pull NETCONF YANG Schemas For Module
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8182/restconf/operations/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr1-alpha/yang-ext:mount/ietf-netconf-monitoring:get-schema
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response (recorded by Postman): 200 OK.
+
+###
+POST http://172.21.121.100:8182/restconf/operations/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr1-alpha/yang-ext:mount/ietf-netconf-monitoring:get-schema HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<input xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring">
+    <identifier>Cisco-IOS-XR-ipv4-ma-oper</identifier>
+    <version>2018-08-01</version>
+    <format>yang</format>
+</input>

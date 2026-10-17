@@ -1,0 +1,29 @@
+# Request: Add LSR3 as BPG-LS Peer
+# Technology: Initialize BGP-LS
+# Collection path: Initialize BGP-LS / Add LSR3 as BPG-LS Peer
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8182/restconf/data/openconfig-network-instance:network-instances/network-instance=global-bgp/openconfig-network-instance:protocols/protocol=openconfig-policy-types:BGP,sma-bgp-ls/bgp-openconfig-extensions:bgp/neighbors
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://172.21.121.100:8182/restconf/data/openconfig-network-instance:network-instances/network-instance=global-bgp/openconfig-network-instance:protocols/protocol=openconfig-policy-types:BGP,sma-bgp-ls/bgp-openconfig-extensions:bgp/neighbors HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<neighbor xmlns="urn:opendaylight:params:xml:ns:yang:bgp:openconfig-extensions">
+    <neighbor-address>10.100.30.1</neighbor-address>
+
+    <afi-safis>
+        <afi-safi>
+            <afi-safi-name>LINKSTATE</afi-safi-name>
+        </afi-safi>
+    </afi-safis>
+</neighbor>

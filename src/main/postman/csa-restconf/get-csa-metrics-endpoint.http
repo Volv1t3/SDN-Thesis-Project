@@ -1,0 +1,15 @@
+# Request: Get CSA Metrics Endpoint
+# Technology: CSA RESTCONF
+# Collection path: CSA RESTCONF / Get CSA Metrics Endpoint
+# HTTP version: HTTP/1.1
+# Method: GET
+# Endpoint: http://172.21.121.100:8181/csa/metrics
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers: none declared in the collection
+# Request body: none
+# Expected response: not recorded in the source Postman collection.
+
+###
+GET http://172.21.121.100:8181/csa/metrics HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}

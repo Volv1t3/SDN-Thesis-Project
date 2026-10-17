@@ -1,0 +1,18 @@
+# Request: Get Directional Policy Entry of the CSA
+# Technology: CSA RESTCONF
+# Collection path: CSA RESTCONF / Get Directional Policy Entry of the CSA
+# HTTP version: HTTP/1.1
+# Method: GET
+# Endpoint: http://172.21.121.100:8182/restconf/data/csa:controller-state?fields=active-pair-policy-entry
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters:
+# - fields: active-pair-policy-entry
+# Headers:
+# - Accept: application/xml
+# Request body: none
+# Expected response: not recorded in the source Postman collection.
+
+###
+GET http://172.21.121.100:8182/restconf/data/csa:controller-state?fields=active-pair-policy-entry HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml

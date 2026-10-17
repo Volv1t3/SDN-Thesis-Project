@@ -1,0 +1,24 @@
+# Request: Rejected non-IPv4 EtherType
+# Technology: Python ML API Examples
+# Collection path: Python ML API Examples / Rejected non-IPv4 EtherType
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://127.0.0.1:8000/api/v1/classify
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers: none declared in the collection
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://127.0.0.1:8000/api/v1/classify HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+
+{
+    "packet_features": {
+      "eth_type": 34525,
+      "ip_proto": 6,
+      "src_port": 49152,
+      "dst_port": 443
+    }
+  }

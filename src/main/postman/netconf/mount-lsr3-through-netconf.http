@@ -1,0 +1,42 @@
+# Request: Mount LSR3 Through NETCONF
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Mount LSR3 Through NETCONF
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr3-charlie
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Content-Type: application/xml
+# - Accept: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+PUT http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr3-charlie HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Content-Type: application/xml
+Accept: application/xml
+
+<node xmlns="urn:TBD:params:xml:ns:yang:network-topology">
+    <node-id>sma-xrv-lsr3-charlie</node-id>
+
+    <netconf-node xmlns="urn:opendaylight:netconf-node-topology">
+        <host>172.21.121.13</host>
+        <port>830</port>
+
+        <login-password-unencrypted>
+            <username>{{xrv_netconf_user}}</username>
+            <password>{{xrv_netconf_pwd}}</password>
+        </login-password-unencrypted>
+
+        <tcp-only>false</tcp-only>
+        <reconnect-on-changed-schema>false</reconnect-on-changed-schema>
+        <connection-timeout-millis>20000</connection-timeout-millis>
+        <max-connection-attempts>0</max-connection-attempts>
+        <min-backoff-millis>2000</min-backoff-millis>
+        <max-backoff-millis>1800000</max-backoff-millis>
+        <backoff-multiplier>1.5</backoff-multiplier>
+        <keepalive-delay>30</keepalive-delay>
+    </netconf-node>
+</node>

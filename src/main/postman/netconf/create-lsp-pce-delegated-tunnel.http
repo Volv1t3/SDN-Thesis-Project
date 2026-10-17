@@ -1,0 +1,81 @@
+# Request: Create LSP PCE Delegated Tunnel
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Full Flow for ODL-Enabled Tunnel Creation / Create LSP PCE Delegated Tunnel
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8181/rests/operations/network-topology-pcep:add-lsp
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response (recorded by Postman): 200 OK.
+
+###
+POST http://172.21.121.100:8181/rests/operations/network-topology-pcep:add-lsp HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+    <node>pcc://10.100.10.1</node>
+    <name>sma-test-lsr1-lsr4-ident-001</name>
+
+    <arguments>
+        <path-setup-type>
+            <pst>rsvp-te</pst>
+        </path-setup-type>
+
+        <lsp>
+            <lsp-flags>
+                <delegate>true</delegate>
+                <administrative>true</administrative>
+            </lsp-flags>
+            <tlvs>
+                <lsp-identifiers>
+                    <lsp-id>1</lsp-id>
+                    <tunnel-id>302</tunnel-id>
+                    <ipv4>
+                        <ipv4-tunnel-sender-address>11.11.11.11</ipv4-tunnel-sender-address>
+                        <ipv4-extended-tunnel-id>11.11.11.11</ipv4-extended-tunnel-id>
+                        <ipv4-tunnel-endpoint-address>14.14.14.14</ipv4-tunnel-endpoint-address>
+                    </ipv4>
+                </lsp-identifiers>
+            </tlvs>
+        </lsp>
+
+        <endpoints-obj>
+            <processing-rule>true</processing-rule>
+            <ignore>false</ignore>
+            <ipv4>
+                <source-ipv4-address>11.11.11.11</source-ipv4-address>
+                <destination-ipv4-address>14.14.14.14</destination-ipv4-address>
+            </ipv4>
+        </endpoints-obj>
+
+        <ero>
+            <subobject>
+                <loose>false</loose>
+                <ip-prefix>
+                    <ip-prefix>10.0.12.2/32</ip-prefix>
+                </ip-prefix>
+            </subobject>
+            <subobject>
+                <loose>false</loose>
+                <ip-prefix>
+                    <ip-prefix>10.0.22.2/32</ip-prefix>
+                </ip-prefix>
+            </subobject>
+            <subobject>
+                <loose>false</loose>
+                <ip-prefix>
+                    <ip-prefix>14.14.14.14/32</ip-prefix>
+                </ip-prefix>
+            </subobject>
+        </ero>
+    </arguments>
+
+    <network-topology-ref xmlns:nt="urn:TBD:params:xml:ns:yang:network-topology">/nt:network-topology/nt:topology[nt:topology-id="pcep-topology"]</network-topology-ref>
+</input>
