@@ -9,10 +9,16 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code TrafficPolicy} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Represents the traffic policy carried by a classifier result. The workflow converts its
+ * markings and path constraints into directional policy evidence for pair-policy coordination;
+ * the fallback fields identify a policy selected as a classifier fallback.</p>
+ *
+ * @param profileName name of the traffic profile
+ * @param dscp differentiated services code point associated with the policy
+ * @param mplsTc MPLS traffic-class value associated with the policy
+ * @param pathConstraints bandwidth and priority constraints for path and LSP decisions
+ * @param policyFallback whether the classifier returned a fallback policy
+ * @param policyFallbackReason classifier-provided reason for a fallback, when applicable
  */
 public record TrafficPolicy(
         String profileName,

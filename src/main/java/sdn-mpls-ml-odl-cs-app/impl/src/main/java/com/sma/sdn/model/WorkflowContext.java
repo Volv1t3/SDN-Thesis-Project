@@ -11,8 +11,25 @@ package com.sma.sdn.model;
 import java.util.UUID;
 import org.slf4j.MDC;
 
-/** Correlacion estable del flujo PacketIn que solicita una operacion de tunel. */
+/**
+ * <p>Carries correlation identifiers for a packet workflow and its tunnel operations. The current factory reads logging context values so downstream records can retain the workflow and packet sequence.</p>
+ *
+ * @param workflowId workflow correlation identifier
+ * @param packetSequence packet notification sequence
+ */
 public record WorkflowContext(String workflowId, long packetSequence) {
+    /**
+     * <p>Build a workflow context from logging context values.</p>
+     *
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Read workflow and packet sequence values from MDC.</li>
+     *   <li>Use a generated workflow ID for a missing or blank ID and zero for a missing sequence.</li>
+     *   <li>If the sequence cannot be parsed, use zero and generate an ID only when the original ID was null.</li>
+     * </ol>
+     *
+     * @return workflow context carrying the resolved identifiers
+     */
     public static WorkflowContext current() {
         final String workflowId = MDC.get("workflow_id");
         final String sequence = MDC.get("packet_sequence");

@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -16,33 +19,48 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * Registra de forma estructurada los intercambios XML realizados contra las APIs RESTCONF y RESTS de OpenDaylight.
+ * <p>Produces structured transport evidence for XML exchanges with OpenDaylight RESTCONF and RESTS APIs. Request and
+ * response metadata include method, endpoint, negotiation headers, body sizes, status, and duration.</p>
  *
- * <p>Esta clase concentra la evidencia de transporte necesaria para comparar la solicitud XML enviada con la
- * respuesta XML recibida. DEBUG conserva el cuerpo XML para diagnostico e INFO solo conserva un resumen de
- * transporte para la traza operativa. Solo registra los encabezados de negociacion; nunca expone Authorization.</p>
+ * <p>The configured {@link OdlXmlBodyLogLevel} controls whether complete XML bodies are emitted at debug or trace
+ * level; an information-level summary is always emitted. Only the {@code Accept} and {@code Content-Type} headers are
+ * read, so the Basic Authorization value is not exposed through this utility.</p>
  */
 final class OdlXmlExchangeLogger {
+    /**
+     * <p>Prevents instantiation because exchange logging is provided exclusively through static helpers.</p>
+     *
+     * <p>Construction performs these steps:</p>
+     * <ol>
+     *   <li>Receives no state because callers supply their logger and exchange metadata to each method.</li>
+     *   <li>Completes privately so no utility instance can be created.</li>
+     * </ol>
+     */
     private OdlXmlExchangeLogger() {
         // Clase utilitaria sin estado.
     }
 
     /**
-     * Registra el inicio de una solicitud XML dirigida a OpenDaylight.
+     * <p>Records the start of an XML request to OpenDaylight, separating body-bearing diagnostic metadata from the
+     * body-free operational summary.</p>
      *
-     * <p>Pasos:
+     * <p>The logging operation performs these steps:</p>
      * <ol>
-     *   <li>Obtiene los encabezados Accept y Content-Type declarados en la solicitud.</li>
-     *   <li>Incluye el cuerpo XML completo o indica explicitamente que la solicitud no posee cuerpo.</li>
-     *   <li>Emite el cuerpo XML solo en DEBUG y un resumen de transporte en INFO.</li>
+     *   <li>Builds detailed metadata from method, URI, negotiation headers, body presence, UTF-8 size, and body text.</li>
+     *   <li>Builds a summary containing the same transport facts but excluding the body text.</li>
+     *   <li>Delegates both maps to {@link #logDebugAndInfo(StructuredLogger, String, String, String, Map, Map,
+     *       OdlXmlBodyLogLevel)} so body logging follows the configured level.</li>
      * </ol>
      *
-     * @param logger logger estructurado propietario del cliente HTTP
-     * @param transport tipo de API ODL, RESTCONF o RESTS
-     * @param event identificador estable del evento
-     * @param operation operacion que realiza la solicitud
-     * @param request solicitud HTTP preparada
-     * @param requestBody cuerpo XML enviado o {@code null} cuando no existe
+     * <p>{@link OdlRestconfDataClient} and {@link OdlOperationsClient} invoke this immediately before synchronous send.</p>
+     *
+     * @param logger structured logger owned by the calling transport client
+     * @param transport OpenDaylight API label, such as {@code RESTCONF} or {@code RESTS}
+     * @param event stable event identifier for the request-start record
+     * @param operation calling operation name
+     * @param request prepared HTTP request
+     * @param requestBody XML payload, or {@code null} for a request without a body
+     * @param bodyLogLevel configured level at which complete XML bodies may be emitted
      */
     static void requestStarted(
             final StructuredLogger logger,
@@ -74,22 +92,27 @@ final class OdlXmlExchangeLogger {
     }
 
     /**
-     * Registra la respuesta XML producida por OpenDaylight para una solicitud previa.
+     * <p>Records an XML response from OpenDaylight together with the originating request and measured duration.</p>
      *
-     * <p>Pasos:
+     * <p>The logging operation performs these steps:</p>
      * <ol>
-     *   <li>Lee el codigo HTTP y el encabezado Content-Type de la respuesta.</li>
-     *   <li>Incluye el cuerpo XML completo y su tamano en bytes solo en DEBUG.</li>
-     *   <li>Emite en INFO el estado, la duracion y el tamano de la respuesta.</li>
+     *   <li>Reads the response body, status, response content type, and request negotiation headers.</li>
+     *   <li>Builds detailed metadata containing the response body and its UTF-8 size.</li>
+     *   <li>Builds body-free summary metadata containing status, response size, and duration.</li>
+     *   <li>Emits both representations according to the configured body logging level.</li>
      * </ol>
      *
-     * @param logger logger estructurado propietario del cliente HTTP
-     * @param transport tipo de API ODL, RESTCONF o RESTS
-     * @param event identificador estable del evento
-     * @param operation operacion que recibe la respuesta
-     * @param request solicitud HTTP que origino la respuesta
-     * @param response respuesta HTTP recibida
-     * @param durationMillis duracion total de la solicitud en milisegundos
+     * <p>Transport clients call this only after
+     * {@link java.net.http.HttpClient#send(HttpRequest, HttpResponse.BodyHandler)} returns.</p>
+     *
+     * @param logger structured logger owned by the calling transport client
+     * @param transport OpenDaylight API label, such as {@code RESTCONF} or {@code RESTS}
+     * @param event stable event identifier for the response record
+     * @param operation calling operation name
+     * @param request HTTP request that produced the response
+     * @param response received response with a string body
+     * @param durationMillis total monotonic exchange duration in milliseconds
+     * @param bodyLogLevel configured level at which complete XML bodies may be emitted
      */
     static void responseReceived(
             final StructuredLogger logger,
@@ -127,22 +150,27 @@ final class OdlXmlExchangeLogger {
     }
 
     /**
-     * Emite una entrada detallada en DEBUG y su resumen seguro en INFO.
+     * <p>Emits optional body-bearing metadata at the configured diagnostic level and always emits a body-free
+     * information summary.</p>
      *
-     * <p>Pasos:
+     * <p>The emission performs these steps:</p>
      * <ol>
-     *   <li>Conserva el identificador de evento, la operacion y el mensaje recibidos.</li>
-     *   <li>Emite la metadata detallada, incluido el cuerpo XML, en DEBUG.</li>
-     *   <li>Emite la metadata resumida en INFO.</li>
+     *   <li>Emits {@code debugMetadata} through {@link StructuredLogger#debug(String, String, String, Map)} when the
+     *       configured level is {@link OdlXmlBodyLogLevel#DEBUG}.</li>
+     *   <li>Emits the same detailed map at trace level when the configured level is
+     *       {@link OdlXmlBodyLogLevel#TRACE}.</li>
+     *   <li>Emits {@code infoMetadata} at information level regardless of the body logging setting.</li>
      * </ol>
      *
-     * @param logger logger estructurado que recibe los eventos
-     * @param event identificador estable del evento
-     * @param operation operacion asociada
-     * @param message descripcion formal del evento
-     * @param debugMetadata metadata detallada del intercambio
-     * @param infoMetadata metadata resumida del intercambio
-     * @param bodyLogLevel nivel configurado para cuerpos XML
+     * <p>This separation preserves routine transport observability without forcing XML bodies into information logs.</p>
+     *
+     * @param logger structured logger receiving the records
+     * @param event stable event identifier
+     * @param operation associated operation name
+     * @param message human-readable event description
+     * @param debugMetadata detailed exchange metadata including a body
+     * @param infoMetadata summarized exchange metadata without a body
+     * @param bodyLogLevel configured XML body logging level
      */
     private static void logDebugAndInfo(
             final StructuredLogger logger,
@@ -152,44 +180,53 @@ final class OdlXmlExchangeLogger {
             final Map<String, Object> debugMetadata,
             final Map<String, Object> infoMetadata,
             final OdlXmlBodyLogLevel bodyLogLevel) {
+        /*This prints out the XML body if the debug metadata i.e the required debug level is defined for XML bodies. In this case
+        * by default this is set to DEBUG such that the XML body will always be logged alongside the request information
+        * (except credentials), for debugging and tracing purposes.*/
         if (bodyLogLevel == OdlXmlBodyLogLevel.DEBUG) {
             logger.debug(event, operation, message, debugMetadata);
         } else if (bodyLogLevel == OdlXmlBodyLogLevel.TRACE) {
             logger.trace(event, operation, message, debugMetadata);
         }
+        /*The information metadata about the request and its duration is always outputted*/
         logger.info(event, operation, message, infoMetadata);
     }
 
     /**
-     * Obtiene un encabezado no sensible de una solicitud HTTP.
+     * <p>Reads one explicitly requested, non-sensitive HTTP request header for structured metadata.</p>
      *
-     * <p>Pasos:
+     * <p>The lookup performs these steps:</p>
      * <ol>
-     *   <li>Busca el encabezado solicitado sin exponer otros encabezados.</li>
-     *   <li>Convierte la ausencia del valor en {@code null}.</li>
-     *   <li>Devuelve el valor para incluirlo en metadata estructurada.</li>
+     *   <li>Searches the request headers for the supplied name.</li>
+     *   <li>Converts an absent optional value to {@code null}.</li>
+     *   <li>Returns the value for inclusion in the caller's structured metadata.</li>
      * </ol>
      *
-     * @param request solicitud que contiene los encabezados
-     * @param name nombre del encabezado permitido
-     * @return valor del encabezado o {@code null} cuando esta ausente
+     * <p>Callers pass only negotiation header names and never request the Authorization header.</p>
+     *
+     * @param request request containing the headers
+     * @param name header name to read
+     * @return first header value, or {@code null} when absent
+     * @throws NullPointerException if {@code request} or {@code name} is {@code null}
      */
     private static String header(final HttpRequest request, final String name) {
         return request.headers().firstValue(name).orElse(null);
     }
 
     /**
-     * Calcula el tamano UTF-8 de un cuerpo textual sin fallar cuando esta ausente.
+     * <p>Calculates the UTF-8 byte length of an optional textual body.</p>
      *
-     * <p>Pasos:
+     * <p>The calculation performs these steps:</p>
      * <ol>
-     *   <li>Devuelve cero cuando el cuerpo no existe.</li>
-     *   <li>Codifica el cuerpo existente mediante UTF-8.</li>
-     *   <li>Devuelve el numero de bytes codificados.</li>
+     *   <li>Returns zero when the body is {@code null}.</li>
+     *   <li>Encodes a present body using UTF-8.</li>
+     *   <li>Returns the number of encoded bytes.</li>
      * </ol>
      *
-     * @param body cuerpo textual opcional
-     * @return tamano UTF-8 del cuerpo o cero
+     * <p>Request and response log records use this value rather than the Java character count.</p>
+     *
+     * @param body optional textual body
+     * @return UTF-8 byte length, or zero for {@code null}
      */
     private static int byteLength(final String body) {
         return body == null ? 0 : body.getBytes(StandardCharsets.UTF_8).length;

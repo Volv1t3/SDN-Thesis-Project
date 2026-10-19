@@ -11,7 +11,18 @@ package com.sma.sdn.model;
 import java.time.Instant;
 import java.util.Optional;
 
-/** Result of evaluating a consensus bucket, including non-actionable states. */
+/**
+ * <p>Captures the outcome of evaluating directional evidence, including a possible policy candidate and a conflict-resolution reason. The pair-policy coordinator consumes this decision before considering preemption.</p>
+ *
+ * @param pairKey managed tunnel-pair identifier
+ * @param serviceKey normalized identity of the traffic service
+ * @param consensusStatus consensus outcome
+ * @param selectedCandidate optional candidate selected by consensus
+ * @param leftEvidence optional evidence from the pair's left side
+ * @param rightEvidence optional evidence from the pair's right side
+ * @param conflictResolutionReason explanation of the consensus result
+ * @param decidedAt decision time
+ */
 public record PairConsensusDecision(
         String pairKey,
         ServiceKey serviceKey,
@@ -21,6 +32,23 @@ public record PairConsensusDecision(
         Optional<DirectionalPolicyEvidence> rightEvidence,
         String conflictResolutionReason,
         Instant decidedAt) {
+    /**
+     * <p>Replace null candidate and directional evidence optionals with empty optionals.</p>
+     *
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Replace null candidate and directional evidence optionals with empty optionals.</li>
+     * </ol>
+     *
+     * @param pairKey managed tunnel-pair identifier
+     * @param serviceKey normalized identity of the traffic service
+     * @param consensusStatus consensus outcome
+     * @param selectedCandidate optional candidate selected by consensus
+     * @param leftEvidence optional evidence from the pair's left side
+     * @param rightEvidence optional evidence from the pair's right side
+     * @param conflictResolutionReason explanation of the consensus result
+     * @param decidedAt decision time
+     */
     public PairConsensusDecision {
         selectedCandidate = selectedCandidate == null ? Optional.empty() : selectedCandidate;
         leftEvidence = leftEvidence == null ? Optional.empty() : leftEvidence;

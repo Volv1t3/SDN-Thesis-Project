@@ -9,10 +9,13 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code PathConstraints} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Groups requested bandwidth and RSVP-TE setup and hold priorities. Classification policies
+ * carry these values, and path computation and delegated LSP application use them to construct
+ * their respective requests.</p>
+ *
+ * @param requestedBandwidthKbps requested bandwidth in kilobits per second
+ * @param setupPriority setup priority used for path and LSP requests
+ * @param holdPriority holding priority used for path and LSP requests
  */
 public record PathConstraints(long requestedBandwidthKbps, int setupPriority, int holdPriority) {
 }

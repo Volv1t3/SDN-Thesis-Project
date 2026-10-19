@@ -9,15 +9,19 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code BgpLsTopologyNode} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Represents a discovered BGP-LS node and its router and graph identifiers. Topology discovery and refresh populate the BGP-LS registry with these nodes for path computation.</p>
+ *
+ * @param topologyId source topology identifier
+ * @param nodeId node identifier
+ * @param routerId router identifier
+ * @param teRouterIdIpv4 traffic-engineering IPv4 router identifier
+ * @param graphNodeId graph node identifier
  */
 public record BgpLsTopologyNode(
-        String topologyId,
-        String nodeId,
-        String routerId,
-        String teRouterIdIpv4,
-        long graphNodeId) {
+        String topologyId, /*ID of the topology where this came from, the same for this implementation*/
+        String nodeId, /*The concrete concatenation of all identifiers for a node as returned by ODL*/
+        String routerId, /*The router ID as reported through BGPLS to create the topology based on the device's IGP configuration*/
+        String teRouterIdIpv4, /* The configured TE router ID associted with the MPLS TE configuration done at the
+        router, effectively determining the ID that will be used for the advertisements of its TED*/
+        long graphNodeId /*The graph vertex ID coming from the node ID useful for path calculations*/) {
 }

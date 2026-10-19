@@ -8,8 +8,12 @@
 
 package com.sma.sdn.model;
 
-/** Safe default defers equal-priority policy conflicts; class order is test-only. */
+/**
+ * <p>Selects how the consensus service handles different policies with equal priority.</p>
+ */
 public enum PairConsensusEqualPriorityAction {
+    /** <p>Keep an applicable current policy or defer an unresolved decision.</p> */
     KEEP_CURRENT_OR_DEFER,
+    /** <p>Use class-name ordering as a deterministic tie break.</p> */
     CLASS_ORDER
 }

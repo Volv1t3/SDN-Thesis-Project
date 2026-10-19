@@ -9,14 +9,15 @@
 package com.sma.sdn.model;
 
 /**
- * Define la enumeracion {@code OdlCallOutcomeType} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Classifies the outcome of an OpenDaylight operation for its caller.</p>
  */
 public enum OdlCallOutcomeType {
+    /** <p>The operation has a confirmed successful outcome.</p> */
     CONFIRMED_SUCCESS,
+    /** <p>The operation indicates success without full confirmation.</p> */
     PROVISIONAL_SUCCESS,
+    /** <p>The response cannot establish a definitive outcome.</p> */
     AMBIGUOUS,
+    /** <p>The operation failed in a way classified as non-recoverable.</p> */
     HARD_FAILURE
 }

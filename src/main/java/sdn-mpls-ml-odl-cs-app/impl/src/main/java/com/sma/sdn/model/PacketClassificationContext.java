@@ -11,10 +11,17 @@ package com.sma.sdn.model;
 import java.time.Instant;
 
 /**
- * Define el registro {@code PacketClassificationContext} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Combines extracted packet features with ingress identity, flow direction, and receipt time.
+ * The packet workflow passes this context to classification; the registrar uses its ingress and
+ * feature fields to construct exact and service-class cache keys.</p>
+ *
+ * @param ingressOpenflowNodeId OpenFlow node identifier of the ingress switch
+ * @param ingressConnectorId OpenFlow identifier of the ingress connector
+ * @param ingressSwitchName configured logical name of the ingress switch
+ * @param ingressConnectorName configured or resolved ingress connector name
+ * @param packetFeatures classifier input features extracted from the packet
+ * @param direction flow direction resolved for the packet
+ * @param receivedAt time the packet context was recorded
  */
 public record PacketClassificationContext(
         String ingressOpenflowNodeId,

@@ -18,13 +18,31 @@ import com.sma.sdn.model.PairConsensusEqualPriorityAction;
 import java.time.Instant;
 import java.util.Optional;
 
-/** Selects an actionable pair candidate only after both directional observations agree or resolve safely. */
+/**
+ * <p>Evaluates directional classification evidence and selects a pair policy
+ * candidate when agreement or a configured conflict rule permits it.</p>
+ * <p>{@link PairPolicyCoordinator} supplies the evidence bucket and active state;
+ * {@link ServiceKeyResolver} provides service-class preferences during conflicts.</p>
+ */
 public final class PairPolicyConsensusService {
+    /** <p>Whether both directional observations are required.</p> */
     private final boolean requireBothDirections;
+    /** <p>Whether a single observation can produce a provisional candidate.</p> */
     private final boolean provisionalSingleSideEnabled;
+    /** <p>Tie-breaking action for conflicting policies of equal priority.</p> */
     private final PairConsensusEqualPriorityAction equalPriorityAction;
+    /** <p>Resolver of expected classes for well-known service ports.</p> */
     private final ServiceKeyResolver serviceKeyResolver;
 
+    /**
+     * <p>Creates a consensus evaluator with the supplied selection rules.</p>
+     * <p>Construction proceeds as follows:</p>
+     * <ol><li>Retain the direction, provisional, tie-breaking and service resolver settings.</li></ol>
+     * @param requireBothDirections whether missing opposite evidence blocks selection
+     * @param provisionalSingleSideEnabled whether single-side selection is allowed when both are not required
+     * @param equalPriorityAction configured action for unresolved priority ties
+     * @param serviceKeyResolver lookup of expected classes for service keys
+     */
     public PairPolicyConsensusService(final boolean requireBothDirections, final boolean provisionalSingleSideEnabled,
             final PairConsensusEqualPriorityAction equalPriorityAction, final ServiceKeyResolver serviceKeyResolver) {
         this.requireBothDirections = requireBothDirections;
@@ -33,6 +51,25 @@ public final class PairPolicyConsensusService {
         this.serviceKeyResolver = serviceKeyResolver;
     }
 
+    /**
+     * <p>Selects a candidate or returns a non-actionable decision for the current evidence.</p>
+     * <p>The evaluation proceeds as follows:</p>
+     * <ol>
+     *   <li>With a missing side, select a provisional observation only when configured;
+     *       otherwise report pending evidence.</li>
+     *   <li>When hashes match, select the left observation; on conflict, prefer an
+     *       observation matching the expected service class, checking left first.</li>
+     *   <li>Otherwise compare setup and hold priority, preferring lower numbers.</li>
+     *   <li>On a tie preserve a matching active policy, use configured class ordering,
+     *       or return an unresolved conflict without a candidate.</li>
+     * </ol>
+     * <p>The coordinator decides whether and where to apply a selected candidate.</p>
+     * @param bucket pair, service key, and optional directional evidence
+     * @param currentActivePolicy active policy, if any, used to resolve ties
+     * @param now decision and candidate timestamp
+     * @return consensus status, candidate when selected, evidence and reason
+     * @throws java.util.NoSuchElementException if provisional selection is enabled but both sides are empty
+     */
     public PairConsensusDecision evaluate(final PairConsensusBucket bucket,
             final Optional<ActivePairPolicyState> currentActivePolicy, final Instant now) {
         final Optional<DirectionalPolicyEvidence> left = bucket.leftEvidence();
@@ -90,11 +127,28 @@ public final class PairPolicyConsensusService {
                 left, right, "different policies have equal setup and hold priorities", now);
     }
 
+    /**
+     * <p>Orders evidence by setup priority and then hold priority.</p>
+     * <p>The comparison proceeds as follows:</p>
+     * <ol><li>Compare setup values; compare hold values only when setup values match.</li></ol>
+     * @param left first observation
+     * @param right second observation
+     * @return negative, zero, or positive according to the priority ordering
+     */
     private static int comparePriority(final DirectionalPolicyEvidence left, final DirectionalPolicyEvidence right) {
         final int setup = Integer.compare(left.setupPriority(), right.setupPriority());
         return setup != 0 ? setup : Integer.compare(left.holdPriority(), right.holdPriority());
     }
 
+    /**
+     * <p>Copies selected directional evidence into a pair policy candidate.</p>
+     * <p>Construction proceeds as follows:</p>
+     * <ol><li>Copy the evidence identity and policy fields and attach the consensus status and time.</li></ol>
+     * @param evidence selected observation
+     * @param status selection status
+     * @param now candidate timestamp
+     * @return candidate representing the selected evidence
+     */
     private static PairPolicyCandidate candidate(final DirectionalPolicyEvidence evidence,
             final PairConsensusStatus status, final Instant now) {
         return new PairPolicyCandidate(evidence.pairKey(), evidence.serviceKey(), evidence.directionKey(),
@@ -103,6 +157,19 @@ public final class PairPolicyConsensusService {
                 evidence.holdPriority(), evidence.policySchemaVersion(), evidence.policyHash(), status, now);
     }
 
+    /**
+     * <p>Packages a consensus result together with the evaluated evidence.</p>
+     * <p>Construction proceeds as follows:</p>
+     * <ol><li>Copy pair and service identity from the bucket and attach the supplied outcome.</li></ol>
+     * @param bucket evaluated pair and service
+     * @param status outcome of consensus
+     * @param candidate selected policy, if any
+     * @param left left-direction evidence, if present
+     * @param right right-direction evidence, if present
+     * @param reason explanation of the outcome
+     * @param now decision timestamp
+     * @return consensus decision for the coordinator
+     */
     private static PairConsensusDecision decision(final PairConsensusBucket bucket, final PairConsensusStatus status,
             final Optional<PairPolicyCandidate> candidate, final Optional<DirectionalPolicyEvidence> left,
             final Optional<DirectionalPolicyEvidence> right, final String reason, final Instant now) {

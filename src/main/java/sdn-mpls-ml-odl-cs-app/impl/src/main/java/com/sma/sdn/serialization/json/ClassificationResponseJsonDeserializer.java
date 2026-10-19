@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -22,32 +25,47 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Define la clase {@code ClassificationResponseJsonDeserializer} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Converts a successful classifier JSON body into classification, traffic-policy, and path-constraint
+ * domain records. It requires non-null {@code prediction}, {@code policy}, and nested {@code path_constraints}
+ * nodes, validates selected required scalar fields, and applies defaults to optional fields. Presence checks do not
+ * independently assert that these nodes are objects or enforce semantic ranges on policy values.</p>
+ *
+ * <p>{@link com.sma.sdn.classification.ClassificationService} calls this converter after accepting a 2xx classifier
+ * response. The converter timestamps the result at deserialization time and derives its expiry from the configured
+ * time-to-live so {@link com.sma.sdn.registry.ClassificationRegistrar} can later evict the cached result.</p>
  */
 public final class ClassificationResponseJsonDeserializer {
+    /**
+     * <p>Logs validated response identity, classification values, payload size, and the assigned expiry.</p>
+     */
     private static final StructuredLogger LOG =
             StructuredLogger.getLogger(ClassificationResponseJsonDeserializer.class);
+
+    /**
+     * <p>Parses response JSON into Jackson nodes.</p>
+     */
     private final ObjectMapper mapper;
+
+    /**
+     * <p>Defines how far the locally assigned cache expiry is offset from deserialization time.</p>
+     */
     private final Duration ttl;
 
     /**
-     * Ejecuta la operacion {@code ClassificationResponseJsonDeserializer} dentro del componente correspondiente.
+     * <p>Creates a response converter with the provider's Jackson mapper and configured classification-cache lifetime.
+     * Both references are retained without null checks or validation of the duration.</p>
      *
-     * <p>Pasos:
+     * <p>The constructor performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Retains the supplied {@link ObjectMapper} for response parsing.</li>
+     *   <li>Retains the {@link Duration} added to each result's local cache timestamp.</li>
      * </ol>
      *
-     * @param mapper valor requerido para ejecutar esta operacion
+     * <p>The production provider obtains the lifetime from
+     * {@link com.sma.sdn.config.AppConfig#classificationCacheTtl()}.</p>
      *
-     * @param ttl valor requerido para ejecutar esta operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param mapper Jackson mapper used to parse classifier response bodies
+     * @param ttl duration added to deserialization time to assign the cache expiry
      */
     public ClassificationResponseJsonDeserializer(final ObjectMapper mapper, final Duration ttl) {
         this.mapper = mapper;
@@ -55,20 +73,39 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Convierte una respuesta serializada en el modelo de dominio correspondiente.
+     * <p>Parses and validates a classifier response, then returns a cache-ready {@link ClassificationResult}. Required
+     * fields are {@code prediction.class_name}, {@code prediction.confidence}, and
+     * {@code policy.path_constraints.requested_bandwidth_kbps}; absent optional values receive the defaults encoded by
+     * this method. Numeric bandwidth is converted with Jackson's {@code asLong()}, not validated as an integral or
+     * non-negative value; confidence and probabilities are not checked for a particular range or total.</p>
      *
-     * <p>Pasos:
+     * <p>Missing or JSON-null request and model names, profile name, and fallback reason default to empty strings;
+     * class ID defaults to {@code -1}, DSCP and MPLS traffic class to {@code 0}, setup and hold priority to {@code 7},
+     * fallback to {@code false}, and processing time to {@code 0.0}. Present optional values are subject to Jackson's
+     * coercion and its supplied default. Probability entries are retained only when their values are numeric.</p>
+     *
+     * <p>The conversion performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Parses the JSON tree and requires the top-level {@code prediction} and {@code policy} nodes plus the policy's
+     *       {@code path_constraints} node.</li>
+     *   <li>Captures one current {@link Instant} for both {@code cachedAt} and the base of {@code expiresAt}.</li>
+     *   <li>Reads optional request and model identifiers and class ID, requires the class name and numeric confidence,
+     *       and filters probability members to numeric values.</li>
+     *   <li>Builds {@link PathConstraints} and {@link TrafficPolicy} from the required bandwidth and optional policy
+     *       values, reads processing time, and assigns expiry as the captured instant plus the configured TTL.</li>
+     *   <li>Logs the validated result and returns it.</li>
+     *   <li>Rethrows runtime validation failures unchanged and wraps other parsing failures in
+     *       {@link IllegalArgumentException}.</li>
      * </ol>
      *
-     * @param json valor requerido para ejecutar esta operacion
+     * <p>The classification service stores the returned result in both registrar cache views and passes its policy to
+     * the workflow's pair-policy coordination.</p>
      *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param json UTF-8 classifier response body represented as a Java string
+     * @return validated classification with policy, local cache timestamp, and derived expiry
+     * @throws IllegalArgumentException if {@code json} is {@code null} or malformed, a required node is absent, or a
+     *         required scalar has the wrong type or a blank required text value
+     * @throws NullPointerException if the configured mapper, the configured TTL, or the parsed root is {@code null}
      */
     public ClassificationResult deserialize(final String json) {
         try {
@@ -112,22 +149,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code required} dentro del componente correspondiente.
+     * <p>Returns a named child node only when it is present and not JSON {@code null}.</p>
      *
-     * <p>Pasos:
+     * <p>The validation performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads {@code fieldName} directly from the supplied node.</li>
+     *   <li>Rejects an absent or JSON-null child with {@link IllegalArgumentException}.</li>
+     *   <li>Returns the existing child without coercing its node type.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>Typed required-value helpers perform any additional scalar validation after this presence check.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param node parent JSON node that must contain the child
+     * @param fieldName name of the required child field
+     * @return present, non-null child node
+     * @throws IllegalArgumentException if the child is absent or JSON {@code null}
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static JsonNode required(final JsonNode node, final String fieldName) {
         final JsonNode child = node.get(fieldName);
@@ -139,22 +176,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code requiredText} dentro del componente correspondiente.
+     * <p>Reads a required, non-blank textual field.</p>
      *
-     * <p>Pasos:
+     * <p>The text validation performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Obtains the field through {@link #required(JsonNode, String)}.</li>
+     *   <li>Rejects non-textual nodes and text containing only whitespace.</li>
+     *   <li>Returns the field's text unchanged.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>The response conversion uses this helper for {@code prediction.class_name}.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param node parent JSON node containing the required text field
+     * @param fieldName name of the required text field
+     * @return non-blank text value
+     * @throws IllegalArgumentException if the field is absent, null, non-textual, or blank
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static String requiredText(final JsonNode node, final String fieldName) {
         final JsonNode child = required(node, fieldName);
@@ -166,22 +203,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code requiredDouble} dentro del componente correspondiente.
+     * <p>Reads a required numeric field as a {@code double}.</p>
      *
-     * <p>Pasos:
+     * <p>The numeric validation performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Obtains the field through {@link #required(JsonNode, String)}.</li>
+     *   <li>Rejects a child that Jackson does not identify as numeric.</li>
+     *   <li>Converts and returns the numeric node as a {@code double}.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>The response conversion uses this helper for {@code prediction.confidence}.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param node parent JSON node containing the required numeric field
+     * @param fieldName name of the required numeric field
+     * @return numeric value converted to {@code double}
+     * @throws IllegalArgumentException if the field is absent, null, or non-numeric
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static double requiredDouble(final JsonNode node, final String fieldName) {
         final JsonNode child = required(node, fieldName);
@@ -193,22 +230,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code requiredLong} dentro del componente correspondiente.
+     * <p>Reads a required numeric field as a {@code long}.</p>
      *
-     * <p>Pasos:
+     * <p>The numeric validation performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Obtains the field through {@link #required(JsonNode, String)}.</li>
+     *   <li>Rejects a child that Jackson does not identify as numeric.</li>
+     *   <li>Converts and returns the numeric node as a {@code long}.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>The response conversion uses this helper for {@code requested_bandwidth_kbps}.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param node parent JSON node containing the required numeric field
+     * @param fieldName name of the required numeric field
+     * @return numeric value converted to {@code long}
+     * @throws IllegalArgumentException if the field is absent, null, or non-numeric
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static long requiredLong(final JsonNode node, final String fieldName) {
         final JsonNode child = required(node, fieldName);
@@ -220,22 +257,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code text} dentro del componente correspondiente.
+     * <p>Reads an optional field using Jackson's text coercion and a caller-supplied default.</p>
      *
-     * <p>Pasos:
+     * <p>The optional read performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the named child from the parent node.</li>
+     *   <li>Returns {@code defaultValue} when the child is absent or JSON {@code null}.</li>
+     *   <li>Otherwise returns {@link JsonNode#asText(String)} with the same default.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>This supplies optional identifiers, names, and fallback text in the domain result.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @param defaultValue valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param node parent JSON node containing the optional field
+     * @param fieldName name of the optional field
+     * @param defaultValue value returned for an absent, null, or non-coercible child
+     * @return coerced text value or the supplied default
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static String text(final JsonNode node, final String fieldName, final String defaultValue) {
         final JsonNode child = node.get(fieldName);
@@ -243,22 +280,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code integer} dentro del componente correspondiente.
+     * <p>Reads an optional field using Jackson's integer coercion and a caller-supplied default.</p>
      *
-     * <p>Pasos:
+     * <p>The optional read performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the named child from the parent node.</li>
+     *   <li>Returns {@code defaultValue} when the child is absent or JSON {@code null}.</li>
+     *   <li>Otherwise returns {@link JsonNode#asInt(int)} with the same default.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>This supplies optional class, marking, and path-priority integers in the domain result.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @param defaultValue valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param node parent JSON node containing the optional field
+     * @param fieldName name of the optional field
+     * @param defaultValue value returned for an absent, null, or non-coercible child
+     * @return coerced integer value or the supplied default
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static int integer(final JsonNode node, final String fieldName, final int defaultValue) {
         final JsonNode child = node.get(fieldName);
@@ -266,22 +303,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code doubleValue} dentro del componente correspondiente.
+     * <p>Reads an optional field using Jackson's double coercion and a caller-supplied default.</p>
      *
-     * <p>Pasos:
+     * <p>The optional read performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the named child from the parent node.</li>
+     *   <li>Returns {@code defaultValue} when the child is absent or JSON {@code null}.</li>
+     *   <li>Otherwise returns {@link JsonNode#asDouble(double)} with the same default.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>This supplies the optional classifier processing-time value.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @param defaultValue valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param node parent JSON node containing the optional field
+     * @param fieldName name of the optional field
+     * @param defaultValue value returned for an absent, null, or non-coercible child
+     * @return coerced double value or the supplied default
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static double doubleValue(final JsonNode node, final String fieldName, final double defaultValue) {
         final JsonNode child = node.get(fieldName);
@@ -289,22 +326,22 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code bool} dentro del componente correspondiente.
+     * <p>Reads an optional field using Jackson's boolean coercion and a caller-supplied default.</p>
      *
-     * <p>Pasos:
+     * <p>The optional read performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the named child from the parent node.</li>
+     *   <li>Returns {@code defaultValue} when the child is absent or JSON {@code null}.</li>
+     *   <li>Otherwise returns {@link JsonNode#asBoolean(boolean)} with the same default.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>This supplies the optional policy-fallback flag.</p>
      *
-     * @param fieldName valor requerido para ejecutar esta operacion
-     *
-     * @param defaultValue valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param node parent JSON node containing the optional field
+     * @param fieldName name of the optional field
+     * @param defaultValue value returned for an absent, null, or non-coercible child
+     * @return coerced boolean value or the supplied default
+     * @throws NullPointerException if {@code node} is {@code null}
      */
     private static boolean bool(final JsonNode node, final String fieldName, final boolean defaultValue) {
         final JsonNode child = node.get(fieldName);
@@ -312,18 +349,20 @@ public final class ClassificationResponseJsonDeserializer {
     }
 
     /**
-     * Ejecuta la operacion {@code probabilities} dentro del componente correspondiente.
+     * <p>Copies numeric classification probabilities from a JSON object into a map. Missing, null, non-object, and
+     * non-numeric members do not cause validation failures.</p>
      *
-     * <p>Pasos:
+     * <p>The extraction performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Returns a mutable empty map immediately when the supplied node is {@code null} or not a JSON object.</li>
+     *   <li>Iterates through object fields and copies only values Jackson identifies as numeric.</li>
+     *   <li>Returns an immutable copy of the collected class-name-to-probability entries.</li>
      * </ol>
      *
-     * @param node valor requerido para ejecutar esta operacion
+     * <p>The extracted map becomes {@link ClassificationResult#probabilities()}.</p>
      *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param node optional {@code probabilities} node from the classifier response
+     * @return map of numeric probability fields, empty when the node is absent or not an object
      */
     private static Map<String, Double> probabilities(final JsonNode node) {
         final Map<String, Double> values = new HashMap<>();

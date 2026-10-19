@@ -9,13 +9,13 @@
 package com.sma.sdn.model;
 
 /**
- * Define la enumeracion {@code FlowDirection} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Identifies the packet's resolved direction between configured tunnel endpoints.</p>
  */
 public enum FlowDirection {
+    /** <p>Traffic flows from the configured headend toward the tailend.</p> */
     HEADEND_TO_TAILEND,
+    /** <p>Traffic flows from the tailend toward the headend.</p> */
     TAILEND_TO_HEADEND,
+    /** <p>The packet direction could not be resolved.</p> */
     UNKNOWN
 }

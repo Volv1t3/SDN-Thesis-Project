@@ -7,13 +7,8 @@
  */
 
 /**
- * Contiene descubrimiento y refresco defensivo de topologia BGP-LS.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Discovers and refreshes the controller's BGP-LS topology, tracks its freshness, and converts
+ * bandwidth values for path-computation and PCEP operations. Discovery and refresh populate the
+ * shared BGP-LS registry used by path calculation and operational state publication.</p>
  */
 package com.sma.sdn.topology;

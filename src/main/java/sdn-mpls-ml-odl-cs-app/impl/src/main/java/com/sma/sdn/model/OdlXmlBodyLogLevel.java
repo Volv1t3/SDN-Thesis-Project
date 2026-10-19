@@ -8,9 +8,14 @@
 
 package com.sma.sdn.model;
 
-/** Define el nivel permitido para registrar cuerpos XML de OpenDaylight. */
+/**
+ * <p>Controls the configured verbosity of OpenDaylight XML body logging.</p>
+ */
 public enum OdlXmlBodyLogLevel {
+    /** <p>Do not log XML bodies.</p> */
     OFF,
+    /** <p>Log XML bodies at debug level.</p> */
     DEBUG,
+    /** <p>Log XML bodies at trace level.</p> */
     TRACE
 }

@@ -8,13 +8,22 @@
 
 package com.sma.sdn.model;
 
-/** Outcome of combining two directional policy evidence records. */
+/**
+ * <p>Describes the result of evaluating directional evidence for a pair and service.</p>
+ */
 public enum PairConsensusStatus {
+    /** <p>Usable evidence from the other direction is missing.</p> */
     PENDING_ONE_SIDE,
+    /** <p>Both directions produced matching policy hashes.</p> */
     CONSENSUS_MATCH,
+    /** <p>The expected service class resolved a policy conflict.</p> */
     CONSENSUS_CONFLICT_SERVICE_KEY_SELECTED,
+    /** <p>Priority or the configured class-order tie break selected a candidate.</p> */
     CONSENSUS_CONFLICT_PRIORITY_SELECTED,
+    /** <p>A matching active policy is retained during an equal-priority conflict.</p> */
     CONSENSUS_CONFLICT_CURRENT_POLICY_PRESERVED,
+    /** <p>Different equal-priority policies could not be resolved.</p> */
     CONSENSUS_CONFLICT_EQUAL_PRIORITY_UNRESOLVED,
+    /** <p>A single side was selected under provisional mode.</p> */
     CONSENSUS_TIMEOUT_SINGLE_SIDE_PROVISIONAL
 }

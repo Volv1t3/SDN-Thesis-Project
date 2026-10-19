@@ -9,10 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code CalculatedPathRequest} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Carries the graph, endpoint, bandwidth, class, and algorithm inputs used to construct a path-computation request to OpenDaylight.</p>
+ *
+ * @param graphName path-computation graph name
+ * @param sourceGraphNodeId source graph node identifier
+ * @param destinationGraphNodeId destination graph node identifier
+ * @param bandwidthBytesPerSecond requested bandwidth in bytes per second
+ * @param classType path-computation class type
+ * @param algorithm path-computation algorithm
  */
 public record CalculatedPathRequest(
         String graphName,

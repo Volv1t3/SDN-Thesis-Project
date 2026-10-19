@@ -27,31 +27,39 @@ import org.opendaylight.yangtools.binding.BindingInstanceIdentifier;
 import org.opendaylight.yangtools.binding.KeyStep;
 
 /**
- * Define la clase {@code PacketInFeatureExtractor} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Extracts Ethernet, IPv4, and transport features from a PacketIn payload and
+ * resolves its typed ingress against the OpenFlow inventory. Incomplete payloads
+ * and unknown ingress identities are rejected without producing a context.</p>
+ *
+ * <p>The workflow consumes the resulting {@link PacketClassificationContext};
+ * {@link AppConfig} determines its direction from the resolved logical names.</p>
  */
 public final class PacketInFeatureExtractor {
+    /** <p>Records feature extraction and rejected ingress diagnostics.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(PacketInFeatureExtractor.class);
+    /** <p>EtherType identifying an IPv4 payload.</p> */
     private static final int ETH_TYPE_IPV4 = 0x0800;
+    /** <p>EtherType identifying an 802.1Q VLAN tag.</p> */
     private static final int ETH_TYPE_8021Q = 0x8100;
+    /** <p>EtherType identifying a QinQ VLAN tag.</p> */
     private static final int ETH_TYPE_QINQ = 0x88a8;
+    /** <p>Ingress-name mappings used to determine packet direction.</p> */
     private final AppConfig config;
+    /** <p>Current OpenFlow inventory used to resolve node and connector identities.</p> */
     private final OpenflowSwitchRegistry switchRegistry;
 
     /**
-     * Ejecuta la operacion {@code PacketInFeatureExtractor} dentro del componente correspondiente.
+     * <p>Creates an extractor backed by ingress configuration and the OpenFlow inventory.</p>
      *
-     * <p>Pasos:
+     * <p>Construction proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Requires both dependencies to be non-null.</li>
+     *   <li>Stores them for inventory lookup and direction resolution.</li>
      * </ol>
      *
-     * @param config configuracion que define las direcciones logicas admitidas
-     * @param switchRegistry registro de identidades OpenFlow descubierto desde RESTCONF
+     * @param config configuration mapping logical ingress names to directions
+     * @param switchRegistry registry of OpenFlow switches and connectors
+     * @throws NullPointerException if either dependency is null
      */
     public PacketInFeatureExtractor(final AppConfig config, final OpenflowSwitchRegistry switchRegistry) {
         this.config = Objects.requireNonNull(config, "config");
@@ -59,18 +67,24 @@ public final class PacketInFeatureExtractor {
     }
 
     /**
-     * Extrae metadatos de ingreso y caracteristicas de primer paquete desde la notificacion OpenFlow.
+     * <p>Extracts a timestamped classification context when the Ethernet frame and
+     * its typed ingress can be resolved. Unsupported or incomplete network headers
+     * may still produce a context with zero-valued protocol or port features.</p>
      *
-     * <p>Pasos:
+     * <p>Extraction proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Rejects a missing payload or an Ethernet frame shorter than 14 bytes.</li>
+     *   <li>Extracts typed node and connector keys and resolves both in the inventory;
+     *       returns empty if either identity is unavailable.</li>
+     *   <li>Parses the payload, resolves direction from logical ingress names, logs
+     *       the features, and constructs the context with the current time.</li>
      * </ol>
      *
-     * @param notification valor requerido para ejecutar esta operacion
+     * <p>The workflow uses the context for classification and policy decisions.</p>
      *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param notification OpenDaylight PacketIn notification
+     * @return the extracted context, or empty for a short payload or unresolved ingress
+     * @throws NullPointerException if notification is null
      */
     public Optional<PacketClassificationContext> extract(final PacketReceived notification) {
         final byte[] payload = notification.getPayload();
@@ -129,20 +143,18 @@ public final class PacketInFeatureExtractor {
     }
 
     /**
-     * Ejecuta la operacion {@code parse} dentro del componente correspondiente.
+     * <p>Decodes feature fields from a frame whose Ethernet header has already been checked.</p>
      *
-     * <p>Pasos:
+     * <p>Parsing proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the EtherType and skips complete 802.1Q or QinQ tags.</li>
+     *   <li>Returns zero protocol and ports for non-IPv4 or incomplete IPv4 headers.</li>
+     *   <li>Reads the protocol and, for TCP or UDP with zero fragment offset and four
+     *       available transport bytes, reads both ports; otherwise returns zero ports.</li>
      * </ol>
      *
-     * @param payload valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param payload frame bytes with at least a complete Ethernet header
+     * @return parsed EtherType, protocol, and source and destination ports
      */
     private ParsedPacket parse(final byte[] payload) {
         int cursor = 12;
@@ -172,60 +184,52 @@ public final class PacketInFeatureExtractor {
     }
 
     /**
-     * Ejecuta la operacion {@code resolveDirection} dentro del componente correspondiente.
+     * <p>Resolves a packet direction from the logical switch and connector names.</p>
      *
-     * <p>Pasos:
+     * <p>Resolution proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Delegates the supplied names to the configured classification ingress mapping.</li>
+     *   <li>Returns the configured direction or its unknown-direction result.</li>
      * </ol>
      *
-     * @param switchName valor requerido para ejecutar esta operacion
-     *
-     * @param connectorName valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param switchName resolved logical switch name
+     * @param connectorName resolved logical connector name
+     * @return direction selected by the configuration
      */
     private FlowDirection resolveDirection(final String switchName, final String connectorName) {
         return config.resolveClassificationIngress(switchName, connectorName);
     }
 
     /**
-     * Ejecuta la operacion {@code unsignedShort} dentro del componente correspondiente.
+     * <p>Reads a network-byte-order unsigned 16-bit integer from the payload.</p>
      *
-     * <p>Pasos:
+     * <p>Decoding proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Masks both signed Java bytes to their unsigned values.</li>
+     *   <li>Shifts the first byte and combines it with the second.</li>
      * </ol>
      *
-     * @param payload valor requerido para ejecutar esta operacion
-     *
-     * @param offset valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param payload bytes containing the value
+     * @param offset index of its first byte
+     * @return integer in the range 0 to 65535
+     * @throws IndexOutOfBoundsException if either byte lies outside the array
      */
     private static int unsignedShort(final byte[] payload, final int offset) {
         return ((payload[offset] & 0xff) << 8) | (payload[offset + 1] & 0xff);
     }
 
     /**
-     * Extrae las claves YANG de nodo y conector desde la referencia tipada de una notificacion PacketIn.
+     * <p>Extracts the typed YANG node and connector keys from a PacketIn ingress reference.</p>
      *
-     * <p>Pasos:
+     * <p>Extraction proceeds as follows:</p>
      * <ol>
-     *   <li>Obtiene el identificador de instancia enlazado en {@code NodeConnectorRef}.</li>
-     *   <li>Recorre sus pasos tipados y recupera {@code NodeKey} y {@code NodeConnectorKey}.</li>
-     *   <li>Devuelve los valores de las claves sin interpretar la salida diagnostica de {@code toString()}.</li>
+     *   <li>Returns empty when the reference or its identifier is absent.</li>
+     *   <li>Traverses keyed identifier steps, retaining node and connector key values.</li>
+     *   <li>Returns an identity only when both values were found.</li>
      * </ol>
      *
-     * @param ingress referencia YANG de ingreso entregada por ODL
-     *
-     * @return identidad completa de nodo y conector, o vacio si la referencia esta incompleta
+     * @param ingress ODL ingress reference, possibly null
+     * @return both typed identifiers, or empty if either is absent
      */
     private static Optional<IngressIdentity> ingressIdentity(final NodeConnectorRef ingress) {
         if (ingress == null || ingress.getValue() == null) {
@@ -250,22 +254,21 @@ public final class PacketInFeatureExtractor {
     }
 
     /**
-     * Define el resultado interno del parseo Ethernet e IPv4. Este record transporta unicamente los campos requeridos
-     * para clasificacion sin exponer el paquete completo ni datos de payload no necesarios.
+     * <p>Holds the parsed Ethernet and IPv4 features without retaining the packet payload.</p>
      *
-     * @param ethType EtherType extraido de la trama
-     * @param ipProto protocolo IP extraido del encabezado IPv4
-     * @param srcPort puerto de origen de capa 4 o cero cuando no aplica
-     * @param dstPort puerto de destino de capa 4 o cero cuando no aplica
+     * @param ethType decoded Ethernet type
+     * @param ipProto IPv4 protocol or zero when unavailable
+     * @param srcPort source port or zero when unavailable
+     * @param dstPort destination port or zero when unavailable
      */
     private record ParsedPacket(int ethType, int ipProto, int srcPort, int dstPort) {
     }
 
     /**
-     * Representa las claves OpenFlow obtenidas directamente desde la referencia YANG de ingreso.
+     * <p>Holds OpenFlow node and connector identifiers extracted from the typed YANG reference.</p>
      *
-     * @param nodeId identificador completo del nodo OpenFlow
-     * @param connectorId identificador completo del conector OpenFlow
+     * @param nodeId complete OpenFlow node identifier
+     * @param connectorId complete OpenFlow connector identifier
      */
     private record IngressIdentity(String nodeId, String connectorId) {
     }

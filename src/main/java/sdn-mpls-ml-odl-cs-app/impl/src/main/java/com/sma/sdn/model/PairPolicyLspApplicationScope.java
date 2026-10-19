@@ -8,8 +8,12 @@
 
 package com.sma.sdn.model;
 
-/** Determines whether a pair policy drives both child LSPs or only the observed one. */
+/**
+ * <p>Selects which managed LSP directions receive an admitted pair-policy candidate.</p>
+ */
 public enum PairPolicyLspApplicationScope {
+    /** <p>Apply the selected candidate to both managed directions.</p> */
     BIDIRECTIONAL_PAIR,
+    /** <p>Apply the selected candidate only to the direction of the triggering evidence.</p> */
     OBSERVED_DIRECTION_ONLY
 }

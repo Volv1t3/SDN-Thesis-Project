@@ -6,6 +6,8 @@
  * and is available at http://www.eclipse.org/legal/epl-v10.html
  */
 /**
- * Implementa el descubrimiento de inventario, registro, provisionamiento y verificacion del acceso OpenFlow.
+ * <p>Discovers and indexes OpenFlow inventory, provisions and verifies bootstrap flows,
+ * and installs suppression flows for packet handling. The services collaborate with
+ * OpenDaylight RESTCONF clients and the application configuration and metrics.</p>
  */
 package com.sma.sdn.openflow;

@@ -9,10 +9,11 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code TunnelEndpoint} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Identifies a tunnel endpoint by logical name, router ID, and PCC node. Configured endpoints are assembled into directional tunnel definitions.</p>
+ *
+ * @param logicalName configured logical endpoint name
+ * @param routerId router identifier
+ * @param pccNode PCEP client node identifier
  */
 public record TunnelEndpoint(String logicalName, String routerId, String pccNode) {
 }

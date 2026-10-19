@@ -11,7 +11,17 @@ package com.sma.sdn.model;
 import java.time.Instant;
 import java.util.Optional;
 
-/** Holds the most recent usable evidence from the left and right sides of a pair. */
+/**
+ * <p>Groups recent directional evidence for a tunnel pair and service. The directional evidence registry maintains buckets consumed by the pair-policy consensus service.</p>
+ *
+ * @param pairKey managed tunnel-pair identifier
+ * @param serviceKey normalized identity of the traffic service
+ * @param leftEvidence optional evidence from the pair's left side
+ * @param rightEvidence optional evidence from the pair's right side
+ * @param createdAt bucket creation time
+ * @param updatedAt most recent update time
+ * @param expiresAt expiration time
+ */
 public record PairConsensusBucket(
         String pairKey,
         ServiceKey serviceKey,
@@ -20,6 +30,22 @@ public record PairConsensusBucket(
         Instant createdAt,
         Instant updatedAt,
         Instant expiresAt) {
+    /**
+     * <p>Replace null directional evidence optionals with empty optionals.</p>
+     *
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Replace null directional evidence optionals with empty optionals.</li>
+     * </ol>
+     *
+     * @param pairKey managed tunnel-pair identifier
+     * @param serviceKey normalized identity of the traffic service
+     * @param leftEvidence optional evidence from the pair's left side
+     * @param rightEvidence optional evidence from the pair's right side
+     * @param createdAt bucket creation time
+     * @param updatedAt most recent update time
+     * @param expiresAt expiration time
+     */
     public PairConsensusBucket {
         leftEvidence = leftEvidence == null ? Optional.empty() : leftEvidence;
         rightEvidence = rightEvidence == null ? Optional.empty() : rightEvidence;

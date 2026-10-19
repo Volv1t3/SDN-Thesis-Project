@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -10,23 +13,24 @@ package com.sma.sdn.openflow;
 import com.sma.sdn.util.XmlSupport;
 
 /**
- * Serializa reglas de acceso OpenFlow en el esquema XML aceptado por el inventario de flujos de OpenDaylight.
+ * <p>Serializes an {@link OpenflowFlowDefinition} into the OpenDaylight flow inventory
+ * XML used by {@link OpenflowFlowProvisioningService} for RESTCONF PUT requests.</p>
  */
 public final class OpenflowFlowXmlSerializer {
 
     /**
-     * Construye un flujo con coincidencia por conector de ingreso y tipo Ethernet, seguido de sus acciones ordenadas.
+     * <p>Builds a permanent flow matching an ingress connector and Ethernet type, with
+     * an optional controller copy followed by output to the configured numeric port.</p>
      *
-     * <p>Pasos:
+     * <p>The serialization proceeds as follows:</p>
      * <ol>
-     *   <li>Escribe identidad, tabla, prioridad, cookie y tiempos permanentes.</li>
-     *   <li>Usa el identificador completo del conector exclusivamente en {@code in-port}.</li>
-     *   <li>Agrega una copia al controlador cuando fue solicitada.</li>
-     *   <li>Usa el numero de puerto para la accion de salida hacia el acceso.</li>
+     *   <li>Add a controller output action with maximum length 65535 when requested.</li>
+     *   <li>Add the numeric output-port action after the optional controller action.</li>
+     *   <li>Write the flow identity, timeouts, match and ordered actions, escaping text values.</li>
      * </ol>
      *
-     * @param definition definicion validada del flujo
-     * @return documento XML listo para RESTCONF PUT
+     * @param definition flow fields and controller-copy choice
+     * @return complete XML document for a RESTCONF PUT
      */
     public String serialize(final OpenflowFlowDefinition definition) {
         final StringBuilder actions = new StringBuilder();
@@ -52,19 +56,18 @@ public final class OpenflowFlowXmlSerializer {
     }
 
     /**
-     * Agrega una accion de salida con orden, destino y longitud maxima explicitamente definidos.
+     * <p>Appends one output-action element to the accumulating XML.</p>
      *
-     * <p>Pasos:
+     * <p>The helper writes the action as follows:</p>
      * <ol>
-     *   <li>Escapa el destino para mantener XML valido.</li>
-     *   <li>Escribe el orden de ejecucion de la accion.</li>
-     *   <li>Agrega la longitud maxima requerida por OpenFlow Plugin.</li>
+     *   <li>Write the action order and escaped output connector.</li>
+     *   <li>Write the maximum packet length and close the action element.</li>
      * </ol>
      *
-     * @param target acumulador XML de acciones
-     * @param order orden secuencial de la accion
-     * @param outputConnector destino numerico o {@code CONTROLLER}
-     * @param maxLength longitud maxima del paquete enviado
+     * @param target mutable XML action accumulator
+     * @param order execution order of the action
+     * @param outputConnector numeric destination or {@code CONTROLLER}
+     * @param maxLength maximum packet length for the output action
      */
     private static void appendOutputAction(
             final StringBuilder target, final int order, final String outputConnector, final int maxLength) {

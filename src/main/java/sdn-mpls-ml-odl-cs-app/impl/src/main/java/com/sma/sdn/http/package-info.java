@@ -7,13 +7,13 @@
  */
 
 /**
- * Contiene clientes y clasificadores defensivos para llamadas HTTP hacia ODL y servicios externos.
+ * <p>Contains the controller's blocking HTTP transport adapters and defensive OpenDaylight response classifiers.
+ * {@link com.sma.sdn.http.OdlRestconfDataClient} accesses topology and OpenFlow data resources,
+ * {@link com.sma.sdn.http.OdlOperationsClient} invokes XML RPC operations, and
+ * {@link com.sma.sdn.http.ClassifierRestClient} calls the external JSON classification API.</p>
  *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>The package deliberately separates transport from interpretation. Clients preserve raw HTTP responses for
+ * topology, path, tunnel, and OpenFlow services, while outcome classifiers map operation-specific statuses and body
+ * conditions into {@link com.sma.sdn.model.OdlCallOutcome} values used for retry and failure decisions.</p>
  */
 package com.sma.sdn.http;

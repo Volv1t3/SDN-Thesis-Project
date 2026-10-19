@@ -10,7 +10,26 @@ package com.sma.sdn.model;
 
 import java.util.Objects;
 
-/** Describe un flujo OpenFlow temporal que evita PacketIn repetidos para un servicio. */
+/**
+ * <p>Describes the match, output, lifetime, and policy context of a suppression flow. OpenFlow services use this intent to construct and provision a flow for packet traffic.</p>
+ *
+ * @param flowId OpenFlow flow identifier
+ * @param nodeId node identifier
+ * @param encodedNodeId encoded node identifier
+ * @param tableId OpenFlow table identifier
+ * @param priority flow priority
+ * @param cookie OpenFlow cookie
+ * @param idleTimeoutSeconds idle timeout in seconds
+ * @param hardTimeoutSeconds hard timeout in seconds
+ * @param ingressConnectorId ingress connector identifier
+ * @param outputConnectorId output connector identifier
+ * @param ethType Ethernet type
+ * @param ipProtocol IP protocol number
+ * @param tcpDestinationPort TCP destination port, when applicable
+ * @param udpDestinationPort UDP destination port, when applicable
+ * @param classificationClassName classification class name
+ * @param profileName traffic-policy profile name
+ */
 public record OpenFlowSuppressionIntent(
         String flowId,
         String nodeId,
@@ -28,6 +47,33 @@ public record OpenFlowSuppressionIntent(
         Integer udpDestinationPort,
         String classificationClassName,
         String profileName) {
+    /**
+     * <p>Require the flow, node, connector, class, and profile string identifiers to be non-null.</p>
+     *
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Require the flow, node, connector, class, and profile string identifiers to be non-null.</li>
+     * </ol>
+     *
+     *
+     * @param flowId OpenFlow flow identifier
+     * @param nodeId node identifier
+     * @param encodedNodeId encoded node identifier
+     * @param tableId OpenFlow table identifier
+     * @param priority flow priority
+     * @param cookie OpenFlow cookie
+     * @param idleTimeoutSeconds idle timeout in seconds
+     * @param hardTimeoutSeconds hard timeout in seconds
+     * @param ingressConnectorId ingress connector identifier
+     * @param outputConnectorId output connector identifier
+     * @param ethType Ethernet type
+     * @param ipProtocol IP protocol number
+     * @param tcpDestinationPort TCP destination port, when applicable
+     * @param udpDestinationPort UDP destination port, when applicable
+     * @param classificationClassName classification class name
+     * @param profileName traffic-policy profile name
+     * @throws NullPointerException if a required value or copied list element is null
+     */
     public OpenFlowSuppressionIntent {
         Objects.requireNonNull(flowId, "flowId");
         Objects.requireNonNull(nodeId, "nodeId");

@@ -9,10 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code ServiceClassCacheKey} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Identifies a reusable classification by switch, protocol attributes, and canonical service
+ * port. {@link com.sma.sdn.registry.ClassificationRegistrar} uses this key after an exact cache
+ * miss; it omits the connector and the noncanonical transport port.</p>
+ *
+ * @param ingressSwitchName logical ingress switch name
+ * @param ethType Ethernet type of the packet
+ * @param ipProto IP protocol number
+ * @param canonicalServicePort port selected by the registrar's service-port rule
  */
 public record ServiceClassCacheKey(
         String ingressSwitchName,

@@ -24,26 +24,34 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 /**
- * Emite eventos JSON estructurados, compactos y ASCII mediante la infraestructura SLF4J administrada por Karaf.
+ * <p>Emits compact structured JSON events through the SLF4J logger associated with a caller's
+ * class. Events include thread and component identity, optional MDC entries, metadata and
+ * exception details; non-ASCII characters are escaped by the shared Jackson mapper.</p>
+ * <p>{@link LogContext} supplies scoped correlation entries, while controller services and
+ * the metrics registry use this facade to produce events through their configured backend.</p>
  */
 public final class StructuredLogger {
+    /** <p>Service identifier included in every event and serialization fallback.</p> */
     private static final String SERVICE_NAME = "sdn-mpls-ml-controller";
+    /** <p>Shared JSON mapper configured once for supported Java types and ASCII output.</p> */
     private static final ObjectMapper MAPPER = createMapper();
 
+    /** <p>SLF4J backend logger associated with the originating class.</p> */
     private final Logger logger;
+    /** <p>Simple name of the class represented in the event payload.</p> */
     private final String component;
 
     /**
-     * Crea una fachada asociada con una clase concreta de la aplicacion.
+     * <p>Creates a structured logging facade for a particular class.</p>
      *
-     * <p>Pasos:
+     * <p>Construction proceeds as follows:</p>
      * <ol>
-     *   <li>Obtiene el logger SLF4J administrado por Pax Logging.</li>
-     *   <li>Conserva el nombre simple de la clase como componente estructurado.</li>
+     *   <li>Rejects a null class and obtains its SLF4J logger.</li>
+     *   <li>Stores the class's simple name as the structured component.</li>
      * </ol>
      *
-     * @param type clase propietaria de los eventos
-     * @throws NullPointerException si la clase es nula
+     * @param type class that owns the events
+     * @throws NullPointerException if type is null
      */
     private StructuredLogger(final Class<?> type) {
         final Class<?> requiredType = Objects.requireNonNull(type, "type");
@@ -52,35 +60,34 @@ public final class StructuredLogger {
     }
 
     /**
-     * Construye una fachada de logging estructurado para la clase indicada.
+     * <p>Creates a structured logger for the supplied class.</p>
      *
-     * <p>Pasos:
+     * <p>The factory proceeds as follows:</p>
      * <ol>
-     *   <li>Valida la clase solicitante.</li>
-     *   <li>Crea la fachada con identidad estable del componente.</li>
+     *   <li>Constructs a facade, which validates the class and resolves its SLF4J logger.</li>
      * </ol>
      *
-     * @param type clase que emitira los eventos
-     * @return logger estructurado asociado con la clase
+     * @param type class associated with the logger
+     * @return structured facade for the class
+     * @throws NullPointerException if type is null
      */
     public static StructuredLogger getLogger(final Class<?> type) {
         return new StructuredLogger(type);
     }
 
     /**
-     * Emite un evento de traza reservado para operaciones primitivas de alta frecuencia.
+     * <p>Emits a structured TRACE event when that level is enabled.</p>
      *
-     * <p>Pasos:
+     * <p>Emission proceeds as follows:</p>
      * <ol>
-     *   <li>Comprueba si TRACE esta habilitado.</li>
-     *   <li>Construye el evento JSON con contexto y metadata.</li>
-     *   <li>Lo entrega a SLF4J como una unica linea.</li>
+     *   <li>Checks the backend's TRACE level before constructing the event.</li>
+     *   <li>Serializes the event with the current MDC and sends it to SLF4J.</li>
      * </ol>
      *
-     * @param event identificador estable del evento
-     * @param operation funcion u operacion que genera el evento
-     * @param message descripcion formal en espanol
-     * @param metadata campos seguros adicionales
+     * @param event event identifier
+     * @param operation originating operation
+     * @param message event description
+     * @param metadata optional additional event fields
      */
     public void trace(
             final String event,
@@ -93,19 +100,18 @@ public final class StructuredLogger {
     }
 
     /**
-     * Emite un evento de depuracion con pasos, estructuras o resultados intermedios.
+     * <p>Emits a structured DEBUG event when that level is enabled.</p>
      *
-     * <p>Pasos:
+     * <p>Emission proceeds as follows:</p>
      * <ol>
-     *   <li>Comprueba si DEBUG esta habilitado.</li>
-     *   <li>Construye el evento JSON con contexto y metadata.</li>
-     *   <li>Lo entrega a SLF4J como una unica linea.</li>
+     *   <li>Checks the backend's DEBUG level before constructing the event.</li>
+     *   <li>Serializes the event with the current MDC and sends it to SLF4J.</li>
      * </ol>
      *
-     * @param event identificador estable del evento
-     * @param operation funcion u operacion que genera el evento
-     * @param message descripcion formal en espanol
-     * @param metadata campos seguros adicionales
+     * @param event event identifier
+     * @param operation originating operation
+     * @param message event description
+     * @param metadata optional additional event fields
      */
     public void debug(
             final String event,
@@ -118,19 +124,18 @@ public final class StructuredLogger {
     }
 
     /**
-     * Emite un evento informativo para cambios de estado o resultados operativos relevantes.
+     * <p>Emits a structured INFO event when that level is enabled.</p>
      *
-     * <p>Pasos:
+     * <p>Emission proceeds as follows:</p>
      * <ol>
-     *   <li>Comprueba si INFO esta habilitado.</li>
-     *   <li>Construye el evento JSON con contexto y metadata.</li>
-     *   <li>Lo entrega a SLF4J como una unica linea.</li>
+     *   <li>Checks the backend's INFO level before constructing the event.</li>
+     *   <li>Serializes the event with the current MDC and sends it to SLF4J.</li>
      * </ol>
      *
-     * @param event identificador estable del evento
-     * @param operation funcion u operacion que genera el evento
-     * @param message descripcion formal en espanol
-     * @param metadata campos seguros adicionales
+     * @param event event identifier
+     * @param operation originating operation
+     * @param message event description
+     * @param metadata optional additional event fields
      */
     public void info(
             final String event,
@@ -143,20 +148,19 @@ public final class StructuredLogger {
     }
 
     /**
-     * Emite una advertencia recuperable con metadata y una excepcion opcional.
+     * <p>Emits a structured WARN event with optional exception details when enabled.</p>
      *
-     * <p>Pasos:
+     * <p>Emission proceeds as follows:</p>
      * <ol>
-     *   <li>Comprueba si WARN esta habilitado.</li>
-     *   <li>Serializa el contexto, la metadata y la excepcion dentro del JSON.</li>
-     *   <li>Entrega una sola linea al sistema de logs.</li>
+     *   <li>Checks the backend's WARN level before constructing the event.</li>
+     *   <li>Serializes the MDC, metadata and optional exception and sends the JSON to SLF4J.</li>
      * </ol>
      *
-     * @param event identificador estable del evento
-     * @param operation funcion u operacion que genera el evento
-     * @param message descripcion formal en espanol
-     * @param metadata campos seguros adicionales
-     * @param failure excepcion asociada o {@code null}
+     * @param event event identifier
+     * @param operation originating operation
+     * @param message event description
+     * @param metadata optional additional event fields
+     * @param failure associated failure, or null
      */
     public void warn(
             final String event,
@@ -170,20 +174,19 @@ public final class StructuredLogger {
     }
 
     /**
-     * Emite un fallo definitivo con metadata y una excepcion opcional.
+     * <p>Emits a structured ERROR event with optional exception details when enabled.</p>
      *
-     * <p>Pasos:
+     * <p>Emission proceeds as follows:</p>
      * <ol>
-     *   <li>Comprueba si ERROR esta habilitado.</li>
-     *   <li>Serializa el contexto, la metadata y la excepcion dentro del JSON.</li>
-     *   <li>Entrega una sola linea al sistema de logs.</li>
+     *   <li>Checks the backend's ERROR level before constructing the event.</li>
+     *   <li>Serializes the MDC, metadata and optional exception and sends the JSON to SLF4J.</li>
      * </ol>
      *
-     * @param event identificador estable del evento
-     * @param operation funcion u operacion que genera el evento
-     * @param message descripcion formal en espanol
-     * @param metadata campos seguros adicionales
-     * @param failure excepcion asociada o {@code null}
+     * @param event event identifier
+     * @param operation originating operation
+     * @param message event description
+     * @param metadata optional additional event fields
+     * @param failure associated failure, or null
      */
     public void error(
             final String event,
@@ -197,18 +200,20 @@ public final class StructuredLogger {
     }
 
     /**
-     * Crea un mapa ordenado a partir de pares clave y valor para simplificar los eventos de los componentes.
+     * <p>Creates an unmodifiable, insertion-ordered metadata map from alternating keys and values.
+     * Duplicate stringified keys retain their last value; null keys become the string {@code null}.</p>
      *
-     * <p>Pasos:
+     * <p>Map construction proceeds as follows:</p>
      * <ol>
-     *   <li>Exige una cantidad par de argumentos.</li>
-     *   <li>Convierte cada clave a texto y conserva su valor asociado.</li>
-     *   <li>Devuelve una copia inmutable y ordenada.</li>
+     *   <li>Rejects an odd number of arguments.</li>
+     *   <li>Converts each key with {@link String#valueOf(Object)} and inserts its value.</li>
+     *   <li>Returns an unmodifiable view of the newly constructed map.</li>
      * </ol>
      *
-     * @param entries secuencia alternada de claves y valores
-     * @return mapa inmutable de metadata
-     * @throws IllegalArgumentException si la cantidad de argumentos es impar
+     * @param entries alternating keys and values
+     * @return unmodifiable metadata map in insertion order
+     * @throws IllegalArgumentException if the number of entries is odd
+     * @throws NullPointerException if the argument array is null
      */
     public static Map<String, Object> fields(final Object... entries) {
         if (entries.length % 2 != 0) {
@@ -222,22 +227,23 @@ public final class StructuredLogger {
     }
 
     /**
-     * Construye la linea JSON completa de un evento sin emitirla al backend de logging.
+     * <p>Builds a compact JSON event without sending it to the logging backend. If Jackson
+     * serialization fails, returns a fixed minimal logging-failure event instead.</p>
      *
-     * <p>Pasos:
+     * <p>Serialization proceeds as follows:</p>
      * <ol>
-     *   <li>Agrega identidad temporal, nivel, componente, operacion y mensaje.</li>
-     *   <li>Incorpora el contexto MDC, la metadata segura y la excepcion cuando existen.</li>
-     *   <li>Serializa el mapa como JSON ASCII o devuelve un evento minimo de contingencia.</li>
+     *   <li>Builds an ordered payload with timestamp, level, logger, thread and event identity.</li>
+     *   <li>Adds nonempty MDC and metadata maps and, when present, exception details.</li>
+     *   <li>Serializes the payload with the shared mapper, or returns the fixed fallback on failure.</li>
      * </ol>
      *
-     * @param level nivel textual del evento
-     * @param event identificador estable del evento
-     * @param operation funcion que origina el evento
-     * @param message descripcion formal del evento
-     * @param metadata campos estructurados seguros
-     * @param failure excepcion asociada o {@code null}
-     * @return evento JSON compacto de una sola linea
+     * @param level textual logging level
+     * @param event event identifier
+     * @param operation originating operation
+     * @param message event description
+     * @param metadata optional structured fields
+     * @param failure associated failure, or null
+     * @return compact event JSON or the fixed serialization-failure JSON
      */
     String serialize(
             final String level,
@@ -276,17 +282,16 @@ public final class StructuredLogger {
     }
 
     /**
-     * Convierte una excepcion y su traza en una estructura serializable dentro del evento JSON.
+     * <p>Converts a failure into the structured exception field of an event.</p>
      *
-     * <p>Pasos:
+     * <p>Conversion proceeds as follows:</p>
      * <ol>
-     *   <li>Captura la traza en memoria sin escribir directamente en la consola.</li>
-     *   <li>Extrae el tipo y el mensaje de la excepcion.</li>
-     *   <li>Devuelve los tres campos en un mapa ordenado.</li>
+     *   <li>Captures the stack trace in an in-memory writer.</li>
+     *   <li>Returns its class name, message and captured trace in an ordered map.</li>
      * </ol>
      *
-     * @param failure excepcion que debe representarse
-     * @return estructura ordenada con tipo, mensaje y traza
+     * @param failure exception to represent
+     * @return ordered map containing type, message and stack trace
      */
     private static Map<String, Object> exception(final Throwable failure) {
         final StringWriter stackTrace = new StringWriter();
@@ -299,16 +304,15 @@ public final class StructuredLogger {
     }
 
     /**
-     * Crea el serializador JSON compartido con soporte de tipos JDK8, fechas Java y escape obligatorio de Unicode.
+     * <p>Creates the shared Jackson mapper for structured events.</p>
      *
-     * <p>Pasos:
+     * <p>Configuration proceeds as follows:</p>
      * <ol>
-     *   <li>Registra los modulos de tipos opcionales y temporales.</li>
-     *   <li>Activa el escape de caracteres fuera de ASCII.</li>
-     *   <li>Devuelve la instancia inmutable de uso compartido.</li>
+     *   <li>Registers JDK 8 and Java time modules.</li>
+     *   <li>Enables escaping of non-ASCII characters and returns the configured mapper.</li>
      * </ol>
      *
-     * @return serializador configurado para eventos estructurados
+     * @return mapper configured for structured event serialization
      */
     @SuppressWarnings("deprecation")
     private static ObjectMapper createMapper() {

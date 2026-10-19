@@ -7,13 +7,8 @@
  */
 
 /**
- * Contiene contadores internos usados para instrumentar decisiones del controlador.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Maintains controller counters, gauges and histograms and exposes their Prometheus text
+ * representation through a servlet. Controller services update the shared
+ * {@link com.sma.sdn.metrics.SdnMplsMlMetrics} instance supplied by the provider.</p>
  */
 package com.sma.sdn.metrics;

@@ -10,7 +10,26 @@ package com.sma.sdn.model;
 
 import java.time.Instant;
 
-/** A consensus-selected, directionless policy that can own a tunnel pair. */
+/**
+ * <p>Represents one policy selected from directional evidence by consensus. The pair-policy coordinator evaluates and applies this candidate to the configured LSP scope.</p>
+ *
+ * @param pairKey managed tunnel-pair identifier
+ * @param serviceKey normalized identity of the traffic service
+ * @param selectedFromDirectionKey direction from which the policy was selected
+ * @param selectedFromIngressSwitchName ingress switch supplying selected evidence
+ * @param className classification class name
+ * @param profileName traffic-policy profile name
+ * @param dscp policy differentiated services code point
+ * @param mplsTc policy MPLS traffic-class value
+ * @param requestedBandwidthKbps requested bandwidth in kilobits per second
+ * @param requestedBandwidthBase64 PCEP bandwidth encoding
+ * @param setupPriority LSP setup priority
+ * @param holdPriority LSP holding priority
+ * @param policySchemaVersion policy schema version
+ * @param policyHash policy fingerprint
+ * @param consensusStatus consensus outcome
+ * @param selectedAt candidate selection time
+ */
 public record PairPolicyCandidate(
         String pairKey,
         ServiceKey serviceKey,

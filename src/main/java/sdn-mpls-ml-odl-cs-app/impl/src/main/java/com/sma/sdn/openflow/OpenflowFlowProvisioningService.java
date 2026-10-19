@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
  * and is available at http://www.eclipse.org/legal/epl-v10.html
  */
+
 package com.sma.sdn.openflow;
 
 import com.sma.sdn.config.AppConfig;
@@ -16,32 +20,43 @@ import java.net.http.HttpResponse;
 import java.util.Objects;
 
 /**
- * Programa flujos OpenFlow mediante RESTCONF PUT y limita internamente los reintentos de fallos transitorios.
+ * <p>Installs OpenFlow definitions using RESTCONF PUT, retrying transient HTTP responses
+ * and runtime failures with bounded, jittered backoff. Bootstrap callers receive an
+ * {@link OpenflowFlowInstallResult} describing the final outcome.</p>
  */
 public final class OpenflowFlowProvisioningService {
+    /** <p>Records installations and retry decisions.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(OpenflowFlowProvisioningService.class);
+    /** <p>Sends flow configuration PUT requests to OpenDaylight.</p> */
     private final OdlRestconfDataClient dataClient;
+    /** <p>Builds the flow inventory XML payload.</p> */
     private final OpenflowFlowXmlSerializer serializer;
+    /** <p>Records attempt, success and failure counts.</p> */
     private final SdnMplsMlMetrics metrics;
+    /** <p>Maximum number of PUT attempts, including the first.</p> */
     private final int maxAttempts;
+    /** <p>Base delay before the first retry in milliseconds.</p> */
     private final long initialDelayMs;
+    /** <p>Upper bound for the exponentially increasing base delay.</p> */
     private final long maxDelayMs;
+    /** <p>Percentage jitter applied to each retry delay.</p> */
     private final int jitterPercent;
 
     /**
-     * Crea el provisionador con los limites de reintento compartidos por las llamadas protegidas a ODL.
+     * <p>Initializes the RESTCONF collaborators and retry configuration.</p>
      *
-     * <p>Pasos:
+     * <p>Construction proceeds as follows:</p>
      * <ol>
-     *   <li>Conserva el cliente RESTCONF y el serializador XML.</li>
-     *   <li>Normaliza el numero maximo de intentos a un minimo de uno.</li>
-     *   <li>Conserva las demoras y el jitter para respuestas transitorias.</li>
+     *   <li>Require a client, serializer and metrics collector.</li>
+     *   <li>Read the topology-discovery attempt limit, clamping it to at least one.</li>
+     *   <li>Read the initial and maximum delays and jitter percentage.</li>
      * </ol>
      *
-     * @param config configuracion de reintentos
-     * @param dataClient cliente RESTCONF autenticado
-     * @param serializer serializador de flujos
-     * @param metrics registro de metricas
+     * @param config retry settings
+     * @param dataClient authenticated RESTCONF data client
+     * @param serializer flow XML serializer
+     * @param metrics application metrics collector
+     * @throws NullPointerException if a collaborator or configuration is null
      */
     public OpenflowFlowProvisioningService(
             final AppConfig config,
@@ -58,20 +73,21 @@ public final class OpenflowFlowProvisioningService {
     }
 
     /**
-     * Instala una regla, reintenta respuestas 409, 503 y fallos de transporte, y clasifica el resultado final.
+     * <p>Installs a flow and returns a structured result for success, a permanent
+     * HTTP failure, or exhaustion of retryable attempts. The XML is serialized once.</p>
      *
-     * <p>Pasos:
+     * <p>Installation proceeds as follows:</p>
      * <ol>
-     *   <li>Serializa la regla sin codificar los identificadores contenidos en el XML.</li>
-     *   <li>Ejecuta PUT usando el identificador de nodo previamente codificado.</li>
-     *   <li>Acepta HTTP 200, 201 y 204 como exito.</li>
-     *   <li>Reintenta HTTP 409, HTTP 503 y excepciones de transporte con espera exponencial.</li>
-     *   <li>Devuelve inmediatamente errores permanentes como HTTP 400 o 404.</li>
+     *   <li>Serialize the definition, then PUT it to the switch's encoded node URI.</li>
+     *   <li>Return success for HTTP 200, 201 or 204, and fail immediately for other nonretryable statuses.</li>
+     *   <li>Retry HTTP 409, 503 and runtime failures, waiting with bounded jittered backoff between attempts.</li>
+     *   <li>Record failure and return a retryable result if all attempts are exhausted.</li>
      * </ol>
      *
-     * @param switchRecord conmutador de destino
-     * @param flowDefinition regla que sera instalada
-     * @return clasificacion final del intento de instalacion
+     * @param switchRecord destination switch and encoded node ID
+     * @param flowDefinition rule to serialize and install
+     * @return final installation classification and last observed HTTP status
+     * @throws IllegalStateException if the retry wait is interrupted
      */
     public OpenflowFlowInstallResult installFlow(
             final OpenflowSwitchRecord switchRecord,
@@ -126,13 +142,17 @@ public final class OpenflowFlowProvisioningService {
     }
 
     /**
-     * Espera antes del siguiente PUT y conserva la interrupcion del hilo como un fallo controlado.
+     * <p>Waits for a jittered delay before the next PUT, restoring the interrupt flag if interrupted.</p>
+     * <p>The wait proceeds as follows:</p>
+     * <ol><li>Apply jitter and log the previous attempt and delay.</li>
+     * <li>Sleep for that delay, converting interruption to an exception.</li></ol>
      *
-     * @param flowId identificador del flujo reintentado
-     * @param attempt intento que acaba de fallar
-     * @param baseDelayMs demora base antes de aplicar jitter
-     * @param statusCode ultimo codigo HTTP, o cero sin respuesta
-     * @param failure ultima excepcion de transporte, si existio
+     * @param flowId identifier of the flow being retried
+     * @param attempt attempt that just failed
+     * @param baseDelayMs delay before jitter in milliseconds
+     * @param statusCode last observed HTTP status, or zero without a response
+     * @param failure most recent runtime exception, if any
+     * @throws IllegalStateException if the thread is interrupted during sleep
      */
     private void waitBeforeRetry(
             final String flowId,
@@ -160,30 +180,36 @@ public final class OpenflowFlowProvisioningService {
     }
 
     /**
-     * Duplica una demora sin desbordar el intervalo representable por {@code long}.
+     * <p>Doubles a delay, saturating at the largest representable long.</p>
+     * <p>The calculation has one step:</p>
+     * <ol><li>Check for positive overflow before multiplying by two.</li></ol>
      *
-     * @param value demora actual
-     * @return demora duplicada o {@link Long#MAX_VALUE}
+     * @param value current delay
+     * @return doubled delay or {@link Long#MAX_VALUE} on positive overflow
      */
     private static long safeDouble(final long value) {
         return value > Long.MAX_VALUE / 2L ? Long.MAX_VALUE : value * 2L;
     }
 
     /**
-     * Reconoce los codigos RESTCONF que confirman persistencia satisfactoria.
+     * <p>Recognizes HTTP statuses treated as successful flow installation.</p>
+     * <p>The check has one step:</p>
+     * <ol><li>Compare the status with 200, 201 and 204.</li></ol>
      *
-     * @param statusCode codigo HTTP recibido
-     * @return {@code true} para HTTP 200, 201 o 204
+     * @param statusCode received HTTP status
+     * @return whether the status is 200, 201 or 204
      */
     private static boolean isSuccess(final int statusCode) {
         return statusCode == 200 || statusCode == 201 || statusCode == 204;
     }
 
     /**
-     * Reconoce conflictos y falta temporal de servicio como condiciones recuperables.
+     * <p>Recognizes the HTTP statuses retried by flow installation.</p>
+     * <p>The check has one step:</p>
+     * <ol><li>Compare the status with 409 and 503.</li></ol>
      *
-     * @param statusCode codigo HTTP recibido
-     * @return {@code true} para HTTP 409 o 503
+     * @param statusCode received HTTP status
+     * @return whether the status is 409 or 503
      */
     private static boolean isRetryable(final int statusCode) {
         return statusCode == 409 || statusCode == 503;

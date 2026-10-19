@@ -8,8 +8,12 @@
 
 package com.sma.sdn.model;
 
-/** Define el alcance de direcciones que puede actualizar un flujo PacketIn. */
+/**
+ * <p>Represents configured scope choices for tunnel updates.</p>
+ */
 public enum TunnelUpdateScope {
+    /** <p>Scope the update to the observed direction.</p> */
     OBSERVED_DIRECTION,
+    /** <p>Scope the update to both directions of the pair.</p> */
     BIDIRECTIONAL_PAIR
 }
