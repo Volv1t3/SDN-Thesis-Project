@@ -14,73 +14,38 @@ import com.sma.sdn.model.PairConsensusBucket;
 import com.sma.sdn.model.PairConsensusDecision;
 import com.sma.sdn.model.PairConsensusStatus;
 import com.sma.sdn.model.PairPolicyCandidate;
-import com.sma.sdn.model.PairConsensusEqualPriorityAction;
 import java.time.Instant;
 import java.util.Optional;
 
 /**
  * <p>Evaluates directional classification evidence and selects a pair policy
- * candidate when agreement or a configured conflict rule permits it.</p>
+ * candidate when both unexpired observations agree or priorities resolve a conflict.</p>
  * <p>{@link PairPolicyCoordinator} supplies the evidence bucket and active state;
- * {@link ServiceKeyResolver} provides service-class preferences during conflicts.</p>
+ * service keys correlate observations but do not determine classification.</p>
  */
 public final class PairPolicyConsensusService {
-    /** <p>Whether both directional observations are required.</p> */
-    private final boolean requireBothDirections;
-    /** <p>Whether a single observation can produce a provisional candidate.</p> */
-    private final boolean provisionalSingleSideEnabled;
-    /** <p>Tie-breaking action for conflicting policies of equal priority.</p> */
-    private final PairConsensusEqualPriorityAction equalPriorityAction;
-    /** <p>Resolver of expected classes for well-known service ports.</p> */
-    private final ServiceKeyResolver serviceKeyResolver;
-
-    /**
-     * <p>Creates a consensus evaluator with the supplied selection rules.</p>
-     * <p>Construction proceeds as follows:</p>
-     * <ol><li>Retain the direction, provisional, tie-breaking and service resolver settings.</li></ol>
-     * @param requireBothDirections whether missing opposite evidence blocks selection
-     * @param provisionalSingleSideEnabled whether single-side selection is allowed when both are not required
-     * @param equalPriorityAction configured action for unresolved priority ties
-     * @param serviceKeyResolver lookup of expected classes for service keys
-     */
-    public PairPolicyConsensusService(final boolean requireBothDirections, final boolean provisionalSingleSideEnabled,
-            final PairConsensusEqualPriorityAction equalPriorityAction, final ServiceKeyResolver serviceKeyResolver) {
-        this.requireBothDirections = requireBothDirections;
-        this.provisionalSingleSideEnabled = provisionalSingleSideEnabled;
-        this.equalPriorityAction = equalPriorityAction;
-        this.serviceKeyResolver = serviceKeyResolver;
-    }
-
     /**
      * <p>Selects a candidate or returns a non-actionable decision for the current evidence.</p>
      * <p>The evaluation proceeds as follows:</p>
      * <ol>
-     *   <li>With a missing side, select a provisional observation only when configured;
-     *       otherwise report pending evidence.</li>
-     *   <li>When hashes match, select the left observation; on conflict, prefer an
-     *       observation matching the expected service class, checking left first.</li>
-     *   <li>Otherwise compare setup and hold priority, preferring lower numbers.</li>
-     *   <li>On a tie preserve a matching active policy, use configured class ordering,
-     *       or return an unresolved conflict without a candidate.</li>
+     *   <li>Discard each observation whose expiration is at or before the decision time.</li>
+     *   <li>Require both sides; matching hashes select the agreed policy.</li>
+     *   <li>On a hash conflict compare setup, then hold priority, preferring lower numbers.</li>
+     *   <li>On an exact priority tie preserve a matching active policy or defer without a candidate.</li>
      * </ol>
      * <p>The coordinator decides whether and where to apply a selected candidate.</p>
      * @param bucket pair, service key, and optional directional evidence
      * @param currentActivePolicy active policy, if any, used to resolve ties
      * @param now decision and candidate timestamp
      * @return consensus status, candidate when selected, evidence and reason
-     * @throws java.util.NoSuchElementException if provisional selection is enabled but both sides are empty
      */
     public PairConsensusDecision evaluate(final PairConsensusBucket bucket,
             final Optional<ActivePairPolicyState> currentActivePolicy, final Instant now) {
-        final Optional<DirectionalPolicyEvidence> left = bucket.leftEvidence();
-        final Optional<DirectionalPolicyEvidence> right = bucket.rightEvidence();
+        final Optional<DirectionalPolicyEvidence> left = bucket.leftEvidence()
+                .filter(evidence -> evidence.expiresAt().isAfter(now));
+        final Optional<DirectionalPolicyEvidence> right = bucket.rightEvidence()
+                .filter(evidence -> evidence.expiresAt().isAfter(now));
         if (left.isEmpty() || right.isEmpty()) {
-            if (!requireBothDirections && provisionalSingleSideEnabled) {
-                final DirectionalPolicyEvidence selected = left.orElseGet(right::orElseThrow);
-                return decision(bucket, PairConsensusStatus.CONSENSUS_TIMEOUT_SINGLE_SIDE_PROVISIONAL,
-                        Optional.of(candidate(selected, PairConsensusStatus.CONSENSUS_TIMEOUT_SINGLE_SIDE_PROVISIONAL, now)),
-                        left, right, "single-side provisional mode", now);
-            }
             return decision(bucket, PairConsensusStatus.PENDING_ONE_SIDE, Optional.empty(), left, right,
                     "missing usable evidence from the opposite side", now);
         }
@@ -90,19 +55,6 @@ public final class PairPolicyConsensusService {
             return decision(bucket, PairConsensusStatus.CONSENSUS_MATCH,
                     Optional.of(candidate(leftEvidence, PairConsensusStatus.CONSENSUS_MATCH, now)), left, right,
                     "directional policy hashes match", now);
-        }
-        final Optional<String> expectedClass = serviceKeyResolver.expectedClassFor(bucket.serviceKey());
-        if (expectedClass.isPresent()) {
-            if (expectedClass.get().equals(leftEvidence.className())) {
-                return decision(bucket, PairConsensusStatus.CONSENSUS_CONFLICT_SERVICE_KEY_SELECTED,
-                        Optional.of(candidate(leftEvidence, PairConsensusStatus.CONSENSUS_CONFLICT_SERVICE_KEY_SELECTED, now)),
-                        left, right, "well-known service key selected " + expectedClass.get(), now);
-            }
-            if (expectedClass.get().equals(rightEvidence.className())) {
-                return decision(bucket, PairConsensusStatus.CONSENSUS_CONFLICT_SERVICE_KEY_SELECTED,
-                        Optional.of(candidate(rightEvidence, PairConsensusStatus.CONSENSUS_CONFLICT_SERVICE_KEY_SELECTED, now)),
-                        left, right, "well-known service key selected " + expectedClass.get(), now);
-            }
         }
         final int priority = comparePriority(leftEvidence, rightEvidence);
         if (priority != 0) {
@@ -115,13 +67,6 @@ public final class PairPolicyConsensusService {
                 || currentActivePolicy.orElseThrow().policyHash().equals(rightEvidence.policyHash()))) {
             return decision(bucket, PairConsensusStatus.CONSENSUS_CONFLICT_CURRENT_POLICY_PRESERVED, Optional.empty(),
                     left, right, "equal priority conflict retains current active policy", now);
-        }
-        if (equalPriorityAction == PairConsensusEqualPriorityAction.CLASS_ORDER) {
-            final DirectionalPolicyEvidence selected = leftEvidence.className().compareTo(rightEvidence.className()) <= 0
-                    ? leftEvidence : rightEvidence;
-            return decision(bucket, PairConsensusStatus.CONSENSUS_CONFLICT_PRIORITY_SELECTED,
-                    Optional.of(candidate(selected, PairConsensusStatus.CONSENSUS_CONFLICT_PRIORITY_SELECTED, now)),
-                    left, right, "test-only class-order tie break", now);
         }
         return decision(bucket, PairConsensusStatus.CONSENSUS_CONFLICT_EQUAL_PRIORITY_UNRESOLVED, Optional.empty(),
                 left, right, "different policies have equal setup and hold priorities", now);

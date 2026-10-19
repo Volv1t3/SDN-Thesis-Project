@@ -16,7 +16,7 @@ import java.time.Instant;
 
 /**
  * <p>Compares a consensus candidate with the active pair policy by expiration,
- * policy hash, and RSVP-TE setup and hold priority. The coordinator uses the
+ * policy hash, and logical controller-side setup and hold priority. The coordinator uses the
  * resulting decision to retain, refresh, or replace the active policy.</p>
  */
 public final class PolicyPreemptionEvaluator {
@@ -29,8 +29,8 @@ public final class PolicyPreemptionEvaluator {
      *   <li>Compare setup priority and then hold priority, where lower values are stronger;
      *       distinguish a stronger incoming policy from equal or weaker alternatives.</li>
      * </ol>
-     * <p>{@link PairPolicyCoordinator} interprets the decision and applies its own
-     * configuration before changing active state.</p>
+     * <p>{@link PairPolicyCoordinator} uses the decision to retain, refresh, or apply
+     * the candidate to both directions. These priorities are not encoded into PCEP updates.</p>
      * @param active current pair policy and its expiration
      * @param incoming candidate selected by consensus
      * @param now time used to evaluate expiration

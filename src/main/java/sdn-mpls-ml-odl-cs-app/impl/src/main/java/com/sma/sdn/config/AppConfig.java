@@ -13,8 +13,6 @@ package com.sma.sdn.config;
 
 import com.sma.sdn.model.FlowDirection;
 import com.sma.sdn.model.OdlXmlBodyLogLevel;
-import com.sma.sdn.model.PairConsensusEqualPriorityAction;
-import com.sma.sdn.model.PairPolicyLspApplicationScope;
 import com.sma.sdn.model.TunnelDirection;
 import com.sma.sdn.model.TunnelEndpoint;
 import com.sma.sdn.observability.StructuredLogger;
@@ -27,7 +25,8 @@ import java.util.Objects;
 /**
  * <p>Immutable runtime configuration for the SDN-MPLS-ML controller bundle. The record collects the endpoints,
  * credentials, topology identifiers, tunnel identities, cache lifetimes, OpenFlow settings, retry parameters, and
- * pair-policy controls required by the application services.</p>
+ * pair-policy timing controls required by the application services. Pair-policy consensus,
+ * preemption, and bidirectional application are fixed behavior rather than configuration.</p>
  *
  * <p>{@link #fromEnvironment()} is the production entry point used by the provider. The resulting instance is shared
  * with HTTP clients, topology and path services, OpenFlow services, registries, tunnel coordination, and operational
@@ -80,18 +79,11 @@ import java.util.Objects;
  * @param openflowSuppressionPriority suppression-rule priority
  * @param openflowSuppressionCookieBase base used to derive suppression cookies
  * @param odlXmlBodyLogLevel logging threshold for OpenDaylight XML bodies
- * @param pairConsensusEnabled whether pair-consensus coordination is enabled
- * @param pairConsensusRequireBothDirections whether consensus requires both traffic directions
  * @param pairConsensusEvidenceTtl pair-consensus evidence lifetime
- * @param pairConsensusSingleSideProvisionalEnabled whether one-sided evidence may be provisional
- * @param pairConsensusEqualPriorityAction equal-priority consensus resolution
  * @param activePairPolicyIdleTtl idle lifetime of an active pair policy
  * @param activePairPolicySweeperEnabled whether active-policy expiration sweeps are enabled
  * @param activePairPolicySweeperInterval interval between active-policy expiration sweeps
- * @param pairPolicyPriorityPreemptionEnabled whether higher-priority policies may preempt
  * @param pairPolicyHashVersion version included in pair-policy hashes
- * @param pairPolicyLspApplicationScope directions receiving an admitted pair policy
- * @param lspApplicationRequireAllDirections whether all selected directions must succeed
  */
 public record AppConfig(
 
@@ -191,30 +183,16 @@ public record AppConfig(
         long openflowSuppressionCookieBase,
         /** <p>Logging threshold for OpenDaylight XML bodies.</p> */
         OdlXmlBodyLogLevel odlXmlBodyLogLevel,
-        /** <p>Whether bidirectional classification evidence is coordinated as a pair.</p> */
-        boolean pairConsensusEnabled,
-        /** <p>Whether pair consensus requires evidence from both traffic directions.</p> */
-        boolean pairConsensusRequireBothDirections,
         /** <p>Validity interval for pair-consensus evidence.</p> */
         Duration pairConsensusEvidenceTtl,
-        /** <p>Whether one-sided evidence can provisionally select a pair policy.</p> */
-        boolean pairConsensusSingleSideProvisionalEnabled,
-        /** <p>Resolution applied when equal-priority evidence proposes different policies.</p> */
-        PairConsensusEqualPriorityAction pairConsensusEqualPriorityAction,
         /** <p>Idle lifetime after which an active pair policy expires.</p> */
         Duration activePairPolicyIdleTtl,
         /** <p>Whether the active-pair-policy expiration sweep is enabled.</p> */
         boolean activePairPolicySweeperEnabled,
         /** <p>Interval between active-pair-policy expiration sweeps.</p> */
         Duration activePairPolicySweeperInterval,
-        /** <p>Whether a higher-priority candidate may preempt the active pair policy.</p> */
-        boolean pairPolicyPriorityPreemptionEnabled,
         /** <p>Version incorporated into deterministic pair-policy hashes.</p> */
-        int pairPolicyHashVersion,
-        /** <p>Directions to which an admitted pair policy is applied.</p> */
-        PairPolicyLspApplicationScope pairPolicyLspApplicationScope,
-        /** <p>Whether applying a pair policy succeeds only when all selected directions succeed.</p> */
-        boolean lspApplicationRequireAllDirections) {
+        int pairPolicyHashVersion) {
 
     /** <p>Structured event logger for configuration loading.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(AppConfig.class);
@@ -290,18 +268,11 @@ public record AppConfig(
      * @param openflowSuppressionPriority suppression-rule priority
      * @param openflowSuppressionCookieBase base used to derive suppression cookies
      * @param odlXmlBodyLogLevel logging threshold for OpenDaylight XML bodies
-     * @param pairConsensusEnabled whether pair-consensus coordination is enabled
-     * @param pairConsensusRequireBothDirections whether consensus requires both traffic directions
      * @param pairConsensusEvidenceTtl pair-consensus evidence lifetime
-     * @param pairConsensusSingleSideProvisionalEnabled whether one-sided evidence may be provisional
-     * @param pairConsensusEqualPriorityAction equal-priority consensus resolution
      * @param activePairPolicyIdleTtl idle lifetime of an active pair policy
      * @param activePairPolicySweeperEnabled whether active-policy expiration sweeps are enabled
      * @param activePairPolicySweeperInterval interval between active-policy expiration sweeps
-     * @param pairPolicyPriorityPreemptionEnabled whether higher-priority policies may preempt
      * @param pairPolicyHashVersion version included in pair-policy hashes
-     * @param pairPolicyLspApplicationScope directions receiving an admitted pair policy
-     * @param lspApplicationRequireAllDirections whether all selected directions must succeed
      *
      * @throws NullPointerException if a required reference-valued setting is {@code null}
      * @throws IllegalArgumentException if a validated numeric or duration setting is outside its accepted range
@@ -334,10 +305,8 @@ public record AppConfig(
         Objects.requireNonNull(tunnelOperationLockTimeout, "tunnelOperationLockTimeout");
         Objects.requireNonNull(odlXmlBodyLogLevel, "odlXmlBodyLogLevel");
         Objects.requireNonNull(pairConsensusEvidenceTtl, "pairConsensusEvidenceTtl");
-        Objects.requireNonNull(pairConsensusEqualPriorityAction, "pairConsensusEqualPriorityAction");
         Objects.requireNonNull(activePairPolicyIdleTtl, "activePairPolicyIdleTtl");
         Objects.requireNonNull(activePairPolicySweeperInterval, "activePairPolicySweeperInterval");
-        Objects.requireNonNull(pairPolicyLspApplicationScope, "pairPolicyLspApplicationScope");
         Objects.requireNonNull(ovsEchoManagementIp, "ovsEchoManagementIp");
         Objects.requireNonNull(ovsEchoHostPortName, "ovsEchoHostPortName");
         Objects.requireNonNull(ovsEchoCorePortName, "ovsEchoCorePortName");
@@ -427,7 +396,7 @@ public record AppConfig(
      *   <li>Parse the tunnel mode and construct the RESTCONF, RESTS, and classifier URIs.</li>
      *   <li>Resolve topology identifiers, endpoint router/PCC identities, and both {@link TunnelDirection} values.</li>
      *   <li>Parse cache and operation durations, retry controls, and OpenFlow settings.</li>
-     *   <li>Parse tunnel, suppression, consensus, preemption, and LSP-application policy settings.</li>
+     *   <li>Parse tunnel, suppression, evidence, and active-policy timing settings.</li>
      *   <li>Construct the record, thereby running compact-constructor validation.</li>
      *   <li>Log non-secret configuration metadata and return the validated snapshot.</li>
      * </ol>
@@ -532,20 +501,11 @@ public record AppConfig(
                 (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_PRIORITY", 250), // openflowSuppressionPriority
                 longValue(env, "SMA_OPENFLOW_SUPPRESSION_COOKIE_BASE", 0x8ADC00L), // openflowSuppressionCookieBase
                 parseOdlXmlBodyLogLevel(value(env, "SMA_ODL_XML_BODY_LOG_LEVEL", "DEBUG")), // odlXmlBodyLogLevel
-                booleanValue(env, "SMA_PAIR_CONSENSUS_ENABLED", true), // pairConsensusEnabled
-                booleanValue(env, "SMA_PAIR_CONSENSUS_REQUIRE_BOTH_DIRECTIONS", true), // pairConsensusRequireBothDirections
                 seconds(env, "SMA_PAIR_CONSENSUS_EVIDENCE_TTL_SECONDS", 10), // pairConsensusEvidenceTtl
-                booleanValue(env, "SMA_PAIR_CONSENSUS_SINGLE_SIDE_PROVISIONAL_ENABLED", false), // pairConsensusSingleSideProvisionalEnabled
-                parsePairConsensusEqualPriorityAction(value(env,
-                        "SMA_PAIR_CONSENSUS_EQUAL_PRIORITY_ACTION", "KEEP_CURRENT_OR_DEFER")), // pairConsensusEqualPriorityAction
                 seconds(env, "SMA_ACTIVE_PAIR_POLICY_IDLE_TTL_SECONDS", 60), // activePairPolicyIdleTtl
                 booleanValue(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_ENABLED", true), // activePairPolicySweeperEnabled
                 seconds(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_INTERVAL_SECONDS", 15), // activePairPolicySweeperInterval
-                "PRIORITY_PREEMPT".equalsIgnoreCase(value(env, "SMA_PAIR_POLICY_PREEMPTION_MODE", "PRIORITY_PREEMPT")), // pairPolicyPriorityPreemptionEnabled
-                (int) longValue(env, "SMA_PAIR_POLICY_HASH_VERSION", 1), // pairPolicyHashVersion
-                parsePairPolicyLspApplicationScope(value(env,
-                        "SMA_PAIR_POLICY_LSP_APPLICATION_SCOPE", "BIDIRECTIONAL_PAIR")), // pairPolicyLspApplicationScope
-                booleanValue(env, "SMA_LSP_APPLICATION_REQUIRE_ALL_DIRECTIONS", true)); // lspApplicationRequireAllDirections
+                (int) longValue(env, "SMA_PAIR_POLICY_HASH_VERSION", 1)); // pairPolicyHashVersion
         LOG.info("application_configuration_loaded", "from",
                 "Se cargo y valido la configuracion de la aplicacion desde el entorno",
                 StructuredLogger.fields("tunnel_creation_mode", config.tunnelCreationMode(),
@@ -561,7 +521,7 @@ public record AppConfig(
                         "openflow_table_id", config.openflowTableId(),
                         "tunnel_intent_ttl_seconds", config.tunnelIntentTtl().toSeconds(),
                         "openflow_suppression_enabled", false,
-                        "pair_consensus_require_both_directions", config.pairConsensusRequireBothDirections(),
+                        "pair_consensus_require_both_directions", true,
                         "pair_consensus_evidence_ttl_seconds", config.pairConsensusEvidenceTtl().toSeconds(),
                         "active_pair_policy_idle_ttl_seconds", config.activePairPolicyIdleTtl().toSeconds(),
                         "odl_xml_body_log_level", config.odlXmlBodyLogLevel(),
@@ -652,54 +612,6 @@ public record AppConfig(
             return OdlXmlBodyLogLevel.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("El valor de SMA_ODL_XML_BODY_LOG_LEVEL no es reconocido: "
-                    + rawValue, e);
-        }
-    }
-
-    /**
-     * <p>Parses the action used when pair-consensus evidence has equal priority.</p>
-     *
-     * <p>The helper performs the following steps:</p>
-     * <ol>
-     *   <li>Trim and upper-case the supplied text with {@link Locale#ROOT}.</li>
-     *   <li>Resolve the text with {@link PairConsensusEqualPriorityAction#valueOf(String)}.</li>
-     *   <li>Wrap an unsupported value with an error naming its environment key.</li>
-     * </ol>
-     *
-     * @param rawValue textual equal-priority action
-     * @return the matching equal-priority action
-     * @throws NullPointerException if {@code rawValue} is {@code null}
-     * @throws IllegalArgumentException if the normalized value does not name a supported action
-     */
-    private static PairConsensusEqualPriorityAction parsePairConsensusEqualPriorityAction(final String rawValue) {
-        try {
-            return PairConsensusEqualPriorityAction.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("El valor de SMA_PAIR_CONSENSUS_EQUAL_PRIORITY_ACTION no es reconocido: "
-                    + rawValue, e);
-        }
-    }
-
-    /**
-     * <p>Parses the configured direction scope for applying an admitted pair policy to LSPs.</p>
-     *
-     * <p>The helper performs the following steps:</p>
-     * <ol>
-     *   <li>Trim and upper-case the supplied text with {@link Locale#ROOT}.</li>
-     *   <li>Resolve the text with {@link PairPolicyLspApplicationScope#valueOf(String)}.</li>
-     *   <li>Wrap an unsupported value with an error naming its environment key.</li>
-     * </ol>
-     *
-     * @param rawValue textual LSP-application scope
-     * @return the matching pair-policy LSP-application scope
-     * @throws NullPointerException if {@code rawValue} is {@code null}
-     * @throws IllegalArgumentException if the normalized value does not name a supported scope
-     */
-    private static PairPolicyLspApplicationScope parsePairPolicyLspApplicationScope(final String rawValue) {
-        try {
-            return PairPolicyLspApplicationScope.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("El valor de SMA_PAIR_POLICY_LSP_APPLICATION_SCOPE no es reconocido: "
                     + rawValue, e);
         }
     }

@@ -13,19 +13,16 @@ package com.sma.sdn.policy;
 
 import com.sma.sdn.model.PacketFeatures;
 import com.sma.sdn.model.ServiceKey;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * <p>Derives a service key from packet protocol and ports, preferring a recognized
  * service port so typical request and reply packets resolve to the same service.</p>
- * <p>{@link PairPolicyConsensusService} also uses the port-to-class mapping to
- * resolve conflicting directional classifications.</p>
+ * <p>The key only correlates observations; it never supplies a traffic class.</p>
  */
 public final class ServiceKeyResolver {
-    /** <p>Recognized transport service ports and their expected classification names.</p> */
-    private static final Map<Integer, String> EXPECTED_CLASSES = Map.of(
-            20, "FTP", 21, "FTP", 22, "SSH", 53, "DNS", 80, "HTTP", 123, "NTP", 443, "HTTP", 8080, "HTTP");
+    /** <p>Recognized ports used to normalize request and reply service identity.</p> */
+    private static final Set<Integer> KNOWN_SERVICE_PORTS = Set.of(20, 21, 22, 53, 80, 123, 443, 8080);
 
     /**
      * <p>Builds a normalized service key for the packet features.</p>
@@ -50,26 +47,14 @@ public final class ServiceKeyResolver {
     }
 
     /**
-     * <p>Finds the expected class for a key's canonical port, if recognized.</p>
+     * <p>Checks whether a port is recognized for service-key normalization.</p>
      * <p>The lookup proceeds as follows:</p>
-     * <ol><li>Look up the canonical port in the static service map and wrap the
-     * result, which may be absent, in an optional.</li></ol>
-     * @param serviceKey service identity whose port is checked
-     * @return expected class, or an empty optional for an unrecognized port
-     */
-    public Optional<String> expectedClassFor(final ServiceKey serviceKey) {
-        return Optional.ofNullable(EXPECTED_CLASSES.get(serviceKey.canonicalServicePort()));
-    }
-
-    /**
-     * <p>Checks whether a port has an expected class mapping.</p>
-     * <p>The lookup proceeds as follows:</p>
-     * <ol><li>Test membership in the recognized service-port map.</li></ol>
+     * <ol><li>Test membership in the recognized service-port set.</li></ol>
      * @param port transport port to examine
      * @return whether the port is recognized
      */
     public boolean isKnownServicePort(final int port) {
-        return EXPECTED_CLASSES.containsKey(port);
+        return KNOWN_SERVICE_PORTS.contains(port);
     }
 
     /**

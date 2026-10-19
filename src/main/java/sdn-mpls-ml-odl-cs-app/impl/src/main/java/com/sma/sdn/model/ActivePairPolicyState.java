@@ -22,8 +22,8 @@ import java.util.Map;
  * @param mplsTc policy MPLS traffic-class value
  * @param requestedBandwidthKbps requested bandwidth in kilobits per second
  * @param requestedBandwidthBase64 PCEP bandwidth encoding
- * @param setupPriority LSP setup priority
- * @param holdPriority LSP holding priority
+ * @param setupPriority logical controller-side setup priority
+ * @param holdPriority logical controller-side hold priority
  * @param policySchemaVersion policy schema version
  * @param policyHash policy fingerprint
  * @param generation active-policy generation
@@ -66,8 +66,8 @@ public record ActivePairPolicyState(
      * @param mplsTc policy MPLS traffic-class value
      * @param requestedBandwidthKbps requested bandwidth in kilobits per second
      * @param requestedBandwidthBase64 PCEP bandwidth encoding
-     * @param setupPriority LSP setup priority
-     * @param holdPriority LSP holding priority
+     * @param setupPriority logical controller-side setup priority
+     * @param holdPriority logical controller-side hold priority
      * @param policySchemaVersion policy schema version
      * @param policyHash policy fingerprint
      * @param generation active-policy generation

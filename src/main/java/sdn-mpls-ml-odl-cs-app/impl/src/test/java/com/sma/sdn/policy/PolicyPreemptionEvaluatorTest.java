@@ -19,7 +19,7 @@ import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** Verifies stronger RSVP-TE priority preempts while weaker and equal policies do not. */
+/** Verifies controller-side setup-then-hold priority preemption. */
 class PolicyPreemptionEvaluatorTest {
     private static final Instant NOW = Instant.parse("2026-08-23T03:05:49Z");
     private static final ServiceKey KEY = new ServiceKey(2048, 1, 0, "eth_type=2048|ip_proto=1");
@@ -27,19 +27,49 @@ class PolicyPreemptionEvaluatorTest {
     @Test
     void strongerIncomingPriorityPreemptsActivePolicy() {
         assertEquals(PolicyPreemptionDecisionType.INCOMING_PRIORITY_PREEMPTS,
-                new PolicyPreemptionEvaluator().evaluate(active("ICMP", "icmp", 4, 4), candidate("SSH", "ssh", 3, 3), NOW).type());
+                new PolicyPreemptionEvaluator().evaluate(active("SSH", "ssh", 2, 1),
+                        candidate("STREAMING", "stream", 1, 0), NOW).type());
     }
 
     @Test
     void weakerIncomingPriorityIsRetainedWithoutRefresh() {
         assertEquals(PolicyPreemptionDecisionType.ACTIVE_POLICY_RETAINED_WEAKER_INCOMING,
-                new PolicyPreemptionEvaluator().evaluate(active("SSH", "ssh", 3, 3), candidate("ICMP", "icmp", 4, 4), NOW).type());
+                new PolicyPreemptionEvaluator().evaluate(active("HTTP", "http", 6, 5),
+                        candidate("FTP", "ftp", 6, 6), NOW).type());
     }
 
     @Test
     void equalPriorityDifferentPolicyIsDeferred() {
         assertEquals(PolicyPreemptionDecisionType.ACTIVE_POLICY_RETAINED_EQUAL_PRIORITY_DIFFERENT_POLICY,
-                new PolicyPreemptionEvaluator().evaluate(active("SSH", "ssh", 3, 3), candidate("STREAMING", "stream", 3, 3), NOW).type());
+                new PolicyPreemptionEvaluator().evaluate(active("SSH", "ssh", 2, 1),
+                        candidate("OTHER", "other", 2, 1), NOW).type());
+    }
+
+    @Test
+    void lowerHoldPriorityPreemptsWhenSetupIsEqual() {
+        assertEquals(PolicyPreemptionDecisionType.INCOMING_PRIORITY_PREEMPTS,
+                new PolicyPreemptionEvaluator().evaluate(active("FTP", "ftp", 6, 6),
+                        candidate("HTTP", "http", 6, 5), NOW).type());
+    }
+
+    @Test
+    void matchingHashRefreshesWithoutApplication() {
+        assertEquals(PolicyPreemptionDecisionType.SAME_POLICY_REFRESH,
+                new PolicyPreemptionEvaluator().evaluate(active("SSH", "same", 2, 1),
+                        candidate("SSH", "same", 2, 1), NOW).type());
+    }
+
+    @Test
+    void expiredActiveCanBeReplaced() {
+        final ActivePairPolicyState expired = active("SSH", "ssh", 2, 1);
+        final ActivePairPolicyState atBoundary = new ActivePairPolicyState(expired.pairKey(), expired.serviceKey(),
+                expired.className(), expired.profileName(), expired.dscp(), expired.mplsTc(),
+                expired.requestedBandwidthKbps(), expired.requestedBandwidthBase64(), expired.setupPriority(),
+                expired.holdPriority(), expired.policySchemaVersion(), expired.policyHash(), expired.generation(),
+                expired.installedAt(), expired.lastRefreshedAt(), NOW, expired.lspApplications());
+        assertEquals(PolicyPreemptionDecisionType.ACTIVE_EXPIRED_REPLACE,
+                new PolicyPreemptionEvaluator().evaluate(atBoundary,
+                        candidate("FTP", "ftp", 6, 6), NOW).type());
     }
 
     private static ActivePairPolicyState active(final String className, final String hash, final int setup, final int hold) {

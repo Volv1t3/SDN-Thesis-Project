@@ -9,13 +9,13 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Groups requested bandwidth and RSVP-TE setup and hold priorities. Classification policies
- * carry these values, and path computation and delegated LSP application use them to construct
- * their respective requests.</p>
+ * <p>Groups requested bandwidth with logical setup and hold priorities from a classification
+ * policy. The controller compares the priorities during consensus and preemption; the current
+ * PCEP update request carries bandwidth and ERO, not these priority values.</p>
  *
  * @param requestedBandwidthKbps requested bandwidth in kilobits per second
- * @param setupPriority setup priority used for path and LSP requests
- * @param holdPriority holding priority used for path and LSP requests
+ * @param setupPriority logical setup priority used for controller policy ordering
+ * @param holdPriority logical hold priority used to break setup-priority ties
  */
 public record PathConstraints(long requestedBandwidthKbps, int setupPriority, int holdPriority) {
 }

@@ -502,8 +502,6 @@ public final class SdnMplsMlMetrics {
         counter(values, "sma_packet_workflow_pending_consensus_total", "Packet workflows pending pair consensus.");
         counter(values, "sma_packet_workflow_deferred_total", "Packet workflows deferred by pair policy.");
         counter(values, "sma_pair_consensus_match_total", "Pair consensus decisions with matching evidence.");
-        counter(values, "sma_pair_consensus_service_key_selected_total",
-                "Pair consensus service-key conflict selections.");
         counter(values, "sma_pair_consensus_priority_selected_total", "Pair consensus priority conflict selections.");
         counter(values, "sma_pair_policy_refresh_total", "Active pair policies refreshed.");
         counter(values, "sma_pair_policy_deferred_total", "Pair policy candidates deferred.");
@@ -524,8 +522,6 @@ public final class SdnMplsMlMetrics {
                 "Operational state publish failures.");
         counter(values, "sma_pair_consensus_decision_total", "Pair consensus decisions by status.");
         counter(values, "sma_pair_consensus_equal_priority_total", "Equal-priority pair consensus conflicts.");
-        counter(values, "sma_pair_consensus_single_side_provisional_total",
-                "Single-side provisional consensus decisions.");
         counter(values, "sma_pair_consensus_require_both_block_total",
                 "Consensus blocked waiting for both directions.");
         counter(values, "sma_pair_policy_retained_stronger_active_total", "Active stronger policies retained.");

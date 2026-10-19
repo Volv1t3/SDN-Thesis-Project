@@ -18,7 +18,6 @@ import com.sma.sdn.model.PairConsensusDecision;
 import com.sma.sdn.model.PairConsensusStatus;
 import com.sma.sdn.model.PairPolicyCandidate;
 import com.sma.sdn.model.PairPolicyDecision;
-import com.sma.sdn.model.PairPolicyLspApplicationScope;
 import com.sma.sdn.model.PolicyPreemptionDecision;
 import com.sma.sdn.model.PolicyPreemptionDecisionType;
 import com.sma.sdn.model.TunnelDirection;
@@ -40,11 +39,11 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>Coordinates evidence, consensus and active-policy decisions under a per-pair
  * lock. It invokes directional LSP application before installing the resulting
  * records in the active registry.</p>
- * <p>Configuration determines whether consensus and preemption are enabled and
- * whether policy application targets the observed direction or the managed pair.</p>
+ * <p>Consensus and priority preemption are mandatory. An admitted policy targets
+ * both managed directions and is installed as active only after both report success.</p>
  */
 public final class PairPolicyCoordinator {
-    /** <p>Consensus, preemption, application scope and expiration settings.</p> */
+    /** <p>Active-policy expiration settings.</p> */
     private final AppConfig config;
     /** <p>Managed tunnel-pair and direction lookup.</p> */
     private final TunnelPairRegistry pairRegistry;
@@ -97,11 +96,11 @@ public final class PairPolicyCoordinator {
      * Decisions for the same pair execute serially; distinct pairs use separate locks.</p>
      * <p>The workflow proceeds as follows:</p>
      * <ol>
-     *   <li>Acquire the pair lock and return without recording evidence when consensus is disabled.</li>
-     *   <li>Record the observation, find the active policy, evaluate consensus and record metrics.</li>
+     *   <li>Acquire the pair lock, record the directional evidence, and find the active policy.</li>
+     *   <li>Evaluate consensus and record its decision metrics.</li>
      *   <li>Return pending or unresolved results when no candidate was selected.</li>
      *   <li>For an active policy, refresh an identical hash, retain it when preemption is
-     *       disabled or rejected, or apply the candidate when replacement is allowed.</li>
+     *       rejected, or apply the candidate when replacement is allowed.</li>
      *   <li>Without an active policy, apply the candidate; return the installed state
      *       and directional application records, then release the lock in all cases.</li>
      * </ol>
@@ -119,30 +118,28 @@ public final class PairPolicyCoordinator {
         lock.lock();
         try {
             final Instant now = Instant.now();
-            if (!config.pairConsensusEnabled()) {
-                return new PairPolicyDecision(evidence.pairKey(), evidence.serviceKey(),
-                        com.sma.sdn.model.PairConsensusStatus.PENDING_ONE_SIDE, Optional.empty(), null,
-                        activeRegistry.findActive(evidence.pairKey(), now), List.of(), "pair consensus is disabled");
-            }
             final PairConsensusBucket bucket = evidenceRegistry.recordEvidence(evidence);
             metrics.increment("sma_directional_evidence_recorded_total");
             final Optional<ActivePairPolicyState> activeBefore = activeRegistry.findActive(evidence.pairKey(), now);
             final PairConsensusDecision consensus = consensusService.evaluate(bucket, activeBefore, now);
             recordConsensus(consensus.consensusStatus());
             if (consensus.selectedCandidate().isEmpty()) {
-                final boolean pending = consensus.consensusStatus().name().equals("PENDING_ONE_SIDE");
-                metrics.increment(pending ? "sma_pair_consensus_pending_total" : "sma_pair_consensus_unresolved_total");
+                final PairConsensusStatus status = consensus.consensusStatus();
+                final boolean pending = status == PairConsensusStatus.PENDING_ONE_SIDE;
+                if (pending) {
+                    metrics.increment("sma_pair_consensus_pending_total");
+                } else if (status == PairConsensusStatus.CONSENSUS_CONFLICT_EQUAL_PRIORITY_UNRESOLVED) {
+                    metrics.increment("sma_pair_consensus_unresolved_total");
+                }
                 metrics.increment(pending ? "sma_packet_workflow_pending_consensus_total"
                         : "sma_packet_workflow_deferred_total");
                 return new PairPolicyDecision(evidence.pairKey(), evidence.serviceKey(), consensus.consensusStatus(),
                         Optional.empty(), null, activeBefore, List.of(), consensus.conflictResolutionReason());
             }
             final PairPolicyCandidate candidate = consensus.selectedCandidate().orElseThrow();
-            if (consensus.consensusStatus().name().contains("MATCH")) {
+            if (consensus.consensusStatus() == PairConsensusStatus.CONSENSUS_MATCH) {
                 metrics.increment("sma_pair_consensus_match_total");
-            } else if (consensus.consensusStatus().name().contains("SERVICE_KEY")) {
-                metrics.increment("sma_pair_consensus_service_key_selected_total");
-            } else if (consensus.consensusStatus().name().contains("PRIORITY")) {
+            } else if (consensus.consensusStatus() == PairConsensusStatus.CONSENSUS_CONFLICT_PRIORITY_SELECTED) {
                 metrics.increment("sma_pair_consensus_priority_selected_total");
             }
             if (activeBefore.isPresent()) {
@@ -156,14 +153,6 @@ public final class PairPolicyCoordinator {
                             candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
                             Optional.of(candidate), preemption.type(), Optional.of(refreshed), List.of(),
                             preemption.reason());
-                }
-                if (!config.pairPolicyPriorityPreemptionEnabled()) {
-                    metrics.increment("sma_pair_policy_deferred_total");
-                    metrics.increment("sma_pair_policy_retained_stronger_active_total");
-                    return new PairPolicyDecision(
-                            candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
-                            Optional.of(candidate), PolicyPreemptionDecisionType.ACTIVE_POLICY_RETAINED_WEAKER_INCOMING,
-                            activeBefore, List.of(), "priority preemption is disabled");
                 }
                 if (!preemption.appliesIncoming()) {
                     metrics.increment("sma_pair_policy_deferred_total");
@@ -179,7 +168,7 @@ public final class PairPolicyCoordinator {
                             Optional.of(candidate), preemption.type(), activeBefore, List.of(),
                             preemption.reason());
                 }
-                final ActivePairPolicyState installed = apply(candidate, evidence.directionKey(), workflowContext, now);
+                final ActivePairPolicyState installed = apply(candidate, workflowContext, now);
                 metrics.increment(preemption.type() == PolicyPreemptionDecisionType.INCOMING_PRIORITY_PREEMPTS
                         ? "sma_pair_policy_preempt_total" : "sma_pair_policy_expired_total");
                 metrics.increment(preemption.type() == PolicyPreemptionDecisionType.INCOMING_PRIORITY_PREEMPTS
@@ -189,7 +178,7 @@ public final class PairPolicyCoordinator {
                         Optional.of(candidate), preemption.type(), Optional.of(installed),
                         List.copyOf(installed.lspApplications().values()), preemption.reason());
             }
-            final ActivePairPolicyState installed = apply(candidate, evidence.directionKey(), workflowContext, now);
+            final ActivePairPolicyState installed = apply(candidate, workflowContext, now);
             metrics.increment("sma_pair_policy_replaced_expired_total");
             return new PairPolicyDecision(
                     candidate.pairKey(), candidate.serviceKey(), consensus.consensusStatus(),
@@ -201,37 +190,30 @@ public final class PairPolicyCoordinator {
     }
 
     /**
-     * <p>Applies a candidate to the configured directions and records the active pair state.</p>
+     * <p>Applies a candidate to both managed directions and records the active pair state.</p>
      * <p>Application proceeds as follows:</p>
      * <ol>
-     *   <li>Resolve either all managed pair directions or the observed direction.</li>
+     *   <li>Resolve both managed pair directions.</li>
      *   <li>Apply the candidate to each direction and collect the returned records.</li>
-     *   <li>If any status starts with {@code FAILED}, reject installation when all
-     *       directions are required; earlier directional operations are not rolled back.</li>
+     *   <li>If any status starts with {@code FAILED}, reject active-state installation;
+     *       earlier directional operations are not rolled back.</li>
      *   <li>Index records by direction, install the active state with its idle TTL and increment metrics.</li>
      * </ol>
      * @param candidate consensus-selected policy
-     * @param observedDirection direction associated with the current evidence
      * @param workflowContext packet context for directional application
      * @param now timestamp used to create the active state
      * @return newly installed active policy state
      * @throws IllegalStateException if a required direction fails or a pair cannot be resolved
      */
-    private ActivePairPolicyState apply(final PairPolicyCandidate candidate, final String observedDirection,
+    private ActivePairPolicyState apply(final PairPolicyCandidate candidate,
             final WorkflowContext workflowContext, final Instant now) {
-        final List<TunnelDirection> directions = config.pairPolicyLspApplicationScope()
-                == PairPolicyLspApplicationScope.BIDIRECTIONAL_PAIR
-                ? pairRegistry.requireManagedDirections(candidate.pairKey())
-                : List.of(pairRegistry.requirePairForDirection(observedDirection).forwardDirection().directionKey()
-                        .equals(observedDirection)
-                        ? pairRegistry.requirePairForDirection(observedDirection).forwardDirection()
-                        : pairRegistry.requirePairForDirection(observedDirection).reverseDirection());
+        final List<TunnelDirection> directions = pairRegistry.requireManagedDirections(candidate.pairKey());
         final List<DirectionalLspApplicationRecord> applications = new ArrayList<>();
         for (TunnelDirection direction : directions) {
             applications.add(lspApplicationService.applyPolicyToDirection(candidate, direction, workflowContext));
         }
         final boolean failed = applications.stream().anyMatch(record -> record.status().startsWith("FAILED"));
-        if (failed && config.lspApplicationRequireAllDirections()) {
+        if (failed) {
             throw new IllegalStateException("No se aplico la politica de par porque fallo al menos un LSP delegado");
         }
         final var children = new LinkedHashMap<String, DirectionalLspApplicationRecord>();
@@ -246,7 +228,7 @@ public final class PairPolicyCoordinator {
      * <p>Records the consensus outcome and selected specialized counters.</p>
      * <p>Metric recording proceeds as follows:</p>
      * <ol><li>Increment the labeled decision counter and the corresponding pending,
-     * equal-priority, or provisional counter when applicable.</li></ol>
+     * or equal-priority counter when applicable.</li></ol>
      * @param status outcome returned by the consensus evaluator
      */
     private void recordConsensus(final PairConsensusStatus status) {
@@ -255,8 +237,6 @@ public final class PairPolicyCoordinator {
             metrics.increment("sma_pair_consensus_require_both_block_total");
         } else if (status == PairConsensusStatus.CONSENSUS_CONFLICT_EQUAL_PRIORITY_UNRESOLVED) {
             metrics.increment("sma_pair_consensus_equal_priority_total");
-        } else if (status == PairConsensusStatus.CONSENSUS_TIMEOUT_SINGLE_SIDE_PROVISIONAL) {
-            metrics.increment("sma_pair_consensus_single_side_provisional_total");
         }
     }
 }
