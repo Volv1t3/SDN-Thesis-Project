@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -15,50 +18,61 @@ import com.sma.sdn.util.XmlSupport;
 import java.net.http.HttpResponse;
 
 /**
- * Define la clase {@code UpdateLspOutcomeClassifier} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Classifies immediate OpenDaylight {@code update-lsp} results while preserving the operation's provisional
+ * semantics. HTTP 200 is provisional success unless the XML contains a failure other than {@code no-ack}; server or
+ * transport-equivalent status values are ambiguous, and remaining non-success statuses are hard failures.</p>
+ *
+ * <p>The classifier uses {@link XmlSupport} only when a nonblank response body is available. Its
+ * {@link OdlCallOutcome} retains the failure reason and a dedicated no-ack flag so tunnel orchestration can distinguish
+ * an acknowledged error from an update that still requires operational-state verification.</p>
  */
 public final class UpdateLspOutcomeClassifier {
-    private static final StructuredLogger LOG = StructuredLogger.getLogger(UpdateLspOutcomeClassifier.class);
     /**
-     * Clasifica una respuesta HTTP de acuerdo con el modelo defensivo de resultados ODL.
+     * <p>Records update-LSP classifications, including provisional and no-ack decisions.</p>
+     */
+    private static final StructuredLogger LOG = StructuredLogger.getLogger(UpdateLspOutcomeClassifier.class);
+
+    /**
+     * <p>Classifies an HTTP response by forwarding its status and body to
+     * {@link #classify(int, String)}.</p>
      *
-     * <p>Pasos:
+     * <p>The adapter performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the HTTP status from {@code response}.</li>
+     *   <li>Reads the string response body without modifying it.</li>
+     *   <li>Delegates both values to the status-and-body overload and returns its outcome.</li>
      * </ol>
      *
-     * @param response valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param response update-LSP HTTP response to classify
+     * @return defensive outcome derived from the response status and XML body
+     * @throws NullPointerException if {@code response} is {@code null}
+     * @throws IllegalArgumentException if a nonblank HTTP 200 body is not parseable XML
      */
     public OdlCallOutcome classify(final HttpResponse<String> response) {
         return classify(response.statusCode(), response.body());
     }
 
     /**
-     * Clasifica una respuesta HTTP de acuerdo con el modelo defensivo de resultados ODL.
+     * <p>Classifies an update-LSP status and optional XML result. A successful HTTP exchange is intentionally
+     * provisional because persistence and PCC acknowledgement must be confirmed separately.</p>
      *
-     * <p>Pasos:
+     * <p>The classification performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>For HTTP 200, extracts the first namespace-independent {@code failure} element from the XML body.</li>
+     *   <li>Returns provisional success when no failure is present.</li>
+     *   <li>Returns provisional success with {@link OdlCallOutcome#noAck()} set when the failure is {@code no-ack}.</li>
+     *   <li>Maps any other HTTP 200 failure value to hard failure.</li>
+     *   <li>Maps status zero and server errors to ambiguous outcomes and all other statuses to hard failure.</li>
+     *   <li>Records the classification, failure presence, and no-ack flag at trace level.</li>
      * </ol>
      *
-     * @param statusCode valor requerido para ejecutar esta operacion
+     * <p>The resulting outcome can direct a caller toward operational verification, immediate rejection, or
+     * reconciliation after an indeterminate exchange.</p>
      *
-     * @param body valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param statusCode HTTP status returned by OpenDaylight, or zero for an indeterminate transport result
+     * @param body optional update-LSP XML response body
+     * @return defensive update-LSP outcome retaining any extracted failure reason
+     * @throws IllegalArgumentException if {@code statusCode} is 200 and a nonblank body cannot be parsed as XML
      */
     public OdlCallOutcome classify(final int statusCode, final String body) {
         final OdlCallOutcome outcome;
@@ -85,40 +99,20 @@ public final class UpdateLspOutcomeClassifier {
     }
 
     /**
-     * Ejecuta la operacion {@code ambiguous} dentro del componente correspondiente.
+     * <p>Extracts the first update-LSP failure value from an optional XML response body.</p>
      *
-     * <p>Pasos:
+     * <p>The extraction performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Returns {@code null} immediately when the body is absent or blank.</li>
+     *   <li>Parses the body through the securely configured {@link XmlSupport#parse(String)} helper.</li>
+     *   <li>Evaluates a namespace-independent XPath for the first {@code failure} element and returns its text.</li>
      * </ol>
      *
-     * @param reason valor requerido para ejecutar esta operacion
+     * <p>{@link #classify(int, String)} uses the extracted value to separate provisional success from hard failure.</p>
      *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     */
-    public OdlCallOutcome ambiguous(final String reason) {
-        final OdlCallOutcome outcome = new OdlCallOutcome(OdlCallOutcomeType.AMBIGUOUS, 0, reason, false);
-        LOG.debug("update_lsp_ambiguous_outcome_created", "ambiguous",
-                "Se construyo un resultado ambiguo para update-lsp",
-                StructuredLogger.fields("reason_present", reason != null && !reason.isBlank()));
-        return outcome;
-    }
-
-    /**
-     * Ejecuta la operacion {@code failure} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param body valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param body optional update-LSP XML body
+     * @return first failure value, an empty string when the element is absent, or {@code null} for no body
+     * @throws IllegalArgumentException if the nonblank body cannot be parsed or the XPath cannot be evaluated
      */
     private static String failure(final String body) {
         if (body == null || body.isBlank()) {

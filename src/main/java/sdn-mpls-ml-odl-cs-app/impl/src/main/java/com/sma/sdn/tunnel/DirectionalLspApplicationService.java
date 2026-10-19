@@ -29,14 +29,39 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-/** Applies an already-selected pair policy to one directional delegated LSP. */
+/**
+ * <p>Applies a selected pair-policy candidate to one delegated LSP direction. It computes
+ * the requested path, compares it and the encoded bandwidth with the latest PCEP report,
+ * and either skips an already converged LSP or requests an update and reports confirmation.</p>
+ *
+ * <p>The pair-policy coordinator consumes the returned application record. Per-direction
+ * locks serialize this service's concurrent applications for the same direction, while
+ * {@link DelegatedLspService} performs the actual PCEP update and confirmation.</p>
+ */
 public final class DirectionalLspApplicationService {
+    /** <p>Computes or retrieves paths satisfying the selected policy constraints.</p> */
     private final PathComputationService pathComputationService;
+    /** <p>Refreshes and updates the delegated LSP reported by PCEP.</p> */
     private final DelegatedLspService delegatedLspService;
+    /** <p>Hashes desired LSP state for correlation in application records.</p> */
     private final PairPolicyHashService hashService;
+    /** <p>Records application outcomes and confirmation metrics.</p> */
     private final SdnMplsMlMetrics metrics;
+    /** <p>Locks keyed by direction to serialize applications within this service.</p> */
     private final ConcurrentHashMap<String, ReentrantLock> locksByDirection = new ConcurrentHashMap<>();
 
+    /**
+     * <p>Creates a directional application service using the supplied collaborators.</p>
+     * <p>The constructor performs these steps:</p>
+     * <ol>
+     *   <li>Stores the path and delegated-LSP services for later computation and updates.</li>
+     *   <li>Stores the desired-state hash service and metrics collector.</li>
+     * </ol>
+     * @param pathComputationService path cache and computation service
+     * @param delegatedLspService service that refreshes and updates delegated LSPs
+     * @param hashService service used to hash the desired state
+     * @param metrics collector for update and confirmation counters
+     */
     public DirectionalLspApplicationService(final PathComputationService pathComputationService,
             final DelegatedLspService delegatedLspService, final PairPolicyHashService hashService,
             final SdnMplsMlMetrics metrics) {
@@ -46,6 +71,29 @@ public final class DirectionalLspApplicationService {
         this.metrics = metrics;
     }
 
+    /**
+     * <p>Applies a policy to one direction, serializing concurrent calls for that direction.
+     * A valid LSP already matching both ERO and bandwidth is skipped; otherwise the service
+     * invokes the update service and reports the ERO and bandwidth observed afterwards.
+     * The update service may itself skip the RPC if its registered state already matches.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Acquires the direction lock and computes or retrieves a path for the candidate constraints.</li>
+     *   <li>Refreshes PCEP state, translates the bandwidth and constructs the hashed desired state.</li>
+     *   <li>Returns a converged skip record when both requested values already match a valid LSP.</li>
+     *   <li>Otherwise invokes {@link DelegatedLspService#updateDelegatedLsp} and compares the
+     *       subsequently registered ERO and bandwidth, recording confirmation metrics.</li>
+     *   <li>On a runtime failure, records failure metrics and constructs a failure record using the
+     *       currently registered LSP; releases the direction lock in all cases.</li>
+     * </ol>
+     * <p>Failure handling itself requires a registered LSP and can propagate an exception if
+     * that lookup fails. The returned record is consumed by the pair-policy coordinator.</p>
+     * @param candidate selected policy and constraints
+     * @param direction LSP direction to update
+     * @param workflowContext packet workflow identity for correlation
+     * @return an application, converged-skip, or failure record
+     * @throws RuntimeException if obtaining the lock or constructing the fallback record fails
+     */
     public DirectionalLspApplicationRecord applyPolicyToDirection(final PairPolicyCandidate candidate,
             final TunnelDirection direction, final WorkflowContext workflowContext) {
         final ReentrantLock lock = locksByDirection.computeIfAbsent(
@@ -107,6 +155,20 @@ public final class DirectionalLspApplicationService {
         }
     }
 
+    /**
+     * <p>Builds the requested directional LSP state and its stable policy-service hash.</p>
+     * <p>The construction proceeds as follows:</p>
+     * <ol>
+     *   <li>Fingerprints the ordered ERO and combines it with policy constraints and LSP identity.</li>
+     *   <li>Hashes the partial state and returns a copy containing the resulting hash.</li>
+     * </ol>
+     * @param candidate selected pair policy
+     * @param direction direction receiving the policy
+     * @param current current delegated LSP identity
+     * @param ero ordered desired route
+     * @param bandwidth requested PCEP bandwidth encoding
+     * @return desired state including its ERO fingerprint and hash
+     */
     private DirectionalLspDesiredState desiredState(
             final PairPolicyCandidate candidate,
             final TunnelDirection direction,
@@ -127,6 +189,26 @@ public final class DirectionalLspApplicationService {
                 partial.desiredEroFingerprint(), hashService.hashDesiredLspState(partial));
     }
 
+    /**
+     * <p>Creates an application audit record associated with the originating packet workflow.</p>
+     * <p>The construction proceeds as follows:</p>
+     * <ol>
+     *   <li>Generates a record identifier and copies workflow, policy, desired-state and LSP identifiers.</li>
+     *   <li>Stores the supplied outcome flags and timestamps the end of the operation.</li>
+     * </ol>
+     * @param candidate selected pair policy
+     * @param direction affected direction
+     * @param workflowContext originating workflow identity
+     * @param desired desired LSP state
+     * @param current LSP whose identity is recorded
+     * @param status application outcome label
+     * @param httpStatus update response status, or null when unavailable
+     * @param sent whether an update was sent
+     * @param eroConfirmed whether the desired ERO was observed
+     * @param bandwidthConfirmed whether the desired bandwidth was observed
+     * @param started operation start time
+     * @return completed application record
+     */
     private static DirectionalLspApplicationRecord record(
             final PairPolicyCandidate candidate,
             final TunnelDirection direction,
@@ -145,6 +227,16 @@ public final class DirectionalLspApplicationService {
                 httpStatus, sent, eroConfirmed, bandwidthConfirmed, started, Instant.now());
     }
 
+    /**
+     * <p>Creates a deterministic textual fingerprint of an ordered ERO.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Formats each subobject's loose flag and IP prefix in route order.</li>
+     *   <li>Joins the formatted values with vertical bars.</li>
+     * </ol>
+     * @param ero ordered route subobjects
+     * @return fingerprint, or an empty string for an empty route
+     */
     private static String eroFingerprint(final List<EroSubobject> ero) {
         final StringJoiner joiner = new StringJoiner("|");
         for (EroSubobject subobject : ero) {
@@ -153,6 +245,16 @@ public final class DirectionalLspApplicationService {
         return joiner.toString();
     }
 
+    /**
+     * <p>Maps an exception message to a coarse failure-stage metric label.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Lowercases the message, substituting an empty string when absent.</li>
+     *   <li>Checks the configured English and Spanish fragments in order and falls back to unknown.</li>
+     * </ol>
+     * @param failure exception being classified
+     * @return best-effort stage label, not a definitive diagnosis
+     */
     private static String failureStage(final RuntimeException failure) {
         final String message = failure.getMessage() == null ? "" : failure.getMessage().toLowerCase();
         if (message.contains("camino") || message.contains("path")) {

@@ -36,18 +36,46 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-/** Serializes pair-level evidence, consensus, preemption, and child-LSP application. */
+/**
+ * <p>Coordinates evidence, consensus and active-policy decisions under a per-pair
+ * lock. It invokes directional LSP application before installing the resulting
+ * records in the active registry.</p>
+ * <p>Configuration determines whether consensus and preemption are enabled and
+ * whether policy application targets the observed direction or the managed pair.</p>
+ */
 public final class PairPolicyCoordinator {
+    /** <p>Consensus, preemption, application scope and expiration settings.</p> */
     private final AppConfig config;
+    /** <p>Managed tunnel-pair and direction lookup.</p> */
     private final TunnelPairRegistry pairRegistry;
+    /** <p>Store for observations used to build consensus buckets.</p> */
     private final DirectionalClassificationEvidenceRegistry evidenceRegistry;
+    /** <p>Evaluator selecting a candidate from directional evidence.</p> */
     private final PairPolicyConsensusService consensusService;
+    /** <p>Store for active pair policies and their child application records.</p> */
     private final ActivePairPolicyRegistry activeRegistry;
+    /** <p>Comparator for incoming and active policy priorities.</p> */
     private final PolicyPreemptionEvaluator preemptionEvaluator;
+    /** <p>Applies the candidate to each selected tunnel direction.</p> */
     private final DirectionalLspApplicationService lspApplicationService;
+    /** <p>Records consensus and policy decision counters.</p> */
     private final SdnMplsMlMetrics metrics;
+    /** <p>Per-pair locks serializing evidence and subsequent state changes.</p> */
     private final ConcurrentHashMap<String, ReentrantLock> locksByPair = new ConcurrentHashMap<>();
 
+    /**
+     * <p>Creates a coordinator using the supplied registries and services.</p>
+     * <p>Construction proceeds as follows:</p>
+     * <ol><li>Retain the configuration, collaborators and metrics for subsequent decisions.</li></ol>
+     * @param config application and consensus settings
+     * @param pairRegistry managed pair lookup
+     * @param evidenceRegistry directional evidence store
+     * @param consensusService consensus evaluator
+     * @param activeRegistry active policy store
+     * @param preemptionEvaluator active and incoming policy comparator
+     * @param lspApplicationService directional LSP policy application service
+     * @param metrics decision counters
+     */
     public PairPolicyCoordinator(final AppConfig config, final TunnelPairRegistry pairRegistry,
             final DirectionalClassificationEvidenceRegistry evidenceRegistry,
             final PairPolicyConsensusService consensusService, final ActivePairPolicyRegistry activeRegistry,
@@ -64,6 +92,26 @@ public final class PairPolicyCoordinator {
         this.metrics = metrics;
     }
 
+    /**
+     * <p>Processes an observation and, when permitted, applies a selected policy.
+     * Decisions for the same pair execute serially; distinct pairs use separate locks.</p>
+     * <p>The workflow proceeds as follows:</p>
+     * <ol>
+     *   <li>Acquire the pair lock and return without recording evidence when consensus is disabled.</li>
+     *   <li>Record the observation, find the active policy, evaluate consensus and record metrics.</li>
+     *   <li>Return pending or unresolved results when no candidate was selected.</li>
+     *   <li>For an active policy, refresh an identical hash, retain it when preemption is
+     *       disabled or rejected, or apply the candidate when replacement is allowed.</li>
+     *   <li>Without an active policy, apply the candidate; return the installed state
+     *       and directional application records, then release the lock in all cases.</li>
+     * </ol>
+     * <p>{@link DirectionalLspApplicationService} may perform external work before
+     * the active registry is updated; the lock does not roll back completed operations.</p>
+     * @param evidence directional classification and policy observation
+     * @param workflowContext packet workflow context passed to LSP application
+     * @return consensus and preemption outcome, active state and application records
+     * @throws IllegalStateException if required directional application fails or a collaborator rejects state
+     */
     public PairPolicyDecision handleEvidence(
             final DirectionalPolicyEvidence evidence,
             final WorkflowContext workflowContext) {
@@ -152,6 +200,23 @@ public final class PairPolicyCoordinator {
         }
     }
 
+    /**
+     * <p>Applies a candidate to the configured directions and records the active pair state.</p>
+     * <p>Application proceeds as follows:</p>
+     * <ol>
+     *   <li>Resolve either all managed pair directions or the observed direction.</li>
+     *   <li>Apply the candidate to each direction and collect the returned records.</li>
+     *   <li>If any status starts with {@code FAILED}, reject installation when all
+     *       directions are required; earlier directional operations are not rolled back.</li>
+     *   <li>Index records by direction, install the active state with its idle TTL and increment metrics.</li>
+     * </ol>
+     * @param candidate consensus-selected policy
+     * @param observedDirection direction associated with the current evidence
+     * @param workflowContext packet context for directional application
+     * @param now timestamp used to create the active state
+     * @return newly installed active policy state
+     * @throws IllegalStateException if a required direction fails or a pair cannot be resolved
+     */
     private ActivePairPolicyState apply(final PairPolicyCandidate candidate, final String observedDirection,
             final WorkflowContext workflowContext, final Instant now) {
         final List<TunnelDirection> directions = config.pairPolicyLspApplicationScope()
@@ -177,6 +242,13 @@ public final class PairPolicyCoordinator {
         return installed;
     }
 
+    /**
+     * <p>Records the consensus outcome and selected specialized counters.</p>
+     * <p>Metric recording proceeds as follows:</p>
+     * <ol><li>Increment the labeled decision counter and the corresponding pending,
+     * equal-priority, or provisional counter when applicable.</li></ol>
+     * @param status outcome returned by the consensus evaluator
+     */
     private void recordConsensus(final PairConsensusStatus status) {
         metrics.incrementCounter("sma_pair_consensus_decision_total", Map.of("decision", status.name()));
         if (status == PairConsensusStatus.PENDING_ONE_SIDE) {

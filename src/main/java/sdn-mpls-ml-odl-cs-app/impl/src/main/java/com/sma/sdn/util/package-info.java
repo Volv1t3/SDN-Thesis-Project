@@ -7,13 +7,9 @@
  */
 
 /**
- * Contiene utilidades compartidas de XML y reintentos con backoff.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Shared utilities for secure XML parsing, XPath extraction, escaping, and
+ * time-bounded retry with exponential delays and jitter.</p>
+ * <p>XML serializers and deserializers use {@link com.sma.sdn.util.XmlSupport};
+ * controller services use {@link com.sma.sdn.util.RetryPolicy} for polling.</p>
  */
 package com.sma.sdn.util;

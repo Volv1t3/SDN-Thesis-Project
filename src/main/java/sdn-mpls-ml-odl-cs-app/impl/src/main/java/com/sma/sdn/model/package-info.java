@@ -7,13 +7,8 @@
  */
 
 /**
- * Contiene modelos inmutables que describen paquetes, politicas, rutas, tuneles y resultados ODL.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Defines the controller's packet, classification, topology, path, policy, and tunnel data
+ * models. Services and registries exchange these records and enums across extraction, consensus,
+ * path calculation, OpenFlow provisioning, and delegated PCEP LSP operations.</p>
  */
 package com.sma.sdn.model;

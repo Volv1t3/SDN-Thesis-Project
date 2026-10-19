@@ -7,13 +7,11 @@
  */
 
 /**
- * Contiene utilidades y servicios del ciclo de vida de tuneles RSVP-TE PCC.
+ * <p>Services for observing and updating delegated PCEP LSPs and applying directional
+ * policy decisions to their paths and bandwidth.</p>
  *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>The pair-policy coordinator uses the directional application service, which relies
+ * on the delegated-LSP service and path computation. A separate intent-based coordinator
+ * integrates tunnel-operation reuse and optional OpenFlow suppression.</p>
  */
 package com.sma.sdn.tunnel;

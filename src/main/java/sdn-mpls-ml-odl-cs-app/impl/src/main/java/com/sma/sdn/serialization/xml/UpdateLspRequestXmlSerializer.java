@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -14,42 +17,43 @@ import com.sma.sdn.util.XmlSupport;
 import java.util.Objects;
 
 /**
- * Serializa una actualizacion estricta de un LSP RSVP-TE previamente delegado al controlador ODL.
+ * <p>Builds update-lsp XML for an existing delegated RSVP-TE LSP. DelegatedLspService supplies the registry identity, requested bandwidth, and calculated route; EroXmlSerializer renders its ordered route subobjects.</p>
  */
 public final class UpdateLspRequestXmlSerializer {
+    /** <p>Logger for serialized update-lsp request details.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(UpdateLspRequestXmlSerializer.class);
+    /** <p>Serializer for ordered ERO subobjects.</p> */
     private final EroXmlSerializer eroXmlSerializer;
 
     /**
-     * Crea el serializador con el componente encargado de representar los subobjetos ERO.
+     * <p>Create a serializer with a required ERO serializer.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida la dependencia obligatoria.</li>
-     *   <li>Conserva el serializador para las solicitudes posteriores.</li>
+     *   <li>Require and retain the route serializer.</li>
      * </ol>
      *
-     * @param eroXmlSerializer serializador de subobjetos ERO
-     * @throws NullPointerException si el serializador es nulo
+     * @param eroXmlSerializer ERO subobject serializer
+     * @throws NullPointerException if the serializer is null
      */
     public UpdateLspRequestXmlSerializer(final EroXmlSerializer eroXmlSerializer) {
         this.eroXmlSerializer = Objects.requireNonNull(eroXmlSerializer, "eroXmlSerializer");
     }
 
     /**
-     * Construye el XML completo de {@code update-lsp} con PLSP ID, ancho de banda, ERO y referencia de topologia.
+     * <p>Serialize an update-lsp request with its PCEP topology reference and LSP identity.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Exige un PLSP ID positivo y un ancho de banda Base64 no vacio.</li>
-     *   <li>Serializa el ERO estricto en el orden calculado.</li>
-     *   <li>Agrega las banderas de delegacion y administracion junto con la referencia PCEP.</li>
+     *   <li>Validate the PLSP ID, PCC, LSP name, topology ID, bandwidth, and nonempty ERO.</li>
+     *   <li>Render the topology reference, serialize the ERO, escape interpolated values, and build the RSVP-TE XML.</li>
+     *   <li>Log request details and return the XML.</li>
      * </ol>
      *
-     * @param request solicitud tipada de actualizacion del LSP delegado
-     * @return documento XML aceptado por {@code network-topology-pcep:update-lsp}
-     * @throws IllegalArgumentException si falta el PLSP ID o el ancho de banda
-     * @throws NullPointerException si la solicitud es nula
+     * @param request typed LSP update request
+     * @return update-lsp XML document
+     * @throws NullPointerException if the request is null
+     * @throws IllegalArgumentException if required request fields are invalid
      */
     public String serialize(final UpdateLspRequest request) {
         Objects.requireNonNull(request, "request");

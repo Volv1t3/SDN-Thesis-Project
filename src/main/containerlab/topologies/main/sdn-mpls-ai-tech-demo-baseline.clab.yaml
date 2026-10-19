@@ -170,9 +170,6 @@ topology:
         SMA_FORWARD_DIRECTION_KEY: lsr1_to_lsr4
         SMA_REVERSE_DIRECTION_KEY: lsr4_to_lsr1
 
-        SMA_HEADEND_TO_TAILEND_INGRESS: sma-ovs-pe1-echo|host-golf
-        SMA_TAILEND_TO_HEADEND_INGRESS: sma-ovs-pe2-foxtrot|host-hotel
-
         ODL_RESTCONF_DATA_BASE_URL: http://127.0.0.1:8182/restconf/data
         ODL_RESTS_OPERATIONS_BASE_URL: http://127.0.0.1:8181/rests/operations
         ODL_USERNAME: admin

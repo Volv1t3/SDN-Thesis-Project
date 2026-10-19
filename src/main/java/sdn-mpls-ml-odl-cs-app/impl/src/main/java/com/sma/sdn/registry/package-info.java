@@ -7,13 +7,10 @@
  */
 
 /**
- * Contiene registros en memoria usados para cache, correlacion e idempotencia.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Provides in-memory registries for topology, classification, tunnel state and
+ * pair-policy coordination. Individual registries define their own expiration,
+ * synchronization and snapshot behavior.</p>
+ * <p>Services populate and query these stores while processing packets and control-plane
+ * updates; operational-state publication consumes selected snapshots and counts.</p>
  */
 package com.sma.sdn.registry;

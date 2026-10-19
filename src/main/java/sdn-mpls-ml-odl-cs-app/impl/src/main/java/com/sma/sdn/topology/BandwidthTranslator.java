@@ -14,39 +14,36 @@ import java.nio.ByteOrder;
 import java.util.Base64;
 
 /**
- * Define la clase {@code BandwidthTranslator} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Converts application bandwidth values into the byte-rate representations used by controller path computations
+ * and PCEP LSP updates. The PCEP representation encodes a network-order IEEE-754 float in Base64.</p>
  */
 public final class BandwidthTranslator {
+    /** <p>Logger for bandwidth conversion and encoding.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(BandwidthTranslator.class);
     /**
-     * Ejecuta la operacion {@code BandwidthTranslator} dentro del componente correspondiente.
+     * <p>Prevents instantiation of this static conversion utility.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Leave construction inaccessible to callers.</li>
      * </ol>
      */
     private BandwidthTranslator() {
     }
 
     /**
-     * Ejecuta la operacion {@code kbpsToBytesPerSecond} dentro del componente correspondiente.
+     * <p>Convert decimal kilobits per second to integral bytes per second.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reject negative input.</li>
+     * <li>Multiply by 1000, divide by eight using integer arithmetic, log, and return the result. The
+     * multiplication is not overflow-checked.</li>
      * </ol>
      *
-     * @param kbps valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param kbps bandwidth in decimal kilobits per second
+     * @return bytes per second after integer conversion
+     * @throws IllegalArgumentException if the bandwidth is negative
      */
     public static long kbpsToBytesPerSecond(final long kbps) {
         if (kbps < 0L) {
@@ -60,18 +57,18 @@ public final class BandwidthTranslator {
     }
 
     /**
-     * Codifica un ancho de banda en el formato binario {@code string($byte)} requerido por PCEP.
+     * <p>Encode bandwidth as the Base64 network-order float32 byte rate used by PCEP.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Convierte los kilobits por segundo a bytes por segundo.</li>
-     *   <li>Representa el resultado como IEEE-754 float32 en orden de red.</li>
-     *   <li>Codifica los cuatro bytes mediante Base64.</li>
+     *   <li>Convert kilobits to integral bytes per second.</li>
+     *   <li>Cast the result to float and write four bytes in big-endian order.</li>
+     *   <li>Base64-encode the bytes, log, and return the string.</li>
      * </ol>
      *
-     * @param kbps ancho de banda solicitado en kilobits por segundo
-     * @return representacion Base64 del valor float32 de bytes por segundo
-     * @throws IllegalArgumentException si el ancho de banda es negativo
+     * @param kbps bandwidth in decimal kilobits per second
+     * @return Base64-encoded float32 bytes-per-second value
+     * @throws IllegalArgumentException if the bandwidth is negative
      */
     public static String kbpsToPcepBandwidthBase64Float32(final long kbps) {
         final float bytesPerSecond = (float) kbpsToBytesPerSecond(kbps);
@@ -88,18 +85,15 @@ public final class BandwidthTranslator {
     }
 
     /**
-     * Ejecuta la operacion {@code bytesPerSecondAsXmlFloat} dentro del componente correspondiente.
+     * <p>Format an integer byte rate with a decimal suffix for XML.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Append {@code .0} to the supplied integer and return it.</li>
      * </ol>
      *
-     * @param bytesPerSecond valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param bytesPerSecond byte rate to format
+     * @return decimal string with a fractional zero
      */
     public static String bytesPerSecondAsXmlFloat(final long bytesPerSecond) {
         return bytesPerSecond + ".0";

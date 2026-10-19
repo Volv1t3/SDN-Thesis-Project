@@ -23,19 +23,44 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Instala flujos temporales de mayor prioridad para suprimir PacketIn repetidos por servicio. */
+/**
+ * <p>Builds and installs temporary, service-specific OpenFlow rules to suppress repeated
+ * PacketIn notifications. It resolves ingress and core connectors from the discovered
+ * switch registry and sends suppression XML directly through the RESTCONF data client.</p>
+ */
 public final class OpenFlowSuppressionService {
+    /** <p>Ethernet type identifying IPv4 traffic.</p> */
     private static final int ETH_TYPE_IPV4 = 2048;
+    /** <p>IPv4 protocol number for ICMP.</p> */
     private static final int IP_PROTO_ICMP = 1;
+    /** <p>IPv4 protocol number for TCP.</p> */
     private static final int IP_PROTO_TCP = 6;
+    /** <p>IPv4 protocol number for UDP.</p> */
     private static final int IP_PROTO_UDP = 17;
+    /** <p>Logs suppression decisions and installation outcomes.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(OpenFlowSuppressionService.class);
+    /** <p>Supplies enablement, port names and suppression flow settings.</p> */
     private final AppConfig config;
+    /** <p>Resolves dynamic switches and connector identities.</p> */
     private final OpenflowSwitchRegistry switchRegistry;
+    /** <p>Writes suppression rules to the OpenDaylight flow inventory.</p> */
     private final OdlRestconfDataClient dataClient;
+    /** <p>Serializes suppression-specific matches and actions.</p> */
     private final OpenFlowSuppressionFlowXmlSerializer serializer;
+    /** <p>Tracks suppression installation attempts and outcomes.</p> */
     private final SdnMplsMlMetrics metrics;
 
+    /**
+     * <p>Constructs the suppression service with its required collaborators.</p>
+     * <p>Construction has one step:</p>
+     * <ol><li>Require and retain each configuration, registry, client, serializer and metrics dependency.</li></ol>
+     * @param config suppression and switch configuration
+     * @param switchRegistry discovered switch inventory
+     * @param dataClient RESTCONF data client
+     * @param serializer suppression XML serializer
+     * @param metrics metrics collector
+     * @throws NullPointerException if any dependency is null
+     */
     public OpenFlowSuppressionService(
             final AppConfig config,
             final OpenflowSwitchRegistry switchRegistry,
@@ -49,7 +74,18 @@ public final class OpenFlowSuppressionService {
         this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
-    /** Construye una regla ICMP, TCP o UDP especifica para el conector de ingreso descubierto. */
+    /**
+     * <p>Builds an optional suppression intent for IPv4 ICMP or for TCP and UDP with
+     * a positive destination port. No request is sent by this method.</p>
+     * <p>The intent is built as follows:</p>
+     * <ol><li>Reject disabled suppression, non-IPv4 traffic and unsupported service matches.</li>
+     * <li>Find the ingress switch and its configured core and ingress connectors.</li>
+     * <li>Derive a stable flow ID and cookie and assemble the configured timeout, match and classification fields.</li></ol>
+     * @param packetContext packet features and discovered ingress identity
+     * @param classification classification and policy attached to the intent
+     * @return suppression intent, or empty when no supported resolvable match exists
+     * @throws IllegalArgumentException if the ingress switch name is not supported
+     */
     public Optional<OpenFlowSuppressionIntent> buildSuppressionIntent(
             final PacketClassificationContext packetContext, final ClassificationResult classification) {
         if (!config.openflowSuppressionEnabled() || packetContext.packetFeatures().ethType() != ETH_TYPE_IPV4) {
@@ -103,7 +139,17 @@ public final class OpenFlowSuppressionService {
                 classification.policy().profileName()));
     }
 
-    /** Programa la regla de supresion y devuelve el resultado sin convertir su fallo en un error de tunel. */
+    /**
+     * <p>Submits one suppression-flow PUT and reports its result without turning a
+     * runtime failure into a tunnel failure. This operation does not retry.</p>
+     * <p>Installation proceeds as follows:</p>
+     * <ol><li>Record an attempt, serialize the intent and send the PUT.</li>
+     * <li>Count HTTP 200, 201 and 204 as success, and record and log the outcome.</li>
+     * <li>Convert a runtime failure into an unsuccessful result with status zero.</li></ol>
+     * @param intent suppression rule to install
+     * @param workflowContext workflow identifiers used in the success log
+     * @return installation status and diagnostic detail
+     */
     public OpenFlowProgrammingResult installSuppressionFlow(
             final OpenFlowSuppressionIntent intent, final WorkflowContext workflowContext) {
         metrics.increment("sma_openflow_suppression_install_attempts_total");
@@ -138,6 +184,14 @@ public final class OpenFlowSuppressionService {
         }
     }
 
+    /**
+     * <p>Resolves the configured core-facing port for a supported logical switch.</p>
+     * <p>The selection has one step:</p>
+     * <ol><li>Choose the ECHO or FOXTROT configuration, rejecting other names.</li></ol>
+     * @param switchName logical ingress switch name
+     * @return configured core-facing port name
+     * @throws IllegalArgumentException if the name is unsupported
+     */
     private String corePortName(final String switchName) {
         return switch (switchName) {
             case "ECHO" -> config.ovsEchoCorePortName();

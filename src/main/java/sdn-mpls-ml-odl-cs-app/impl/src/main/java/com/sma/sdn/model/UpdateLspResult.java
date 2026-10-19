@@ -9,10 +9,13 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code UpdateLspResult} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Reports whether an update-lsp response is successful, provisional, or a hard failure, together with its diagnostic reason and HTTP status. The update outcome classifier and delegated LSP workflow use this result.</p>
+ *
+ * @param success whether the response indicates success
+ * @param provisionalSuccess whether success is provisional
+ * @param hardFailure whether the response is a hard failure
+ * @param failureReason diagnostic failure reason, when available
+ * @param httpStatus HTTP response status
  */
 public record UpdateLspResult(
         boolean success, boolean provisionalSuccess, boolean hardFailure, String failureReason, int httpStatus) {

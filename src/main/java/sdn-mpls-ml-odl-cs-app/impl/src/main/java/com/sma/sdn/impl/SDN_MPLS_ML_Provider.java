@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -84,7 +87,7 @@ import org.osgi.service.http.HttpService;
 import org.osgi.service.http.NamespaceException;
 
 /**
- * Owns the lifecycle and dependency assembly of the SDN-MPLS-ML application in OpenDaylight.
+ * <p>Owns the lifecycle and dependency assembly of the SDN-MPLS-ML application in OpenDaylight.</p>
  *
  * <p>Blueprint creates this class from <code>OSGI-INF/blueprint/impl-blueprint.xml</code> after
  * Karaf supplies <code>NotificationService</code>, <code>DataBroker</code>, and
@@ -123,35 +126,58 @@ import org.osgi.service.http.NamespaceException;
  */
 public final class SDN_MPLS_ML_Provider
         implements AutoCloseable, NotificationService.Listener<PacketReceived> {
+    /** <p>Structured logger for provider lifecycle and packet-processing events.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(SDN_MPLS_ML_Provider.class);
 
+    /** <p>MD-SAL notification service used to register the PacketIn listener.</p> */
     private final NotificationService notificationService;
+    /** <p>MD-SAL broker used by the operational-state publisher.</p> */
     private final DataBroker dataBroker;
+    /** <p>Karaf HTTP service used to register and remove the metrics servlet.</p> */
     private final HttpService httpService;
+    /** <p>Monotonic count used to identify non-null packet notifications.</p> */
     private final AtomicLong packetInCounter = new AtomicLong();
+    /** <p>Visible readiness flag consulted by the packet workflow and state publisher.</p> */
     private final AtomicBoolean controlPlaneReady = new AtomicBoolean();
+    /** <p>Visible shutdown flag checked between readiness phases and before scheduling.</p> */
     private final AtomicBoolean closed = new AtomicBoolean();
+    /** <p>Single daemon executor responsible for deferred control-plane readiness attempts.</p> */
     private final ScheduledExecutorService readinessExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
         final Thread thread = new Thread(runnable, "sma-control-plane-readiness");
         thread.setDaemon(true);
         return thread;
     });
+    /** <p>Listener registration retained so that shutdown can remove the subscription.</p> */
     private Registration packetInRegistration;
+    /** <p>Packet workflow that extracts, classifies, and coordinates policy decisions.</p> */
     private SdnMplsMlWorkflowService workflowService;
+    /** <p>Service that loads the initial BGP-LS topology during readiness.</p> */
     private TopologyDiscoveryService topologyDiscoveryService;
+    /** <p>Service that refreshes the topology after initial discovery.</p> */
     private TopologyRefreshService topologyRefreshService;
+    /** <p>Service that discovers and updates the configured delegated PCEP LSPs.</p> */
     private DelegatedLspService delegatedLspService;
+    /** <p>Service that provisions and verifies the initial OpenFlow access rules.</p> */
     private OpenflowBootstrapService openflowBootstrapService;
+    /** <p>Publisher of controller state to the MD-SAL operational datastore.</p> */
     private ControllerOperationalStatePublisher operationalStatePublisher;
+    /** <p>Registered metrics servlet alias, or {@code null} before successful registration.</p> */
     private String metricsServletAlias;
 
     /**
-     * Receives the OSGi services required to operate the provider.
+     * <p>Receives the OSGi services required to operate the provider.</p>
      *
      * <p>Blueprint resolves these arguments from the bundle descriptor. The constructor only
      * validates and retains the references: it does not open connections, register listeners, or
      * call the controller. Deferring those operations to <code>init()</code> keeps transient
      * RESTCONF or PCEP unavailability out of constructor injection and under the retry lifecycle.</p>
+     *
+     * <p>Construction proceeds as follows:</p>
+     * <ol>
+     *   <li>Reject a null notification service and retain it for listener registration.</li>
+     *   <li>Reject a null data broker and retain it for operational state publication.</li>
+     *   <li>Reject a null HTTP service and retain it for metrics registration.</li>
+     * </ol>
      *
      * @param notificationService non-null MD-SAL service used to register the
      *        <code>PacketReceived</code> listener
@@ -169,7 +195,7 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Builds the CSA workflow, registers the PacketIn listener, and begins asynchronous readiness.
+     * <p>Builds the CSA workflow, registers the PacketIn listener, and begins asynchronous readiness.</p>
      *
      * <p><code>AppConfig.fromEnvironment()</code> supplies the configuration and must select
      * <code>DELEGATED_TUNNEL_UPDATE</code>; this provider only updates LSPs already delegated to
@@ -189,6 +215,16 @@ public final class SDN_MPLS_ML_Provider
      * <code>runReadinessAttempt()</code> succeeds. The first readiness attempt is scheduled with
      * zero delay outside the Blueprint lifecycle thread.</p>
      *
+     * <p>Initialization proceeds as follows:</p>
+     * <ol>
+     *   <li>Load configuration and reject a tunnel mode other than delegated LSP updates.</li>
+     *   <li>Create the shared HTTP client, controller and classifier clients, JSON mapper, and metrics servlet.</li>
+     *   <li>Build registries and the discovery, refresh, classification, path, OpenFlow, and PCEP services.</li>
+     *   <li>Connect directional evidence, consensus, preemption, and LSP application through the pair coordinator.</li>
+     *   <li>Create the operational publisher and packet workflow with live readiness and topology suppliers.</li>
+     *   <li>Register the listener, publish initial state, and schedule the first readiness attempt immediately.</li>
+     * </ol>
+     *
      * @throws IllegalStateException if the configured tunnel mode is unsupported or metrics cannot
      *        be published
      * @throws RuntimeException if local construction or mandatory listener registration fails
@@ -202,6 +238,8 @@ public final class SDN_MPLS_ML_Provider
 
         // Configuration is the common contract for every client and service in the bundle.
         final AppConfig config = AppConfig.fromEnvironment();
+        /*Notice that the application requires handling delegated tunnels per the previous research done and definitions
+        * in the environment, if the application supplies anything else then this system will fail to boot.*/
         if (config.tunnelCreationMode() != TunnelCreationMode.DELEGATED_TUNNEL_UPDATE) {
             throw new IllegalStateException("Solo se admite DELEGATED_TUNNEL_UPDATE. Modo configurado="
                     + config.tunnelCreationMode());
@@ -238,6 +276,8 @@ public final class SDN_MPLS_ML_Provider
                 .registerModule(new Jdk8Module())
                 .registerModule(new JavaTimeModule());
 
+        /*Here the application registers an internal servelet used to expose the HTTP metrics endpoint over the Java
+        * Servelet OSGI supplied httpService during initialization*/
         final SdnMplsMlMetrics metrics = new SdnMplsMlMetrics();
         registerMetricsServlet(metrics);
 
@@ -303,7 +343,7 @@ public final class SDN_MPLS_ML_Provider
         /*Corresponds to the operational data storage for the openflow switches read from opendaylight through RESTCONF*/
         final OpenflowSwitchRegistry openflowSwitchRegistry = new OpenflowSwitchRegistry();
 
-        /*Thisis the baseline mechanism that allows for the initializacion of the baseline flow tables on either edge devices
+        /*This is the baseline mechanism that allows for the initialization of the baseline flow tables on either edge devices
         * as they do not know anything aside from the baseline Table Miss behavior whihc pushes traffic to the controller. Aside from that one
         * we append a new rule to duplicate traffic to the controller as well as push it through to always allow for traffic
         * to flow.*/
@@ -392,6 +432,7 @@ public final class SDN_MPLS_ML_Provider
                 controlPlaneReady::get,
                 () -> topologyRefreshService != null && topologyRefreshService.ensureFresh());
 
+        // Register before asynchronous discovery; readiness gates packet-driven changes until it succeeds.
         packetInRegistration = notificationService.registerListener(PacketReceived.class, this);
         LOG.info(
                 "packet_listener_registered",
@@ -410,7 +451,7 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Schedules the next readiness attempt without blocking the Blueprint lifecycle thread.
+     * <p>Schedules the next readiness attempt without blocking the Blueprint lifecycle thread.</p>
      *
      * <p>The executor has one thread, so BGP-LS, PCEP, and OpenFlow readiness cycles do not overlap.
      * <code>delayMs</code> may already include jitter and is used only as the delay before invoking
@@ -420,6 +461,13 @@ public final class SDN_MPLS_ML_Provider
      * <p>A <code>RejectedExecutionException</code> is expected when <code>close()</code> shuts down
      * the executor between the check and the scheduling call, and is therefore ignored. If the
      * provider is still open, rejection is logged because no local readiness retry was scheduled.</p>
+     *
+     * <p>Scheduling proceeds as follows:</p>
+     * <ol>
+     *   <li>Return if shutdown has already been observed.</li>
+     *   <li>Submit the readiness cycle to the single-thread executor with the requested delay.</li>
+     *   <li>Log a rejected submission only if the provider is still open.</li>
+     * </ol>
      *
      * @param config non-null configuration defining retry behavior for the delegated attempt
      * @param attempt positive ordinal used for tracing and for identifying the next attempt
@@ -433,6 +481,7 @@ public final class SDN_MPLS_ML_Provider
             readinessExecutor.schedule(
                     () -> runReadinessAttempt(config, attempt, delayMs), delayMs, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException e) {
+            // Shutdown can race the preceding closed check; only unexpected rejections need a warning.
             if (!closed.get()) {
                 LOG.warn(
                         "control_plane_readiness_schedule_rejected",
@@ -445,15 +494,18 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Runs one complete control-plane readiness cycle in the background.
+     * <p>Runs one complete control-plane readiness cycle in the background.</p>
      *
+     * <p>The cycle proceeds as follows:</p>
      * <ol>
      *   <li><code>TopologyDiscoveryService</code> reads and validates the BGP-LS topology, filling
-     *       the node registry used by path computation.</li>
+     *       the node registry used by path computation; refresh records the successful discovery.</li>
      *   <li><code>DelegatedLspService</code> discovers existing PCEP LSPs and verifies that the
-     *       configured tunnels can be updated as delegated LSPs.</li>
+     *       configured tunnels can be updated as delegated LSPs, unless shutdown was observed.</li>
      *   <li><code>OpenflowBootstrapService</code> reads inventory, provisions access flows, and
      *       verifies them before PacketIn processing is admitted.</li>
+     *   <li>Start periodic topology refresh, mark readiness, and publish state after all phases succeed.</li>
+     *   <li>On a runtime failure, clear readiness, publish state, and schedule a jittered retry if still open.</li>
      * </ol>
      *
      * <p>Only after all three phases succeed does the method start
@@ -477,6 +529,7 @@ public final class SDN_MPLS_ML_Provider
             final long attempt,
             final long previousDelayMs) {
         if (closed.get()) {
+            /*if the system is alraeady shitting down do not allow further operations*/
             return;
         }
         LOG.info(
@@ -514,6 +567,7 @@ public final class SDN_MPLS_ML_Provider
                     "El plano de control confirmo BGP-LS, PCEP y los flujos de acceso OpenFlow requeridos.",
                     StructuredLogger.fields("attempt", attempt));
         } catch (RuntimeException e) {
+            // Publish the failed state before deciding whether shutdown permits another attempt.
             controlPlaneReady.set(false);
             publishOperationalState();
             if (closed.get()) {
@@ -535,13 +589,20 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Calculates the bounded exponential-backoff base delay for the next readiness cycle.
+     * <p>Calculates the bounded exponential-backoff base delay for the next readiness cycle.</p>
      *
      * <p>The first failure uses <code>odlRetryInitialDelayMs</code>. Later failures double the
      * prior delay, up to <code>odlRetryMaxDelayMs</code>. The multiplication guards against
      * <code>long</code> overflow, so even an anomalous sequence cannot turn the delay negative.
      * Jitter is intentionally not applied here, keeping the calculation deterministic; it is added
      * by <code>runReadinessAttempt()</code> immediately before scheduling work.</p>
+     *
+     * <p>The calculation proceeds as follows:</p>
+     * <ol>
+     *   <li>Return the configured initial delay when no positive previous delay exists.</li>
+     *   <li>Otherwise double the previous delay, saturating at {@link Long#MAX_VALUE} to avoid overflow.</li>
+     *   <li>Cap the result at the configured maximum delay.</li>
+     * </ol>
      *
      * @param config non-null configuration providing the initial and maximum delays
      * @param previousDelayMs delay used before the cycle that just failed; zero or a negative value
@@ -552,13 +613,14 @@ public final class SDN_MPLS_ML_Provider
         if (previousDelayMs <= 0L) {
             return config.odlRetryInitialDelayMs();
         }
+        // Saturate before doubling, then apply the configured retry ceiling.
         final long doubled = previousDelayMs > Long.MAX_VALUE / 2L
                 ? Long.MAX_VALUE : previousDelayMs * 2L;
         return Math.min(config.odlRetryMaxDelayMs(), doubled);
     }
 
     /**
-     * Receives an MD-SAL notification and delegates processing to the PacketIn workflow.
+     * <p>Receives an MD-SAL notification and delegates processing to the PacketIn workflow.</p>
      *
      * <p>The notification originates from the subscription registered by <code>init()</code>. A
      * null value is logged and ignored, although standard MD-SAL delivery should not produce one.
@@ -571,9 +633,17 @@ public final class SDN_MPLS_ML_Provider
      * use a cached classification or call the ML API, and whether sufficient evidence exists to
      * update LSPs. Its <code>RuntimeException</code> instances are logged and contained at this
      * notification boundary so a single packet failure does not terminate MD-SAL delivery. The
-     * provider attempts operational-state publication in the <code>finally</code> block in every
-     * case. This method does not serialize a notification with shutdown; a notification already in
+     * provider attempts operational-state publication in the <code>finally</code> block for each
+     * non-null notification. This method does not serialize a notification with shutdown; a notification already in
      * progress may finish while <code>close()</code> is running.</p>
+     *
+     * <p>Notification handling proceeds as follows:</p>
+     * <ol>
+     *   <li>Log and discard a null notification before incrementing the counter.</li>
+     *   <li>Assign a packet sequence and open a log context with a new workflow identifier.</li>
+     *   <li>Log the notification and pass it to the packet workflow.</li>
+     *   <li>Log runtime failures from the workflow and publish operational state in the finally block.</li>
+     * </ol>
      *
      * @param notification MD-SAL <code>PacketReceived</code> notification; null is tolerated only
      *        for non-standard invocation and produces no workflow side effects
@@ -625,7 +695,7 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Closes the provider and releases resources that outlive an individual method call.
+     * <p>Closes the provider and releases resources that outlive an individual method call.</p>
      *
      * <p>Blueprint invokes this method as its <code>destroy-method</code>. It first marks the
      * provider closed and not ready, and publishes that condition while the publisher still exists.
@@ -639,11 +709,20 @@ public final class SDN_MPLS_ML_Provider
      * it neither waits for an in-flight HTTP call or PacketIn workflow nor establishes mutual
      * exclusion with the readiness executor. The atomic flags make shutdown visible to subsequent
      * checks, but cannot retract a side effect that a concurrently running phase has already begun.</p>
+     *
+     * <p>Shutdown proceeds as follows:</p>
+     * <ol>
+     *   <li>Mark the provider closed and not ready, then publish the resulting state.</li>
+     *   <li>Request executor shutdown and close the listener registration if present.</li>
+     *   <li>Close the topology refresh service and unregister the metrics alias if present.</li>
+     *   <li>Clear released references and log the number of processed notifications.</li>
+     * </ol>
      */
     @Override
     public void close() {
         closed.set(true);
         controlPlaneReady.set(false);
+        // Publish while the assembled publisher and its state suppliers are still available.
         publishOperationalState();
         // Request cancellation before releasing collaborators that deferred work could otherwise use.
         readinessExecutor.shutdownNow();
@@ -667,13 +746,19 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Publishes an operational snapshot when the YANG publisher has been assembled.
+     * <p>Publishes an operational snapshot when the YANG publisher has been assembled.</p>
      *
      * <p>The null guard makes this method usable during partial initialization, error handling, and
      * shutdown. The publisher reads suppliers backed by current registries and flags, so this method
      * creates no local snapshot and does not coordinate PacketIn execution. Exceptions from
      * <code>publish()</code> are intentionally propagated to the caller, which determines whether
      * the failure belongs to a retry path or a notification failure path.</p>
+     *
+     * <p>Publication proceeds as follows:</p>
+     * <ol>
+     *   <li>Check whether initialization has assigned the operational-state publisher.</li>
+     *   <li>Invoke its publish method when available; otherwise leave state unchanged.</li>
+     * </ol>
      */
     private void publishOperationalState() {
         if (operationalStatePublisher != null) {
@@ -682,7 +767,7 @@ public final class SDN_MPLS_ML_Provider
     }
 
     /**
-     * Registers the Prometheus endpoint that exposes the CSA's shared metrics.
+     * <p>Registers the Prometheus endpoint that exposes the CSA's shared metrics.</p>
      *
      * <p>The servlet retains the same <code>SdnMplsMlMetrics</code> instance used by classification,
      * topology, path, and LSP services, so <code>/csa/metrics</code> exposes a consistent set of
@@ -693,18 +778,26 @@ public final class SDN_MPLS_ML_Provider
      * to <code>IllegalStateException</code> because this provider treats missing observability as
      * incomplete initialization.</p>
      *
+     * <p>Registration proceeds as follows:</p>
+     * <ol>
+     *   <li>Register a servlet backed by the shared metrics instance at {@code /csa/metrics}.</li>
+     *   <li>Retain and log the alias after successful registration so shutdown can unregister it.</li>
+     *   <li>Wrap a namespace or servlet registration failure in an {@link IllegalStateException}.</li>
+     * </ol>
+     *
      * @param metrics non-null instance to which application components record operational results
      * @throws IllegalStateException if the HTTP service cannot register the requested endpoint
      */
     private void registerMetricsServlet(final SdnMplsMlMetrics metrics) {
         try {
             httpService.registerServlet("/csa/metrics", new PrometheusMetricsServlet(metrics), null, null);
+            // Retain the successfully registered alias for later removal in close().
             metricsServletAlias = "/csa/metrics";
             LOG.info(
                     "prometheus_metrics_servlet_registered",
                     "registerMetricsServlet",
                     "Se registro el endpoint Prometheus del controlador.",
-                    StructuredLogger.fields("path", "/csa/metrics"));
+                    StructuredLogger.fields("path", metricsServletAlias));
         } catch (NamespaceException | ServletException e) {
             throw new IllegalStateException("No se pudo registrar el endpoint Prometheus", e);
         }

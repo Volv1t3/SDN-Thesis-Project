@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -11,7 +14,25 @@ package com.sma.sdn.model;
 import java.util.List;
 
 /**
- * Representa el estado operativo de un {@code reported-lsp} extraido directamente de la topologia PCEP.
+ * <p>Represents one LSP as reported in PCEP topology data. The PCEP deserializer produces snapshots that the delegated LSP service associates with configured directions.</p>
+ *
+ * <p>This is a reported view, not yet a managed directional record. The topology deserializer
+ * supplies the containing PCC identity; the delegated LSP service matches the PCC and name against
+ * configuration and checks the endpoints. It constructs a {@link DelegatedLspRecord},
+ * checks the resulting record's operational flags, and then replaces the registry.</p>
+ *
+ * @param pccNode PCEP client node identifier
+ * @param name reported LSP name
+ * @param plspId PCEP LSP identifier
+ * @param tunnelId reported tunnel identifier
+ * @param lspId reported LSP identifier
+ * @param sourceRouterId source router identifier
+ * @param destinationRouterId destination router identifier
+ * @param delegate reported delegation flag
+ * @param administrative reported administrative flag
+ * @param operational reported operational state
+ * @param ero reported explicit route
+ * @param bandwidthBase64 PCEP bandwidth encoding
  */
 public record PcepReportedLspSnapshot(
         String pccNode,
@@ -28,13 +49,26 @@ public record PcepReportedLspSnapshot(
         String bandwidthBase64) {
 
     /**
-     * Normaliza las colecciones del estado reportado para mantener el modelo inmutable.
+     * <p>Replace a null ERO with an empty list; otherwise retain an immutable copy.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Reemplaza una ERO nula por una lista vacia.</li>
-     *   <li>Crea una copia inmutable de los subobjetos recibidos.</li>
+     *   <li>Replace a null ERO with an empty list; otherwise retain an immutable copy.</li>
      * </ol>
+     *
+     * @param pccNode PCEP client node identifier
+     * @param name reported LSP name
+     * @param plspId PCEP LSP identifier
+     * @param tunnelId reported tunnel identifier
+     * @param lspId reported LSP identifier
+     * @param sourceRouterId source router identifier
+     * @param destinationRouterId destination router identifier
+     * @param delegate reported delegation flag
+     * @param administrative reported administrative flag
+     * @param operational reported operational state
+     * @param ero reported explicit route
+     * @param bandwidthBase64 PCEP bandwidth encoding
+     * @throws NullPointerException if the supplied ERO contains a null element
      */
     public PcepReportedLspSnapshot {
         ero = ero == null ? List.of() : List.copyOf(ero);

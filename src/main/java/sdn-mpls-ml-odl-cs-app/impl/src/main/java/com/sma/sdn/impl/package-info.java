@@ -9,7 +9,7 @@
  */
 
 /**
- * Contains the CSA's OSGi Blueprint integration boundary.
+ * <p>Contains the CSA's OSGi Blueprint integration boundary.</p>
  *
  * <p>Blueprint creates <code>SDN_MPLS_ML_Provider</code> after the MD-SAL and Karaf HTTP services
  * are available, injects those references, and calls <code>init()</code>. When the bundle stops,

@@ -8,13 +8,15 @@
 package com.sma.sdn.openflow;
 
 /**
- * Resume el resultado final de la instalacion RESTCONF de una regla OpenFlow.
+ * <p>Reports the final outcome of a RESTCONF flow installation, including whether a
+ * failure remains retryable. {@link OpenflowFlowProvisioningService} returns this value
+ * to its bootstrap callers.</p>
  *
- * @param flowId identificador de la regla evaluada
- * @param success indica si ODL acepto la operacion
- * @param retryable indica si el fallo permite un intento posterior
- * @param statusCode codigo HTTP, o cero cuando no se recibio respuesta
- * @param detail descripcion formal del resultado
+ * @param flowId identifier of the flow being installed
+ * @param success whether the installation was accepted
+ * @param retryable whether the failure permits a subsequent attempt
+ * @param statusCode last observed HTTP status, or zero if no response was received
+ * @param detail diagnostic description of the outcome
  */
 public record OpenflowFlowInstallResult(
         String flowId, boolean success, boolean retryable, int statusCode, String detail) {

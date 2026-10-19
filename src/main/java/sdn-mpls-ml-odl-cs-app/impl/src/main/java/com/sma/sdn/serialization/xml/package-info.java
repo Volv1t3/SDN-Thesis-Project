@@ -7,13 +7,11 @@
  */
 
 /**
- * Contiene serializacion y deserializacion XML para RESTCONF, PCEP y NETCONF.
+ * <p>Converts controller models to and from the XML exchanged with OpenDaylight.
+ * The package covers topology discovery, PCEP reported LSPs and updates, path computation,
+ * explicit routes, and OpenFlow suppression rules.</p>
  *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Topology, path, tunnel, and OpenFlow services coordinate the associated HTTP
+ * operations; these classes construct or interpret the corresponding payloads.</p>
  */
 package com.sma.sdn.serialization.xml;
