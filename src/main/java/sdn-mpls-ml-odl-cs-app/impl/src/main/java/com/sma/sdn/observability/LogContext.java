@@ -13,16 +13,26 @@ import java.util.Map;
 import org.slf4j.MDC;
 
 /**
- * Administra un alcance MDC restaurable para correlacionar eventos sin filtrar metadata hacia operaciones posteriores.
+ * <p>Temporarily augments the current thread's SLF4J mapped diagnostic context and restores
+ * its earlier entries on close. Packet processing, topology refresh and LSP operations use
+ * these scopes to correlate events emitted by {@link StructuredLogger}.</p>
  */
 public final class LogContext implements AutoCloseable {
+    /** <p>Context entries captured before this scope was opened.</p> */
     private final Map<String, String> previous;
+    /** <p>Whether the captured context has already been restored.</p> */
     private boolean closed;
 
     /**
-     * Captura el contexto vigente e instala temporalmente los valores de correlacion indicados.
+     * <p>Captures the current thread context and installs a merged correlation context.</p>
      *
-     * @param values campos no nulos que deben combinarse con el MDC vigente
+     * <p>The scope is initialized as follows:</p>
+     * <ol>
+     *   <li>Copies the existing MDC entries, treating an absent context as empty.</li>
+     *   <li>Overlays non-null keys and values, replacing entries with matching keys.</li>
+     *   <li>Replaces the thread's MDC with the merged entries.</li>
+     * </ol>
+     * @param values correlation entries to merge into the existing context
      */
     private LogContext(final Map<String, String> values) {
         final Map<String, String> current = MDC.getCopyOfContextMap();
@@ -37,30 +47,29 @@ public final class LogContext implements AutoCloseable {
     }
 
     /**
-     * Abre un alcance MDC que combina el contexto actual con los valores indicados.
+     * <p>Opens a restorable scope that merges the supplied entries into the current MDC.</p>
      *
-     * <p>Pasos:
+     * <p>The scope is opened as follows:</p>
      * <ol>
-     *   <li>Captura una copia del contexto MDC vigente.</li>
-     *   <li>Combina los nuevos campos sin eliminar los existentes.</li>
-     *   <li>Instala el contexto combinado hasta cerrar el alcance.</li>
+     *   <li>Substitutes an empty map when the argument is null.</li>
+     *   <li>Creates a scope which captures and augments the current thread's context.</li>
      * </ol>
      *
-     * @param values campos de correlacion que deben permanecer dentro del alcance
-     * @return contexto que debe cerrarse mediante try-with-resources
+     * <p>Close the returned scope on the same thread, normally using try-with-resources.</p>
+     * @param values correlation entries, or null for no additions
+     * @return scope that restores the previous context when closed
      */
     public static LogContext open(final Map<String, String> values) {
         return new LogContext(values == null ? Map.of() : values);
     }
 
     /**
-     * Restaura exactamente el contexto MDC que existia antes de abrir este alcance.
+     * <p>Restores the captured MDC entries once; subsequent calls do nothing.</p>
      *
-     * <p>Pasos:
+     * <p>Restoration proceeds as follows:</p>
      * <ol>
-     *   <li>Evita restauraciones repetidas.</li>
-     *   <li>Limpia los campos instalados por el alcance.</li>
-     *   <li>Repone la copia previa.</li>
+     *   <li>Checks whether this scope has already been closed.</li>
+     *   <li>Replaces the current MDC with the captured entries and marks the scope closed.</li>
      * </ol>
      */
     @Override
@@ -72,15 +81,15 @@ public final class LogContext implements AutoCloseable {
     }
 
     /**
-     * Sustituye completamente el MDC del hilo por el mapa recibido.
+     * <p>Replaces the current thread's MDC entries with the supplied map.</p>
      *
-     * <p>Pasos:
+     * <p>Replacement proceeds as follows:</p>
      * <ol>
-     *   <li>Limpia todos los campos vigentes.</li>
-     *   <li>Instala cada par de clave y valor del nuevo contexto.</li>
+     *   <li>Clears the current MDC.</li>
+     *   <li>Installs each supplied entry through the SLF4J MDC API.</li>
      * </ol>
      *
-     * @param values contexto completo que debe quedar instalado
+     * @param values complete set of context entries to install
      */
     private static void replace(final Map<String, String> values) {
         MDC.clear();

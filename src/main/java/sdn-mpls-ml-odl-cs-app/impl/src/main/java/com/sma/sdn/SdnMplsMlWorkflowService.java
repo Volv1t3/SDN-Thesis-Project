@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -34,41 +37,61 @@ import java.util.function.BooleanSupplier;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.packet.service.rev130709.PacketReceived;
 
 /**
- * Coordina PacketIn, clasificacion, calculo de camino y actualizacion de LSP delegados preexistentes.
+ * <p>Coordinates eligible OpenFlow packet notifications, classification and directional
+ * evidence submission to the pair-policy coordinator. Readiness and topology freshness
+ * gate packet-driven decisions before any classification is requested.</p>
+ *
+ * <p>The provider supplies this service with registries, classifiers and readiness callbacks.
+ * The coordinator decides whether evidence warrants an LSP application; this class does not
+ * itself calculate paths or directly send PCEP updates.</p>
  */
 public final class SdnMplsMlWorkflowService {
+    /** <p>Structured event logger for packet workflow decisions.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(SdnMplsMlWorkflowService.class);
 
+    /** <p>Extracts classification features and ingress identity from packet notifications.</p> */
     private final PacketInFeatureExtractor packetInFeatureExtractor;
+    /** <p>Retrieves cached classifications or requests new classifications.</p> */
     private final ClassificationService classificationService;
+    /** <p>Supplies the directional evidence lifetime.</p> */
     private final AppConfig config;
+    /** <p>Maps packet ingress information to a configured tunnel direction.</p> */
     private final DirectionRegistry directionRegistry;
+    /** <p>Resolves the tunnel pair containing an observed direction.</p> */
     private final TunnelPairRegistry pairRegistry;
+    /** <p>Derives the service identity used to group directional evidence.</p> */
     private final ServiceKeyResolver serviceKeyResolver;
+    /** <p>Computes hashes for the observed directional policy evidence.</p> */
     private final PairPolicyHashService hashService;
+    /** <p>Records evidence and coordinates consensus and policy applications.</p> */
     private final PairPolicyCoordinator pairPolicyCoordinator;
+    /** <p>Collects packet and control-cycle metrics.</p> */
     private final SdnMplsMlMetrics metrics;
+    /** <p>Reports whether startup control-plane discovery has completed.</p> */
     private final BooleanSupplier controlPlaneReady;
+    /** <p>Checks or refreshes the topology before a policy decision.</p> */
     private final BooleanSupplier topologyUsable;
 
     /**
-     * Crea el coordinador del flujo restringido a actualizaciones de LSP delegados.
-     *
-     * <p>Pasos:
+     * <p>Constructs the packet workflow with explicit collaborators and readiness checks.</p>
+     * <p>The constructor performs these steps:</p>
      * <ol>
-     *   <li>Valida los servicios de extraccion, clasificacion, direccion y camino.</li>
-     *   <li>Conserva el servicio que opera los LSP delegados.</li>
-     *   <li>Registra la comprobacion de vigencia de la topologia BGP-LS.</li>
+     *   <li>Requires and stores configuration, extraction, classification and direction services.</li>
+     *   <li>Requires and stores pair resolution, evidence hashing, policy coordination and metrics.</li>
+     *   <li>Requires and stores callbacks for control-plane readiness and topology usability.</li>
      * </ol>
-     *
-     * @param packetInFeatureExtractor extractor de contexto PacketIn
-     * @param classificationService servicio de clasificacion y cache
-     * @param directionRegistry registro de direcciones elegibles
-     * @param pathComputationService servicio de calculo de caminos
-     * @param delegatedLspService servicio de actualizacion de LSP delegados
-     * @param metrics contadores internos
-     * @param controlPlaneReady comprobacion de disponibilidad inicial de BGP-LS y PCEP
-     * @param topologyUsable comprobacion de vigencia de BGP-LS
+     * @param config application configuration including evidence TTL
+     * @param packetInFeatureExtractor packet context extractor
+     * @param classificationService classifier and classification cache
+     * @param directionRegistry ingress-to-direction mapping
+     * @param pairRegistry configured tunnel pairs
+     * @param serviceKeyResolver service identity resolver
+     * @param hashService directional evidence hash service
+     * @param pairPolicyCoordinator consensus and application coordinator
+     * @param metrics packet and control-cycle metrics
+     * @param controlPlaneReady startup readiness check
+     * @param topologyUsable topology freshness check
+     * @throws NullPointerException if any dependency is null
      */
     public SdnMplsMlWorkflowService(
             final AppConfig config,
@@ -97,17 +120,21 @@ public final class SdnMplsMlWorkflowService {
     }
 
     /**
-     * Procesa un PacketIn elegible y modifica solamente el camino o ancho de banda del LSP delegado correspondiente.
-     *
-     * <p>Pasos:
+     * <p>Processes an eligible packet notification into directional classification evidence
+     * and submits it for pair-policy consensus. Packets are skipped when readiness, ingress
+     * direction, IPv4 eligibility or topology freshness checks do not pass.</p>
+     * <p>The workflow proceeds as follows:</p>
      * <ol>
-     *   <li>Extrae el contexto y descarta trafico no IPv4 o de conectores no elegibles.</li>
-     *   <li>Clasifica el paquete y calcula el camino restringido para su direccion.</li>
-     *   <li>Compara la ERO y el ancho de banda con el estado PCEP reportado.</li>
-     *   <li>Invoca {@code update-lsp} solo cuando existe una diferencia y confirma el resultado.</li>
+     *   <li>Records the packet and stops if the control plane is not ready.</li>
+     *   <li>Extracts IPv4 features, resolves ingress direction and checks topology usability.</li>
+     *   <li>Classifies the packet, records cache-hit metrics and builds directional evidence.</li>
+     *   <li>Submits evidence to the coordinator and records a pending, deferred, successful or failed outcome.</li>
+     *   <li>Records an unreported failure before propagating a runtime exception.</li>
      * </ol>
-     *
-     * @param notification notificacion PacketReceived emitida por OpenFlow Plugin
+     * <p>The coordinator owns consensus and may apply policy to one or more directions;
+     * a cached-hit control-cycle outcome is recorded before that decision.</p>
+     * @param notification packet notification emitted by OpenFlow Plugin
+     * @throws RuntimeException if extraction, classification, coordination or a callback fails
      */
     public void handlePacket(final PacketReceived notification) {
         LOG.debug(
@@ -239,6 +266,21 @@ public final class SdnMplsMlWorkflowService {
         }
     }
 
+    /**
+     * <p>Builds a time-bounded, hashed evidence record for the observed direction and classification.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Uses the packet timestamp or current time, and resolves the service key and tunnel pair.</li>
+     *   <li>Translates requested bandwidth and constructs the policy fields and evidence expiry.</li>
+     *   <li>Hashes the partial evidence, creates the final record and logs its identity.</li>
+     * </ol>
+     * <p>The pair-policy coordinator uses this evidence for consensus with the opposite direction.</p>
+     * @param context packet features, ingress identity and receive time
+     * @param direction observed tunnel direction
+     * @param classification classifier output and selected policy
+     * @return directional evidence including its hash and expiry
+     * @throws RuntimeException if pair resolution, bandwidth conversion or hashing fails
+     */
     private DirectionalPolicyEvidence buildEvidence(final PacketClassificationContext context,
             final TunnelDirection direction, final ClassificationResult classification) {
         final Instant observedAt = context.receivedAt() == null ? Instant.now() : context.receivedAt();
@@ -271,6 +313,17 @@ public final class SdnMplsMlWorkflowService {
         return evidence;
     }
 
+    /**
+     * <p>Records a labeled control-cycle outcome and, when available, its elapsed duration.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Creates outcome and classification labels and increments the cycle counter.</li>
+     *   <li>When the monotonic start value is positive, observes elapsed seconds in the histogram.</li>
+     * </ol>
+     * @param outcome control-cycle outcome label
+     * @param className classification label, or the caller's unknown placeholder
+     * @param startedAt monotonic start time, or zero to omit the duration
+     */
     private void recordControlCycle(final String outcome, final String className, final long startedAt) {
         final Map<String, String> labels = Map.of("outcome", outcome, "class_name", className);
         metrics.incrementCounter("sma_control_cycle_total", labels);

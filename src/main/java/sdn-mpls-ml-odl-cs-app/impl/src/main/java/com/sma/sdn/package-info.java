@@ -7,13 +7,10 @@
  */
 
 /**
- * Contiene la orquestacion principal del flujo PacketIn, clasificacion, calculo de ruta y ciclo de vida del tunel.
+ * <p>Coordinates the packet-driven controller workflow from eligible OpenFlow notifications
+ * through classification and directional policy evidence.</p>
  *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>The workflow depends on readiness and topology freshness checks supplied by the
+ * provider and delegates consensus and directional applications to the policy services.</p>
  */
 package com.sma.sdn;

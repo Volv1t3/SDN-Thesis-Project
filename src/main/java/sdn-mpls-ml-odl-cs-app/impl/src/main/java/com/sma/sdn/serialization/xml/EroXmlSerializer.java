@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -14,28 +17,24 @@ import com.sma.sdn.util.XmlSupport;
 import java.util.List;
 
 /**
- * Define la clase {@code EroXmlSerializer} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Renders ordered explicit-route subobjects as XML fragments. The update-lsp request
+ * serializer embeds these fragments in the request sent by the delegated LSP service.</p>
  */
 public final class EroXmlSerializer {
+    /** <p>Logger for route serialization counts and output length.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(EroXmlSerializer.class);
     /**
-     * Construye la representacion serializada requerida por el endpoint consumidor.
+     * <p>Builds the XML fragment for the supplied ordered route subobjects.</p>
      *
-     * <p>Pasos:
+     * <p>Serialization proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Iterate in input order and write each loose flag and escaped IP prefix.</li>
+     *   <li>Log the subobject count and fragment length, then return the fragment.</li>
      * </ol>
      *
-     * @param subobjects valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param subobjects ordered route subobjects to render
+     * @return XML fragment containing the route subobjects
+     * @throws NullPointerException if the list or an element is null
      */
     public String serialize(final List<EroSubobject> subobjects) {
         final StringBuilder builder = new StringBuilder();

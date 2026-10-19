@@ -11,7 +11,27 @@ package com.sma.sdn.model;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Auditable result of applying a pair policy to one delegated LSP direction. */
+/**
+ * <p>Records one directional application of a selected pair policy, including its workflow identity, update outcome, and PCEP confirmation flags. The pair-policy coordinator retains these results with the active policy.</p>
+ *
+ * @param operationId operation identifier
+ * @param workflowId workflow correlation identifier
+ * @param packetSequence packet notification sequence
+ * @param pairKey managed tunnel-pair identifier
+ * @param directionKey managed tunnel-direction identifier
+ * @param policyHash policy fingerprint
+ * @param desiredLspStateHash fingerprint of the desired LSP state
+ * @param lspName symbolic LSP name
+ * @param pccNode PCEP client node identifier
+ * @param plspId PCEP LSP identifier
+ * @param status operation or response status
+ * @param updateLspHttpStatus HTTP status of the update-lsp operation, when available
+ * @param updateLspSent whether an update-lsp request was sent
+ * @param pcepEroConfirmed whether the requested ERO was confirmed
+ * @param pcepBandwidthConfirmed whether requested bandwidth was confirmed
+ * @param startedAt operation start time
+ * @param completedAt operation completion time
+ */
 public record DirectionalLspApplicationRecord(
         UUID operationId,
         String workflowId,

@@ -22,41 +22,31 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 /**
- * Define la clase {@code XmlSupport} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Provides namespace-aware DOM parsing, XPath extraction, scalar conversion,
+ * and XML text escaping for controller serializers and deserializers.</p>
+ * <p>Parsing enables secure processing and rejects document type declarations;
+ * XPath evaluation uses a newly created evaluator without a namespace context.</p>
  */
 public final class XmlSupport {
+    /** <p>Structured logger for parsed documents and node-set XPath results.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(XmlSupport.class);
     /**
-     * Ejecuta la operacion {@code XmlSupport} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
+     * <p>Prevents construction of this static utility class.</p>
+     * <p>Construction proceeds as follows:</p>
+     * <ol><li>Complete the private constructor without initializing instance state.</li></ol>
      */
     private XmlSupport() {
     }
 
     /**
-     * Ejecuta la operacion {@code parse} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param xml valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * <p>Parses an XML string into a namespace-aware DOM document.</p>
+     * <p>Parsing proceeds as follows:</p>
+     * <ol><li>Configure a new factory for namespace awareness, secure processing,
+     * and rejection of document type declarations.</li><li>Parse the UTF-8 bytes,
+     * log the root, and wrap parsing or configuration exceptions.</li></ol>
+     * @param xml serialized XML document
+     * @return parsed DOM document
+     * @throws IllegalArgumentException if parsing or parser configuration fails
      */
     public static Document parse(final String xml) {
         try {
@@ -77,20 +67,14 @@ public final class XmlSupport {
     }
 
     /**
-     * Ejecuta la operacion {@code nodes} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param node valor requerido para ejecutar esta operacion
-     *
-     * @param expression valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Evaluates an XPath expression as a node set against a DOM node.</p>
+     * <p>Evaluation proceeds as follows:</p>
+     * <ol><li>Create an XPath evaluator, evaluate the expression as a node set,
+     * and log its result count; wrap evaluation exceptions.</li></ol>
+     * @param node XPath context node
+     * @param expression XPath expression
+     * @return matching DOM nodes
+     * @throws IllegalArgumentException if XPath evaluation fails
      */
     public static NodeList nodes(final Node node, final String expression) {
         try {
@@ -106,20 +90,14 @@ public final class XmlSupport {
     }
 
     /**
-     * Ejecuta la operacion {@code string} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param node valor requerido para ejecutar esta operacion
-     *
-     * @param expression valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Evaluates an XPath expression as a trimmed string, treating blank values as absent.</p>
+     * <p>Evaluation proceeds as follows:</p>
+     * <ol><li>Evaluate the expression using a new XPath evaluator.</li>
+     * <li>Return null for a null or blank result, otherwise return the trimmed value.</li></ol>
+     * @param node XPath context node
+     * @param expression XPath expression
+     * @return trimmed value or null when blank
+     * @throws IllegalArgumentException if XPath evaluation fails
      */
     public static String string(final Node node, final String expression) {
         try {
@@ -132,20 +110,13 @@ public final class XmlSupport {
     }
 
     /**
-     * Ejecuta la operacion {@code integer} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param node valor requerido para ejecutar esta operacion
-     *
-     * @param expression valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Extracts an optional integer from an XPath string result.</p>
+     * <p>Conversion proceeds as follows:</p>
+     * <ol><li>Read the trimmed string; return null if absent or parse it as an integer.</li></ol>
+     * @param node XPath context node
+     * @param expression XPath expression
+     * @return parsed integer or null when blank
+     * @throws IllegalArgumentException if XPath evaluation or integer parsing fails
      */
     public static Integer integer(final Node node, final String expression) {
         final String value = string(node, expression);
@@ -153,20 +124,13 @@ public final class XmlSupport {
     }
 
     /**
-     * Ejecuta la operacion {@code longValue} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param node valor requerido para ejecutar esta operacion
-     *
-     * @param expression valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Extracts an optional long integer from an XPath string result.</p>
+     * <p>Conversion proceeds as follows:</p>
+     * <ol><li>Read the trimmed string; return null if absent or parse it as a long.</li></ol>
+     * @param node XPath context node
+     * @param expression XPath expression
+     * @return parsed long or null when blank
+     * @throws IllegalArgumentException if XPath evaluation or long parsing fails
      */
     public static Long longValue(final Node node, final String expression) {
         final String value = string(node, expression);
@@ -174,20 +138,14 @@ public final class XmlSupport {
     }
 
     /**
-     * Ejecuta la operacion {@code bool} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param node valor requerido para ejecutar esta operacion
-     *
-     * @param expression valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Extracts an optional Boolean from an XPath string result.</p>
+     * <p>Conversion proceeds as follows:</p>
+     * <ol><li>Read the trimmed string and return null if absent; otherwise apply
+     * {@link Boolean#valueOf(String)}, which treats only case-insensitive true as true.</li></ol>
+     * @param node XPath context node
+     * @param expression XPath expression
+     * @return parsed Boolean or null when blank
+     * @throws IllegalArgumentException if XPath evaluation fails
      */
     public static Boolean bool(final Node node, final String expression) {
         final String value = string(node, expression);
@@ -195,38 +153,24 @@ public final class XmlSupport {
     }
 
     /**
-     * Ejecuta la operacion {@code elementNamed} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param node valor requerido para ejecutar esta operacion
-     *
-     * @param localName valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Checks whether a node is an element with the supplied local name.</p>
+     * <p>The check proceeds as follows:</p>
+     * <ol><li>Test the node type and compare its local name without checking namespace URI.</li></ol>
+     * @param node node to inspect
+     * @param localName expected local name
+     * @return whether the node is an element with the expected local name
      */
     public static boolean elementNamed(final Node node, final String localName) {
         return node instanceof Element && localName.equals(node.getLocalName());
     }
 
     /**
-     * Ejecuta la operacion {@code escape} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @param value valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * <p>Escapes the five predefined XML special characters in a string.</p>
+     * <p>Escaping proceeds as follows:</p>
+     * <ol><li>Return an empty string for null; otherwise replace ampersands first,
+     * then angle brackets, double quotes and apostrophes with entity references.</li></ol>
+     * @param value text to escape, possibly null
+     * @return escaped text, or an empty string for null
      */
     public static String escape(final String value) {
         if (value == null) {

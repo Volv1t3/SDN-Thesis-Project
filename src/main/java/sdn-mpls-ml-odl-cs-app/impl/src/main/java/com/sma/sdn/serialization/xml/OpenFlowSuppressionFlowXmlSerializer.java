@@ -11,9 +11,28 @@ package com.sma.sdn.serialization.xml;
 import com.sma.sdn.model.OpenFlowSuppressionIntent;
 import com.sma.sdn.util.XmlSupport;
 
-/** Serializa flujos temporales que reenvian servicios ya decididos sin copiar paquetes al controlador. */
+/**
+ * <p>Renders an {@link OpenFlowSuppressionIntent} as an OpenDaylight flow-inventory
+ * XML document. {@link com.sma.sdn.openflow.OpenFlowSuppressionService} uses the result
+ * to install a temporary forwarding rule for a previously decided service.</p>
+ */
 public final class OpenFlowSuppressionFlowXmlSerializer {
-    /** Construye el XML RESTCONF de una regla de supresion IPv4 especifica de servicio. */
+    /**
+     * <p>Builds a flow matching the intent's ingress, Ethernet and IP fields and optional
+     * transport destination port, with an output action and flow-removal notification.</p>
+     *
+     * <p>Serialization proceeds as follows:</p>
+     * <ol>
+     *   <li>Select a TCP or UDP destination-port match when one is present.</li>
+     *   <li>Write the flow identity, table, priority, cookie, timeouts, and matches,
+     *       escaping text values for XML.</li>
+     *   <li>Append the output action for the intent's connector and return the document.</li>
+     * </ol>
+     *
+     * @param intent suppression rule fields and forwarding connector
+     * @return OpenDaylight flow-inventory XML document
+     * @throws NullPointerException if the intent is null
+     */
     public String serialize(final OpenFlowSuppressionIntent intent) {
         final String transportMatch = transportMatch(intent);
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -38,6 +57,20 @@ public final class OpenFlowSuppressionFlowXmlSerializer {
                 + "</apply-actions></instruction></instructions></flow>";
     }
 
+    /**
+     * <p>Creates the optional transport destination-port match, preferring TCP if both
+     * destination ports are present.</p>
+     *
+     * <p>Selection proceeds as follows:</p>
+     * <ol>
+     *   <li>Return a TCP match if a TCP destination port is set.</li>
+     *   <li>Otherwise return a UDP match if set, or an empty fragment.</li>
+     * </ol>
+     *
+     * @param intent suppression intent containing the optional ports
+     * @return transport-match XML fragment, or an empty string
+     * @throws NullPointerException if the intent is null
+     */
     private static String transportMatch(final OpenFlowSuppressionIntent intent) {
         if (intent.tcpDestinationPort() != null) {
             return "<tcp-match><tcp-destination-port>" + intent.tcpDestinationPort()

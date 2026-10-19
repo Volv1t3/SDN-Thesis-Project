@@ -9,14 +9,22 @@
 package com.sma.sdn.model;
 
 /**
- * Define la enumeracion {@code OdlCallOutcomeType} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Distinguishes confirmed success, provisional success, ambiguous responses, and hard
+ * failures when an OpenDaylight operation is interpreted. These categories describe the
+ * evidence available from a response; provisional success does not itself confirm the
+ * requested network state.</p>
+ *
+ * <p>{@link OdlCallOutcome} carries this type alongside response details. The topology,
+ * path-computation, and update-LSP outcome classifiers assign it, and their callers decide
+ * whether to proceed, retry, fail, or seek further confirmation.</p>
  */
 public enum OdlCallOutcomeType {
+    /** <p>The operation has a confirmed successful outcome.</p> */
     CONFIRMED_SUCCESS,
+    /** <p>The operation indicates success without full confirmation.</p> */
     PROVISIONAL_SUCCESS,
+    /** <p>The response cannot establish a definitive outcome.</p> */
     AMBIGUOUS,
+    /** <p>The operation failed in a way classified as non-recoverable.</p> */
     HARD_FAILURE
 }

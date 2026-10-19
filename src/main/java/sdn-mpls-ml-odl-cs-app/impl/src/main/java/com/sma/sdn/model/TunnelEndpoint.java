@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -9,10 +12,11 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code TunnelEndpoint} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Identifies a tunnel endpoint by logical name, router ID, and PCC node. Configured endpoints are assembled into directional tunnel definitions.</p>
+ *
+ * @param logicalName configured logical endpoint name
+ * @param routerId router identifier
+ * @param pccNode PCEP client node identifier
  */
 public record TunnelEndpoint(String logicalName, String routerId, String pccNode) {
 }

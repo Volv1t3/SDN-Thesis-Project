@@ -9,10 +9,12 @@
 package com.sma.sdn.model;
 
 /**
- * Define el registro {@code OdlCallOutcome} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Describes the classified outcome of an OpenDaylight HTTP operation. Operation-specific outcome classifiers construct it so callers can distinguish confirmation, uncertainty, and failure.</p>
+ *
+ * @param type outcome or decision type
+ * @param httpStatus HTTP response status
+ * @param failureReason diagnostic failure reason, when available
+ * @param noAck whether the operation lacks an acknowledgement
  */
 public record OdlCallOutcome(
         OdlCallOutcomeType type,
@@ -20,35 +22,4 @@ public record OdlCallOutcome(
         String failureReason,
         boolean noAck) {
 
-    /**
-     * Ejecuta la operacion {@code hardFailure} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     */
-    public boolean hardFailure() {
-        return type == OdlCallOutcomeType.HARD_FAILURE;
-    }
-
-    /**
-     * Ejecuta la operacion {@code provisionalOrAmbiguous} dentro del componente correspondiente.
-     *
-     * <p>Pasos:
-     * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
-     * </ol>
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     */
-    public boolean provisionalOrAmbiguous() {
-        return type == OdlCallOutcomeType.PROVISIONAL_SUCCESS || type == OdlCallOutcomeType.AMBIGUOUS;
-    }
 }

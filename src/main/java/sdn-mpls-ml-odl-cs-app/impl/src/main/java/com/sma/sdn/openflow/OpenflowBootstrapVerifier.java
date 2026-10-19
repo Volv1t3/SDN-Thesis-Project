@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
  * and is available at http://www.eclipse.org/legal/epl-v10.html
  */
+
 package com.sma.sdn.openflow;
 
 import com.sma.sdn.http.OdlRestconfDataClient;
@@ -17,18 +21,26 @@ import java.util.Objects;
 import org.w3c.dom.Document;
 
 /**
- * Confirma primero la persistencia configurada y luego la propagacion operativa de los flujos de bootstrap.
+ * <p>Verifies that bootstrap flows appear in RESTCONF configuration and then polls
+ * for their propagation to the operational inventory. {@link OpenflowBootstrapService}
+ * uses this confirmation before declaring switch bootstrap complete.</p>
  */
 public final class OpenflowBootstrapVerifier {
+    /** <p>Records pending and completed operational verification.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(OpenflowBootstrapVerifier.class);
+    /** <p>Reads configured flows and the operational OpenFlow table.</p> */
     private final OdlRestconfDataClient dataClient;
+    /** <p>Controls the deadline and delay for operational-state polling.</p> */
     private final RetryPolicy retryPolicy;
 
     /**
-     * Crea el verificador con el cliente RESTCONF y la politica temporal de validacion operacional.
+     * <p>Creates a verifier with the RESTCONF client and polling policy.</p>
+     * <p>Construction has one step:</p>
+     * <ol><li>Require and store both collaborators.</li></ol>
      *
-     * @param dataClient cliente RESTCONF autenticado
-     * @param retryPolicy politica de reintentos para propagacion al conmutador
+     * @param dataClient RESTCONF data client
+     * @param retryPolicy deadline-based policy for operational propagation
+     * @throws NullPointerException if either collaborator is null
      */
     public OpenflowBootstrapVerifier(
             final OdlRestconfDataClient dataClient, final RetryPolicy retryPolicy) {
@@ -37,22 +49,24 @@ public final class OpenflowBootstrapVerifier {
     }
 
     /**
-     * Exige que cada flujo exista en configuracion y espera hasta que todos aparezcan en estado operativo.
+     * <p>Verifies each flow in configuration once, then polls until all flow IDs appear
+     * in the operational table. The caller must supply at least one flow for polling.</p>
      *
-     * <p>Pasos:
+     * <p>Verification proceeds as follows:</p>
      * <ol>
-     *   <li>Consulta individualmente cada flujo con {@code content=config}.</li>
-     *   <li>Trata una configuracion ausente como fallo duro del intento de disponibilidad.</li>
-     *   <li>Consulta la tabla operativa completa y busca todos los identificadores.</li>
-     *   <li>Reintenta la propagacion operativa hasta el limite configurado.</li>
+     *   <li>Read each configured flow and reject a failed status or missing ID immediately.</li>
+     *   <li>Poll the operational table through {@link RetryPolicy} until all IDs are present.</li>
+     *   <li>Log successful verification after the polling policy returns.</li>
      * </ol>
      *
-     * @param switchRecord conmutador que contiene las reglas
-     * @param flows reglas esperadas
-     * @throws IllegalStateException si falta configuracion o no se confirma la propagacion operativa
+     * @param switchRecord switch whose flows are verified
+     * @param flows expected flows, with the first flow supplying the operational table ID
+     * @throws IllegalStateException if configuration is missing or polling fails to confirm propagation
      */
     public void verify(
             final OpenflowSwitchRecord switchRecord, final List<OpenflowFlowDefinition> flows) {
+        /*Initially we attempt to perform a per flow validation, and if we go through them we then perform a
+        * poll for the entire set of flows, expecting for them to also return true */
         for (OpenflowFlowDefinition flow : flows) {
             final HttpResponse<String> response = dataClient.getOpenflowFlowConfig(
                     switchRecord.encodedNodeId(), flow.tableId(), flow.flowId());
@@ -61,6 +75,8 @@ public final class OpenflowBootstrapVerifier {
                         + " no esta presente despues del PUT; HTTP " + response.statusCode());
             }
         }
+        /*Attempts the same operation until the outcome of this becomes true, which means until the corresponding flows have
+        * been identified in the table, for the given switch and set of flows*/
         retryPolicy.retryUntilTrue(
                 () -> operationalContainsAll(switchRecord, flows),
                 "Los flujos OpenFlow no fueron confirmados en el estado operativo de "
@@ -76,11 +92,15 @@ public final class OpenflowBootstrapVerifier {
     }
 
     /**
-     * Consulta una tabla operativa y confirma que contiene todos los identificadores esperados.
+     * <p>Reads the first flow's operational table and checks that every expected ID is present.</p>
+     * <p>The check proceeds as follows:</p>
+     * <ol><li>Read the table; log and return false for an unsuccessful status.</li>
+     * <li>Check each flow ID, logging and returning false on the first missing one.</li>
+     * <li>Return true after all IDs are found.</li></ol>
      *
-     * @param switchRecord conmutador consultado
-     * @param flows reglas que deben estar presentes
-     * @return {@code true} si la respuesta fue exitosa y contiene todas las reglas
+     * @param switchRecord switch to query
+     * @param flows nonempty list of expected flows
+     * @return whether the successful response contains every flow ID
      */
     private boolean operationalContainsAll(
             final OpenflowSwitchRecord switchRecord, final List<OpenflowFlowDefinition> flows) {
@@ -97,6 +117,8 @@ public final class OpenflowBootstrapVerifier {
                     null);
             return false;
         }
+        /*We validate that in total all the flows are present within the flow table and return the corresponding false if
+        * a single one is missing*/
         for (OpenflowFlowDefinition flow : flows) {
             if (!containsFlow(response.body(), flow.flowId())) {
                 LOG.warn(
@@ -114,27 +136,34 @@ public final class OpenflowBootstrapVerifier {
     }
 
     /**
-     * Analiza una respuesta XML y busca un elemento {@code id} cuyo texto coincida exactamente con el flujo.
+     * <p>Checks whether an XML response contains a flow element with the given ID.</p>
+     * <p>The lookup proceeds as follows:</p>
+     * <ol><li>Return false for null or blank XML.</li>
+     * <li>Parse the document and evaluate a local-name XPath for the exact ID.</li></ol>
      *
-     * @param xml documento RESTCONF recibido
-     * @param flowId identificador exacto buscado
-     * @return {@code true} cuando el identificador esta presente
+     * @param xml RESTCONF XML response
+     * @param flowId exact flow identifier to find
+     * @return whether a matching flow ID is present
      */
     private static boolean containsFlow(final String xml, final String flowId) {
         if (xml == null || xml.isBlank()) {
             return false;
         }
         final Document document = XmlSupport.parse(xml);
+        /*We apply another XPath operation that filters the flow instances for at least one where the id corresponds
+        * to the created flow id and whose node length is higher than 0, meaning there is associated content*/
         return XmlSupport.nodes(document,
                 "//*[local-name()='flow']/*[local-name()='id' and text()='" + flowId + "']")
                 .getLength() > 0;
     }
 
     /**
-     * Reconoce las respuestas RESTCONF que pueden contener el recurso solicitado.
+     * <p>Recognizes the statuses accepted when reading RESTCONF resources.</p>
+     * <p>The check has one step:</p>
+     * <ol><li>Compare the status with 200, 201 and 204.</li></ol>
      *
-     * @param statusCode codigo HTTP recibido
-     * @return {@code true} para HTTP 200, 201 o 204
+     * @param statusCode received HTTP status
+     * @return whether the status is 200, 201 or 204
      */
     private static boolean isSuccess(final int statusCode) {
         return statusCode == 200 || statusCode == 201 || statusCode == 204;

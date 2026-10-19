@@ -8,11 +8,18 @@
 
 package com.sma.sdn.model;
 
-/** Pair-policy ownership decision made after a consensus candidate exists. */
+/**
+ * <p>Describes how an incoming candidate compares with the active pair policy.</p>
+ */
 public enum PolicyPreemptionDecisionType {
+    /** <p>Refresh the active policy without replacing it.</p> */
     SAME_POLICY_REFRESH,
+    /** <p>Replace an expired or absent active policy.</p> */
     ACTIVE_EXPIRED_REPLACE,
+    /** <p>Install an incoming policy that has stronger priority.</p> */
     INCOMING_PRIORITY_PREEMPTS,
+    /** <p>Retain the stronger active policy.</p> */
     ACTIVE_POLICY_RETAINED_WEAKER_INCOMING,
+    /** <p>Retain the active policy when a different incoming policy has equal priority.</p> */
     ACTIVE_POLICY_RETAINED_EQUAL_PRIORITY_DIFFERENT_POLICY
 }

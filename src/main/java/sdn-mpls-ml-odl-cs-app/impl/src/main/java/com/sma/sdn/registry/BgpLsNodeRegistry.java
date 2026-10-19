@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -15,30 +18,37 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Define la clase {@code BgpLsNodeRegistry} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Maintains a synchronized router-ID index of the latest BGP-LS topology nodes for discovery
+ * and path computation. Replacement validates a temporary index before modifying the current
+ * snapshot.</p>
  */
 public final class BgpLsNodeRegistry {
+    /** <p>Logger for registry updates and lookups.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(BgpLsNodeRegistry.class);
+    /** <p>Current BGP-LS nodes indexed by router ID.</p> */
     private final Map<String, BgpLsTopologyNode> byRouterId = new HashMap<>();
 
     /**
-     * Ejecuta la operacion {@code replaceAll} dentro del componente correspondiente.
+     * <p>Replace the topology snapshot while detecting inconsistent graph node IDs.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Build a temporary index, retaining the first node for each router ID.</li>
+     *   <li>Reject a repeated router ID with a different graph ID before changing the current index.</li>
+     *   <li>Replace the index and log the input and retained counts.</li>
      * </ol>
      *
-     * @param nodes valor requerido para ejecutar esta operacion
+     * @param nodes nodes to index
+     * @throws IllegalStateException if the same router ID has conflicting graph IDs
      */
     public synchronized void replaceAll(final Collection<BgpLsTopologyNode> nodes) {
+        // Validate the complete replacement before exposing any part of it to readers.
         final Map<String, BgpLsTopologyNode> replacement = new HashMap<>();
         for (BgpLsTopologyNode node : nodes) {
+            /*On the first iteration of every node that has not been processed this will return null and
+            * allo for processing and replacement, for any that ha salready been seen with no issues the
+            * putIfAbset will do nothing. The only possible issue that we culd have is if the node's graph Node ID changed
+            * from a previous collection, perhaps due to a change in the topology*/
             final BgpLsTopologyNode existing = replacement.get(node.routerId());
             if (existing != null && existing.graphNodeId() != node.graphNodeId()) {
                 throw new IllegalStateException("Existen identificadores de nodo de grafo incompatibles para el "
@@ -46,6 +56,11 @@ public final class BgpLsNodeRegistry {
             }
             replacement.putIfAbsent(node.routerId(), node);
         }
+
+        /*
+         * Here we are looking to remove the content of the router ID hash map and replace its contents with the
+         * newly read list of incoming nodes
+        */
         byRouterId.clear();
         byRouterId.putAll(replacement);
         LOG.info("bgp_ls_registry_replaced", "replaceAll",
@@ -54,18 +69,16 @@ public final class BgpLsNodeRegistry {
     }
 
     /**
-     * Ejecuta la operacion {@code containsRouterId} dentro del componente correspondiente.
+     * <p>Check whether a router ID is present in the current snapshot.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Look up the ID in the synchronized index.</li>
+     *   <li>Log and return the presence result.</li>
      * </ol>
      *
-     * @param routerId valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @param routerId router ID to check
+     * @return whether the ID is indexed
      */
     public synchronized boolean containsRouterId(final String routerId) {
         final boolean present = byRouterId.containsKey(routerId);
@@ -76,20 +89,17 @@ public final class BgpLsNodeRegistry {
     }
 
     /**
-     * Ejecuta la operacion {@code requireByRouterId} dentro del componente correspondiente.
+     * <p>Resolve a router ID to a topology node.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Read the index and reject an absent node.</li>
+     *   <li>Log and return the resolved node.</li>
      * </ol>
      *
-     * @param routerId valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param routerId router ID to resolve
+     * @return indexed topology node
+     * @throws IllegalStateException if the ID is absent
      */
     public synchronized BgpLsTopologyNode requireByRouterId(final String routerId) {
         final BgpLsTopologyNode node = byRouterId.get(routerId);
@@ -103,36 +113,32 @@ public final class BgpLsNodeRegistry {
     }
 
     /**
-     * Ejecuta la operacion {@code resolveGraphNodeIdByRouterId} dentro del componente correspondiente.
+     * <p>Resolve a router ID to its graph node identifier for path computation.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Require the topology node for the router.</li>
+     *   <li>Return its graph node identifier.</li>
      * </ol>
      *
-     * @param routerId valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param routerId router ID to resolve
+     * @return graph node ID
+     * @throws IllegalStateException if the ID is absent
      */
     public synchronized long resolveGraphNodeIdByRouterId(final String routerId) {
         return requireByRouterId(routerId).graphNodeId();
     }
 
     /**
-     * Ejecuta la operacion {@code snapshot} dentro del componente correspondiente.
+     * <p>Return an immutable snapshot of the router ID index.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Copy the current index using {@link Map#copyOf(Map)}.</li>
+     *   <li>Return the independent snapshot.</li>
      * </ol>
      *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
+     * @return immutable router ID to node mapping
      */
     public synchronized Map<String, BgpLsTopologyNode> snapshot() {
         return Map.copyOf(byRouterId);

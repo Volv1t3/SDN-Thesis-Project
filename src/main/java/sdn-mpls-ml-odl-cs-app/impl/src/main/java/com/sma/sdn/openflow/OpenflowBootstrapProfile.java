@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -10,27 +13,35 @@ package com.sma.sdn.openflow;
 import java.util.Objects;
 
 /**
- * Define los datos estables usados para resolver un OVS dinamico y sus dos puertos de acceso requeridos.
+ * <p>Identifies an OVS switch by management address and names its host-facing and
+ * core-facing ports. Inventory discovery uses this stable profile to resolve the
+ * dynamic OpenFlow node and connectors needed for bootstrap.</p>
  *
- * @param logicalName nombre logico del conmutador
- * @param managementIp direccion de gestion esperada
- * @param hostPortName nombre del puerto conectado al host
- * @param corePortName nombre del puerto conectado al enrutador central
+ * @param logicalName application-level switch name
+ * @param managementIp expected management address
+ * @param hostPortName host-facing OVS port name
+ * @param corePortName core-facing OVS port name
  */
 public record OpenflowBootstrapProfile(
-        String logicalName, String managementIp, String hostPortName, String corePortName) {
+        String logicalName, /*logical name of the corresponding switch*/
+        String managementIp,  /*management IP address of the corresponding switch for identification*/
+        String hostPortName, /*switch to host port name for identification*/
+        String corePortName /*switch to core name for identification*/) {
 
     /**
-     * Exige que todos los valores necesarios para resolver el conmutador hayan sido configurados.
+     * <p>Requires the four profile components to be non-null; blank strings are not rejected.</p>
      *
-     * <p>Pasos:
+     * <p>The constructor performs these checks:</p>
      * <ol>
-     *   <li>Valida el nombre logico.</li>
-     *   <li>Valida la direccion de gestion.</li>
-     *   <li>Valida los nombres de los puertos de host y nucleo.</li>
+     *   <li>Check the logical name and management address.</li>
+     *   <li>Check the host-facing and core-facing port names.</li>
      * </ol>
      *
-     * @throws NullPointerException si falta un valor obligatorio
+     * @param logicalName application-level switch name
+     * @param managementIp expected management address
+     * @param hostPortName host-facing OVS port name
+     * @param corePortName core-facing OVS port name
+     * @throws NullPointerException if any component is null
      */
     public OpenflowBootstrapProfile {
         Objects.requireNonNull(logicalName, "logicalName");

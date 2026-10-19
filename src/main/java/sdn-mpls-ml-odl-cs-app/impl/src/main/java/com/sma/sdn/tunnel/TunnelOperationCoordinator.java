@@ -31,16 +31,45 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
-/** Coordina actualizaciones idempotentes de LSP y la supresion OpenFlow posterior a una decision valida. */
+/**
+ * <p>Coordinates a directional LSP operation using an intent registry and optionally installs
+ * an OpenFlow suppression flow. It reuses recent intents, compares reported EROs and records
+ * the lifecycle of any required delegated-LSP update.</p>
+ *
+ * <p>This class is separate from the pair-policy workflow's
+ * {@link DirectionalLspApplicationService}; construction here does not imply that the
+ * provider currently invokes this coordinator.</p>
+ */
 public final class TunnelOperationCoordinator {
+    /** <p>Supplies intent lifetimes and the per-direction lock timeout.</p> */
     private final AppConfig config;
+    /** <p>Computes or retrieves the constrained path.</p> */
     private final PathComputationService pathComputationService;
+    /** <p>Refreshes and updates the delegated LSP.</p> */
     private final DelegatedLspService delegatedLspService;
+    /** <p>Stores pending, completed and reusable operation intents.</p> */
     private final TunnelOperationRegistry operationRegistry;
+    /** <p>Builds and installs eligible packet suppression flows.</p> */
     private final OpenFlowSuppressionService suppressionService;
+    /** <p>Collects tunnel-operation outcome counters.</p> */
     private final SdnMplsMlMetrics metrics;
+    /** <p>Serializes non-reused operations by direction.</p> */
     private final ConcurrentHashMap<String, ReentrantLock> locksByDirection = new ConcurrentHashMap<>();
 
+    /**
+     * <p>Creates an intent-based tunnel operation coordinator.</p>
+     * <p>The constructor performs these steps:</p>
+     * <ol>
+     *   <li>Stores configuration and the path and delegated-LSP services.</li>
+     *   <li>Stores the operation registry, suppression service and metrics collector.</li>
+     * </ol>
+     * @param config intent lifetime and lock configuration
+     * @param pathComputationService constrained path service
+     * @param delegatedLspService PCEP state and update service
+     * @param operationRegistry operation intent store
+     * @param suppressionService OpenFlow suppression service
+     * @param metrics operation metrics collector
+     */
     public TunnelOperationCoordinator(
             final AppConfig config,
             final PathComputationService pathComputationService,
@@ -56,7 +85,29 @@ public final class TunnelOperationCoordinator {
         this.metrics = metrics;
     }
 
-    /** Procesa una direccion bajo un bloqueo exclusivo y reutiliza decisiones recientes equivalentes. */
+    /**
+     * <p>Processes one directional classified intent, reusing a recent result or updating
+     * the delegated LSP. An already matching ERO is skipped even if bandwidth differs;
+     * the bandwidth comparison is retained in the operation record.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Computes the path and intent key, then checks for an unexpired reusable operation.</li>
+     *   <li>For a miss, acquires a direction lock within the configured timeout and repeats the check.</li>
+     *   <li>Refreshes PCEP state and skips an update if the reported ERO matches.</li>
+     *   <li>Otherwise marks the intent pending, updates the LSP, and records accepted and confirmed state.</li>
+     *   <li>Installs suppression when an intent is available; records update failures and releases the lock.</li>
+     * </ol>
+     * <p>The registry's reuse window and the direction lock limit redundant work. Failures
+     * during the pending update are recorded and rethrown; an interrupted lock wait restores
+     * the thread interrupt flag.</p>
+     * @param workflowContext workflow identifier and packet sequence
+     * @param packetContext ingress and packet data for suppression
+     * @param direction target tunnel direction
+     * @param classification classification and policy constraints
+     * @return reused, already matching or completed operation record
+     * @throws IllegalStateException if lock acquisition times out or is interrupted
+     * @throws RuntimeException if path computation, PCEP operations, registry or suppression fails
+     */
     public TunnelOperationRecord processDirection(
             final WorkflowContext workflowContext,
             final PacketClassificationContext packetContext,
@@ -134,6 +185,16 @@ public final class TunnelOperationCoordinator {
         }
     }
 
+    /**
+     * <p>Formats an ordered ERO as a deterministic intent-key component.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Formats each subobject's loose flag and IP prefix in route order.</li>
+     *   <li>Joins the entries with vertical bars.</li>
+     * </ol>
+     * @param subobjects ordered route entries
+     * @return route fingerprint, or an empty string for an empty route
+     */
     static String eroFingerprint(final List<EroSubobject> subobjects) {
         final StringJoiner joiner = new StringJoiner("|");
         for (EroSubobject subobject : subobjects) {
@@ -142,6 +203,19 @@ public final class TunnelOperationCoordinator {
         return joiner.toString();
     }
 
+    /**
+     * <p>Constructs the key used to identify an equivalent directional tunnel intent.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Requires the registered delegated LSP for the direction.</li>
+     *   <li>Combines its identity with classification, encoded bandwidth, route and path constraints.</li>
+     * </ol>
+     * @param direction selected tunnel direction
+     * @param classification classification and policy
+     * @param path computed route and algorithm information
+     * @return key for operation reuse
+     * @throws RuntimeException if the LSP lookup or bandwidth conversion fails
+     */
     private TunnelIntentKey intentKey(
             final TunnelDirection direction,
             final ClassificationResult classification,
@@ -155,6 +229,18 @@ public final class TunnelOperationCoordinator {
                 classification.policy().pathConstraints().holdPriority(), path.algorithm(), path.classType());
     }
 
+    /**
+     * <p>Installs a suppression flow only when the suppression service produces an intent.</p>
+     * <p>The operation proceeds as follows:</p>
+     * <ol>
+     *   <li>Requests a suppression intent from packet and classification data.</li>
+     *   <li>Installs the intent with workflow correlation if one is present.</li>
+     * </ol>
+     * @param packetContext packet features and ingress
+     * @param classification classification and policy
+     * @param workflowContext originating workflow identity
+     * @throws RuntimeException if suppression construction or installation fails
+     */
     private void installSuppression(
             final PacketClassificationContext packetContext,
             final ClassificationResult classification,

@@ -7,13 +7,8 @@
  */
 
 /**
- * Contiene extraccion de caracteristicas desde notificaciones PacketReceived.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Extracts classification features and ingress identities from OpenDaylight
+ * PacketReceived notifications. The workflow consumes the resulting packet context
+ * after the extractor resolves the ingress against the OpenFlow inventory.</p>
  */
 package com.sma.sdn.packet;

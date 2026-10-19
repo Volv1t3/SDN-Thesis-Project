@@ -7,13 +7,8 @@
  */
 
 /**
- * Contiene calculo de rutas TE y traduccion de resultados CSPF a objetos ERO.
- *
- * <p>Pasos:
- * <ol>
- *   <li>Agrupa clases con una responsabilidad comun dentro del controlador.</li>
- *   <li>Expone contratos internos usados por los servicios de clasificacion, topologia, ruta o tunel.</li>
- *   <li>Separa la documentacion por dominio para facilitar mantenimiento y auditoria.</li>
- * </ol>
+ * <p>Coordinates constrained path computation and caching and translates computed hops
+ * into explicit-route subobjects for tunnel updates. The path service uses BGP-LS node
+ * identities, OpenDaylight operations and the calculated-path registry.</p>
  */
 package com.sma.sdn.path;

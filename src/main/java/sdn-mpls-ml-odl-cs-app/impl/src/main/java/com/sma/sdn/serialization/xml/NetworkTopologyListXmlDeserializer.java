@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -16,29 +19,27 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
 /**
- * Define la clase {@code NetworkTopologyListXmlDeserializer} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Extracts the available topology identifiers from an OpenDaylight network-topology
+ * response. {@link com.sma.sdn.topology.TopologyDiscoveryService} uses the identifiers
+ * when discovering the configured control-plane topologies.</p>
  */
 public final class NetworkTopologyListXmlDeserializer {
+    /** <p>Logger for the distinct discovered topology identifiers.</p> */
     private static final StructuredLogger LOG =
             StructuredLogger.getLogger(NetworkTopologyListXmlDeserializer.class);
     /**
-     * Convierte una respuesta serializada en el modelo de dominio correspondiente.
+     * <p>Reads all nonblank topology IDs from an XML document, removing duplicates.</p>
      *
-     * <p>Pasos:
+     * <p>Extraction proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Parse the document and select topology-id elements irrespective of namespace.</li>
+     *   <li>Trim nonblank text values and add them to a set.</li>
+     *   <li>Create an immutable set, log its contents and count, and return it.</li>
      * </ol>
      *
-     * @param xml valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param xml network-topology listing XML
+     * @return immutable set of trimmed, distinct topology identifiers
+     * @throws IllegalArgumentException if XML parsing or XPath evaluation fails
      */
     public Set<String> deserialize(final String xml) {
         final Document document = XmlSupport.parse(xml);

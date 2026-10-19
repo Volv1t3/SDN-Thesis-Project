@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -14,49 +17,52 @@ import com.sma.sdn.util.XmlSupport;
 import java.net.http.HttpResponse;
 
 /**
- * Define la clase {@code UpdateLspResponseXmlDeserializer} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Classifies the immediate HTTP and XML response to update-lsp. DelegatedLspService consumes the result before polling PCEP for confirmation of the requested route.</p>
  */
 public final class UpdateLspResponseXmlDeserializer {
+    /** <p>Logger for classified update-lsp outcomes.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(UpdateLspResponseXmlDeserializer.class);
+
     /**
-     * Convierte una respuesta serializada en el modelo de dominio correspondiente.
+     * <p>Classify an update-lsp HTTP response as success, provisional success, or hard failure.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Treat non-2xx HTTP status as hard failure and an empty successful body as success.</li>
+     *   <li>Parse a nonempty body and give PCEP error details precedence over failure text.</li>
+     *   <li>Classify no-ack as provisional success, other failure text as hard failure, and absent failure as success; log and return the result.</li>
      * </ol>
      *
-     * @param response valor requerido para ejecutar esta operacion
-     *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param response HTTP response to update-lsp
+     * @return classified update result
+     * @throws RuntimeException if XML parsing or XPath evaluation fails
      */
     public UpdateLspResult deserialize(final HttpResponse<String> response) {
         final UpdateLspResult result;
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            result = new UpdateLspResult(false, false, true, "HTTP " + response.statusCode(), response.statusCode());
+            result = new UpdateLspResult(false, false, true,
+                    "HTTP " + response.statusCode(), response.statusCode());
         } else {
             final String body = response.body();
             if (body == null || body.isBlank()) {
-                result = new UpdateLspResult(true, false, false, null, response.statusCode());
+                result = new UpdateLspResult(true,
+                        false, false, null, response.statusCode());
             } else {
                 final org.w3c.dom.Document document = XmlSupport.parse(body);
                 final String failure = XmlSupport.string(document, "//*[local-name()='failure'][1]");
                 final String error = errorDescription(document);
                 if (error != null) {
-                    result = new UpdateLspResult(false, false, true, "Error PCEP: " + error, response.statusCode());
+                    result = new UpdateLspResult(false, false, true,
+                            "Error PCEP: " + error, response.statusCode());
                 } else if (failure == null || failure.isBlank()) {
-                    result = new UpdateLspResult(true, false, false, null, response.statusCode());
+                    result = new UpdateLspResult(true, false, false,
+                            null, response.statusCode());
                 } else if ("no-ack".equalsIgnoreCase(failure)) {
-                    result = new UpdateLspResult(true, true, false, failure, response.statusCode());
+                    result = new UpdateLspResult(true, true, false,
+                            failure, response.statusCode());
                 } else {
-                    result = new UpdateLspResult(false, false, true, failure, response.statusCode());
+                    result = new UpdateLspResult(false, false, true,
+                            failure, response.statusCode());
                 }
             }
         }
@@ -69,17 +75,16 @@ public final class UpdateLspResponseXmlDeserializer {
     }
 
     /**
-     * Extrae el detalle de error de la estructura {@code error/error-object} publicada por update-lsp.
+     * <p>Extract an error description from a parsed update-lsp response.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Busca el objeto de error anidado definido por el esquema PCEP.</li>
-     *   <li>Lee tipo, valor y el identificador de solicitud faltante cuando existen.</li>
-     *   <li>Devuelve una descripcion compacta o {@code null} si ODL no reporto error.</li>
+     *   <li>Read the error-object type, value, and missing request ID.</li>
+     *   <li>If none is present return a plain leaf error; otherwise format the fields with a missing-value marker.</li>
      * </ol>
      *
-     * @param document documento XML de salida producido por update-lsp
-     * @return descripcion estructurada del error o {@code null}
+     * @param document parsed response document
+     * @return error description or null
      */
     private static String errorDescription(final org.w3c.dom.Document document) {
         final String errorType = XmlSupport.string(
@@ -99,17 +104,15 @@ public final class UpdateLspResponseXmlDeserializer {
     }
 
     /**
-     * Sustituye valores XML ausentes por una marca estable de diagnostico.
+     * <p>Substitute the diagnostic marker for an absent error field.</p>
      *
-     * <p>Pasos:
+     * <p>The operation proceeds as follows:</p>
      * <ol>
-     *   <li>Comprueba si el valor fue publicado por OpenDaylight.</li>
-     *   <li>Conserva el texto no vacio recibido.</li>
-     *   <li>Devuelve {@code desconocido} cuando el campo esta ausente.</li>
+     *   <li>Return the supplied value, or {@code desconocido} when it is null.</li>
      * </ol>
      *
-     * @param value valor XML opcional
-     * @return valor recibido o marca de ausencia
+     * @param value optional XML value
+     * @return original value or missing-value marker
      */
     private static String valueOrUnknown(final String value) {
         return value == null ? "desconocido" : value;

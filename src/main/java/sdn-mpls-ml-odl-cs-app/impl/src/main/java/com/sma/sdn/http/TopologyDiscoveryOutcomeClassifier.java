@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2026 Santiago Arellano and others.
+ * Copyright (c) 2026 Santiago Arellano 00328370.
+ *
+ * Universidad San Francisco de Quito
+ * SDN-MPLS-ML Tech Demostrator Thesis Project
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v1.0 which accompanies this distribution,
@@ -14,29 +17,40 @@ import com.sma.sdn.observability.StructuredLogger;
 import java.net.http.HttpResponse;
 
 /**
- * Define la clase {@code TopologyDiscoveryOutcomeClassifier} dentro del controlador SDN-MPLS-ML.
- * Esta unidad encapsula una responsabilidad
- * responsabilidad
- * concreta del flujo de control, de los modelos de dominio o de las defensas aplicadas sobre las llamadas ODL.
+ * <p>Converts topology-discovery HTTP responses into the controller's defensive {@link OdlCallOutcome} model. It
+ * requires HTTP 200 and a nonblank XML body for confirmed success, distinguishes authorization failures from retryable
+ * uncertainty, and leaves server-side or body-absence failures ambiguous.</p>
+ *
+ * <p>{@link com.sma.sdn.topology.TopologyDiscoveryService} and
+ * {@link com.sma.sdn.topology.TopologyRefreshService} use these outcomes to decide whether to accept, reject, or retry
+ * RESTCONF topology reads.</p>
  */
 public final class TopologyDiscoveryOutcomeClassifier {
-    private static final StructuredLogger LOG = StructuredLogger.getLogger(TopologyDiscoveryOutcomeClassifier.class);
     /**
-     * Clasifica una respuesta HTTP de acuerdo con el modelo defensivo de resultados ODL.
+     * <p>Records each topology response classification and whether a usable body was present.</p>
+     */
+    private static final StructuredLogger LOG = StructuredLogger.getLogger(TopologyDiscoveryOutcomeClassifier.class);
+
+    /**
+     * <p>Classifies a topology response without deserializing its XML body. A blank body prevents confirmed success
+     * even when OpenDaylight returned HTTP 200.</p>
      *
-     * <p>Pasos:
+     * <p>The classification performs these steps:</p>
      * <ol>
-     *   <li>Valida o consume los parametros de entrada necesarios.</li>
-     *   <li>Ejecuta la operacion local, HTTP, XML, JSON o de registro que corresponde.</li>
-     *   <li>Devuelve el resultado tipado o actualiza el estado interno de forma controlada.</li>
+     *   <li>Reads the response status code.</li>
+     *   <li>Returns confirmed success for HTTP 200 with a nonblank body.</li>
+     *   <li>Maps HTTP 401 and 403 to hard failure because the request is not authorized.</li>
+     *   <li>Maps server errors, status zero, and absent or blank bodies to an ambiguous outcome.</li>
+     *   <li>Maps remaining statuses to hard failure and emits a trace record of the decision.</li>
      * </ol>
      *
-     * @param response valor requerido para ejecutar esta operacion
+     * <p>Topology services deserialize the response body only after this classifier reports confirmed success.</p>
      *
-     * @return resultado calculado, estado encontrado o modelo construido por la operacion
-     *
-     * @throws RuntimeException si la validacion, el parseo, la comunicacion o la consistencia requerida fallan
+     * @param response RESTCONF topology response to classify
+     * @return defensive outcome used by topology discovery and refresh retry logic
+     * @throws NullPointerException if {@code response} is {@code null}
      */
+
     public OdlCallOutcome classify(final HttpResponse<String> response) {
         final int statusCode = response.statusCode();
         final OdlCallOutcome outcome;
