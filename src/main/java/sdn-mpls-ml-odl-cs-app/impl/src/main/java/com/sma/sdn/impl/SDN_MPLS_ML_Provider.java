@@ -347,9 +347,7 @@ public final class SDN_MPLS_ML_Provider
                 config,
                 tunnelPairRegistry,
                 evidenceRegistry,
-                new PairPolicyConsensusService(config.pairConsensusRequireBothDirections(),
-                        config.pairConsensusSingleSideProvisionalEnabled(), config.pairConsensusEqualPriorityAction(),
-                        serviceKeyResolver),
+                new PairPolicyConsensusService(),
                 activePairPolicyRegistry,
                 new PolicyPreemptionEvaluator(),
                 new DirectionalLspApplicationService(

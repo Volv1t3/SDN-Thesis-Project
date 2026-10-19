@@ -14,8 +14,28 @@ import com.sma.sdn.model.PolicyPreemptionDecision;
 import com.sma.sdn.model.PolicyPreemptionDecisionType;
 import java.time.Instant;
 
-/** Applies RSVP-TE setup then hold priority after, never before, consensus. */
+/**
+ * <p>Compares a consensus candidate with the active pair policy by expiration,
+ * policy hash, and logical controller-side setup and hold priority. The coordinator uses the
+ * resulting decision to retain, refresh, or replace the active policy.</p>
+ */
 public final class PolicyPreemptionEvaluator {
+    /**
+     * <p>Determines whether the incoming policy may replace the active policy.</p>
+     * <p>The comparison proceeds as follows:</p>
+     * <ol>
+     *   <li>Permit replacement if the active state has expired at the supplied time.</li>
+     *   <li>Request a refresh if the policy hashes match.</li>
+     *   <li>Compare setup priority and then hold priority, where lower values are stronger;
+     *       distinguish a stronger incoming policy from equal or weaker alternatives.</li>
+     * </ol>
+     * <p>{@link PairPolicyCoordinator} uses the decision to retain, refresh, or apply
+     * the candidate to both directions. These priorities are not encoded into PCEP updates.</p>
+     * @param active current pair policy and its expiration
+     * @param incoming candidate selected by consensus
+     * @param now time used to evaluate expiration
+     * @return decision type and explanation for the comparison
+     */
     public PolicyPreemptionDecision evaluate(final ActivePairPolicyState active,
             final PairPolicyCandidate incoming, final Instant now) {
         if (!active.expiresAt().isAfter(now)) {

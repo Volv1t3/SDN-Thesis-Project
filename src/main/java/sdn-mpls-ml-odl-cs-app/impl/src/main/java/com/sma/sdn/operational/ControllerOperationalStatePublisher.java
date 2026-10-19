@@ -289,20 +289,21 @@ public final class ControllerOperationalStatePublisher {
     }
 
     private PolicyStateBuilder buildPolicyState() {
+        // The YANG view retains these fields for compatibility, but pair-policy modes are fixed invariants.
         return new PolicyStateBuilder()
-                .setConsensusEnabled(config.pairConsensusEnabled())
-                .setRequireBothDirections(config.pairConsensusRequireBothDirections())
-                .setSingleSideProvisionalEnabled(config.pairConsensusSingleSideProvisionalEnabled())
-                .setEqualPriorityAction(config.pairConsensusEqualPriorityAction().name())
+                .setConsensusEnabled(true)
+                .setRequireBothDirections(true)
+                .setSingleSideProvisionalEnabled(false)
+                .setEqualPriorityAction("KEEP_CURRENT_OR_DEFER")
                 .setEvidenceTtlMillis(Uint64.valueOf(config.pairConsensusEvidenceTtl().toMillis()))
                 .setActivePolicyIdleTtlMillis(Uint64.valueOf(config.activePairPolicyIdleTtl().toMillis()))
                 .setActivePolicySweeperEnabled(config.activePairPolicySweeperEnabled())
                 .setActivePolicySweeperIntervalMillis(
                         Uint64.valueOf(config.activePairPolicySweeperInterval().toMillis()))
-                .setPriorityPreemptionEnabled(config.pairPolicyPriorityPreemptionEnabled())
+                .setPriorityPreemptionEnabled(true)
                 .setPolicyHashVersion(Uint32.valueOf(config.pairPolicyHashVersion()))
-                .setLspApplicationScope(config.pairPolicyLspApplicationScope().name())
-                .setRequireAllLspDirections(config.lspApplicationRequireAllDirections())
+                .setLspApplicationScope("BIDIRECTIONAL_PAIR")
+                .setRequireAllLspDirections(true)
                 .setClassificationCacheTtlMillis(Uint64.valueOf(config.classificationCacheTtl().toMillis()))
                 .setCalculatedPathCacheTtlMillis(Uint64.valueOf(config.pathCacheTtl().toMillis()));
     }

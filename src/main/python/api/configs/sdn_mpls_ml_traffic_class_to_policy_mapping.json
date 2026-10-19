@@ -18,7 +18,7 @@
       "path_constraints": {
         "requested_bandwidth_kbps": 10000,
         "setup_priority": 4,
-        "hold_priority": 4
+        "hold_priority": 3
       }
     },
     "FTP": {
@@ -37,7 +37,7 @@
       "mpls_tc": 0,
       "path_constraints": {
         "requested_bandwidth_kbps": 25000,
-        "setup_priority": 5,
+        "setup_priority": 6,
         "hold_priority": 5
       }
     },
@@ -47,8 +47,8 @@
       "mpls_tc": 2,
       "path_constraints": {
         "requested_bandwidth_kbps": 10000,
-        "setup_priority": 4,
-        "hold_priority": 4
+        "setup_priority": 3,
+        "hold_priority": 2
       }
     },
     "NTP": {
@@ -57,7 +57,7 @@
       "mpls_tc": 2,
       "path_constraints": {
         "requested_bandwidth_kbps": 10000,
-        "setup_priority": 4,
+        "setup_priority": 5,
         "hold_priority": 4
       }
     },
@@ -67,8 +67,8 @@
       "mpls_tc": 3,
       "path_constraints": {
         "requested_bandwidth_kbps": 10000,
-        "setup_priority": 3,
-        "hold_priority": 3
+        "setup_priority": 2,
+        "hold_priority": 1
       }
     },
     "STREAMING": {
@@ -77,8 +77,8 @@
       "mpls_tc": 4,
       "path_constraints": {
         "requested_bandwidth_kbps": 75000,
-        "setup_priority": 3,
-        "hold_priority": 3
+        "setup_priority": 1,
+        "hold_priority": 0
       }
     }
   }

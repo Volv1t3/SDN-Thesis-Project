@@ -9,6 +9,7 @@
 package com.sma.sdn.serialization.xml;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sma.sdn.model.EroSubobject;
@@ -38,6 +39,8 @@ class UpdateLspRequestXmlSerializerTest {
         assertTrue(xml.contains("<plsp-id>111</plsp-id>"));
         assertTrue(xml.contains("<pst>rsvp-te</pst>"));
         assertTrue(xml.contains("<bandwidth>RhxAAA==</bandwidth>"));
+        assertFalse(xml.contains("<setup-priority>"));
+        assertFalse(xml.contains("<hold-priority>"));
         assertTrue(xml.contains("<processing-rule>true</processing-rule>"));
         assertTrue(xml.contains("<ip-prefix>14.14.14.14/32</ip-prefix>"));
         assertTrue(xml.contains(
