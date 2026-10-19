@@ -9,7 +9,13 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Describes stages and outcomes recorded for directional tunnel operations.</p>
+ * <p>Identifies stages and outcomes of a directional tunnel operation, from a pending or
+ * accepted request to confirmation, skips, or failure. It also distinguishes acceptance
+ * without confirmed PCEP bandwidth from a fully confirmed result.</p>
+ *
+ * <p>{@link com.sma.sdn.registry.TunnelOperationRegistry} records these values in
+ * {@link TunnelOperationRecord} instances as it tracks intents and their outcomes. A skipped
+ * status describes why a new operation was unnecessary rather than an update sent to the LSP.</p>
  */
 public enum TunnelOperationStatus {
     /** <p>The operation is pending.</p> */

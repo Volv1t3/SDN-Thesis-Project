@@ -9,7 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Classifies the outcome of an OpenDaylight operation for its caller.</p>
+ * <p>Distinguishes confirmed success, provisional success, ambiguous responses, and hard
+ * failures when an OpenDaylight operation is interpreted. These categories describe the
+ * evidence available from a response; provisional success does not itself confirm the
+ * requested network state.</p>
+ *
+ * <p>{@link OdlCallOutcome} carries this type alongside response details. The topology,
+ * path-computation, and update-LSP outcome classifiers assign it, and their callers decide
+ * whether to proceed, retry, fail, or seek further confirmation.</p>
  */
 public enum OdlCallOutcomeType {
     /** <p>The operation has a confirmed successful outcome.</p> */

@@ -14,8 +14,8 @@ package com.sma.sdn.model;
 /**
  * <p>Represents one explicit-route subobject and its loose-hop flag. Path translation and PCEP serializers use these values to describe a delegated LSP route.</p>
  *
- * @param loose loose
- * @param ipPrefix ip prefix
+ * @param loose whether the subobject permits a loose hop
+ * @param ipPrefix IP prefix identifying the route subobject
  */
 public record EroSubobject(boolean loose, String ipPrefix) {
 }

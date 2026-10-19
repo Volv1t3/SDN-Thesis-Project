@@ -45,6 +45,10 @@ import java.util.stream.Collectors;
  * <p>Discovers and updates existing delegated PCEP LSPs. The topology parser produces reported snapshots; this service
  * matches them to configured forward and reverse directions, validates their endpoints and state, and stores directional
  * records in the registry. Updates poll for ERO convergence; a bandwidth mismatch is logged but does not prevent successful return.</p>
+ *
+ * <p>{@link DirectionalLspApplicationService} refreshes these records and delegates update-lsp
+ * requests here. The service uses {@link PcepTopologyXmlDeserializer} snapshots to rebuild
+ * {@link DelegatedLspRegistry} state and {@link RetryPolicy} to poll for a reported route.</p>
  */
 public final class DelegatedLspService {
     /** <p>Logger for discovery and update events.</p> */
@@ -137,13 +141,10 @@ public final class DelegatedLspService {
         replaceFromSnapshots(readSnapshots());
 
         /**
-         * After performing the complete replace from snapshots, which effectively means polling the data and storing the
-         * initial state as reported by the PCCs over their sessions with ODL, we are going to validate that there are two
-         * lsps in there as the topology requires, that is, that the head end to tail end lsp is reported and stored
-         * within the registry alongside the corresponding tail end to head end lsps that make up the implementation and
-         * topological solution. While these two return specific records, right now what we need is to know that these are valid
-         * and registered
-        */
+         * <p>Require the registered forward and reverse directional LSPs after replacing the
+         * registry from the PCC reports. The returned records are not needed here; the checks
+         * establish that both configured directions are available for subsequent operations.</p>
+         */
         requireDelegatedLsp(config.headendToTailend().directionKey());
         requireDelegatedLsp(config.tailendToHeadend().directionKey());
         LOG.info(
@@ -169,9 +170,9 @@ public final class DelegatedLspService {
      */
     public DelegatedLspRecord refreshDirection(final String directionKey) {
         /*This function performs an update upon the registry based on a direction key which is the serialized way of
-        * representing the direction from either lsr1_to_lsr4 or lsr4_to_lsr1. This function is not directly used outside of this
-        * specific service class, where it is used to perform an update solely on the direction corresponding to either of the
-        * identifiers from above, refreshing its state and finally returning the new state*/
+        * representing the direction from either lsr1_to_lsr4 or lsr4_to_lsr1. Callers including
+        * DirectionalLspApplicationService and TunnelOperationCoordinator use this method to refresh both configured
+        * LSP records and return the record corresponding to the requested direction identifier.*/
         LOG.debug(
                 "delegated_lsp_refresh_started",
                 "refreshDirection",
@@ -289,11 +290,10 @@ public final class DelegatedLspService {
 
             final HttpResponse<String> response;
             try {
-                /**Attempt to execute the update-lsp operation upon the RPC Operations client on ODLRests client which
-                * exposes the methods required for performing this kind of operations through a serializer. The idea is that the
-                * {@link UpdateLspRequest} object represents a DTO of a request, set in stone almost for this process. The
-                 * process of creating the corresponding XML is done through a {@link UpdateLspRequestXmlSerializer} that knows the
-                 * format required for the update LSP operations */
+                /**
+                 * <p>Serialize the {@link UpdateLspRequest} with {@link UpdateLspRequestXmlSerializer},
+                 * then send the resulting XML to the operations client for the update-lsp RPC.</p>
+                 */
                 response = operationsClient.updateLsp(requestSerializer.serialize(request));
             } catch (RuntimeException updateFailure) {
                 metrics.increment("sma_update_lsp_failure_total");
@@ -466,8 +466,10 @@ public final class DelegatedLspService {
                             "http_status", response.statusCode(),
                             "response_body_bytes", response.body() == null ? 0 : response.body().length(),
                             "reported_lsp_count", snapshots.size()));
-            /** These snapshots, of the type {@link PcepReportedLspSnapshot} represent the current reported state for all lsps
-             *  known by the PCCs on the network, these are not filtered to the ones we need yet.*/
+            /**
+             * <p>Return the {@link PcepReportedLspSnapshot} records parsed from the configured
+             * PCEP topology; selection of the configured directional LSPs happens later.</p>
+             */
             return snapshots;
         } catch (RuntimeException failure) {
             metrics.increment("sma_pcep_topology_refresh_failure_total");

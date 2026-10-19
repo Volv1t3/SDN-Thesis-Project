@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class DirectionRegistryTest {
     @Test
     void observedScopeProcessesOnlyTheIngressDirection() {
-        final DirectionRegistry registry = registry(TunnelUpdateScope.OBSERVED_DIRECTION);
+        final DirectionRegistry registry = registry();
 
         assertEquals(List.of("lsr1_to_lsr4"), keys(registry, FlowDirection.HEADEND_TO_TAILEND,
                 TunnelUpdateScope.OBSERVED_DIRECTION));
@@ -32,7 +32,7 @@ class DirectionRegistryTest {
 
     @Test
     void bidirectionalScopeKeepsObservedDirectionFirst() {
-        final DirectionRegistry registry = registry(TunnelUpdateScope.BIDIRECTIONAL_PAIR);
+        final DirectionRegistry registry = registry();
 
         assertEquals(List.of("lsr1_to_lsr4", "lsr4_to_lsr1"), keys(registry,
                 FlowDirection.HEADEND_TO_TAILEND, TunnelUpdateScope.BIDIRECTIONAL_PAIR));
@@ -43,8 +43,8 @@ class DirectionRegistryTest {
                         FlowDirection.UNKNOWN, TunnelUpdateScope.OBSERVED_DIRECTION));
     }
 
-    private static DirectionRegistry registry(final TunnelUpdateScope scope) {
-        return new DirectionRegistry(AppConfig.from(Map.of("SMA_TUNNEL_UPDATE_SCOPE", scope.name())));
+    private static DirectionRegistry registry() {
+        return new DirectionRegistry(AppConfig.from(Map.of()));
     }
 
     private static List<String> keys(

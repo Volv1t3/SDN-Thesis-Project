@@ -9,7 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Carries the graph, endpoint, bandwidth, class, and algorithm inputs used to construct a path-computation request to OpenDaylight.</p>
+ * <p>Groups the graph name, source and destination graph-node identifiers, requested bandwidth,
+ * class type, and algorithm used for an OpenDaylight path-computation request. This record
+ * carries request inputs; it does not itself compute a path or validate its components.</p>
+ *
+ * <p>{@link com.sma.sdn.path.PathComputationService} constructs the request after resolving
+ * the graph endpoints and policy parameters. The
+ * {@link com.sma.sdn.serialization.xml.PathComputationRequestXmlSerializer} validates and
+ * serializes it for the path-computation operation.</p>
  *
  * @param graphName path-computation graph name
  * @param sourceGraphNodeId source graph node identifier

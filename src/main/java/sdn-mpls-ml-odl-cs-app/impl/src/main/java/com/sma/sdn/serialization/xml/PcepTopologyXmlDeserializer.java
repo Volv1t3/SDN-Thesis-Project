@@ -101,17 +101,18 @@ public final class PcepTopologyXmlDeserializer {
                     pccNode,
                     "./*[local-name()='path-computation-client']/*[local-name()='reported-lsp']");
 
-            /** We process these deserializing them and transofrming them into a {@link PcepReportedLspSnapshot} object. This process
-             * transfoorm each of the nodeIds and their corresponding reported LSPs into entities that cdan be reported through DTOs
-             * in the program, representing these as immutable entities that will get updated through new records in corresponding registries*/
+            /**
+             * <p>Associate each reported LSP with its PCC node ID and use
+             * {@link PcepReportedLspDeserializer} to produce a {@link PcepReportedLspSnapshot}.</p>
+             */
             for (int lspIndex = 0; lspIndex < reportedLsps.getLength(); lspIndex++) {
                 snapshots.add(reportedLspDeserializer.deserialize(nodeId, reportedLsps.item(lspIndex)));
             }
         }
-        /** This is the final list of the corresponding snapshots, i.e. of the corresponding Reported LSP Objects produced through the
-        * unederlying {@link PcepReportedLspDeserializer}. This mechanism returns a single {@link PcepReportedLspSnapshot} per
-         * underlying reported lsp that it processes. All of the data associated with a single lsp is containedwithin the top level tag <reported>
-         * which is registered underneath the path-computation tag as discussed above*/
+        /**
+         * <p>Return an immutable list containing one {@link PcepReportedLspSnapshot} per
+         * processed {@code <reported-lsp>} child of a path-computation client.</p>
+         */
         final List<PcepReportedLspSnapshot> snapshot = List.copyOf(snapshots);
         LOG.debug("pcep_topology_deserialized", "deserialize",
                 "Se deserializo la estructura de PCC y LSP reportados por PCEP",

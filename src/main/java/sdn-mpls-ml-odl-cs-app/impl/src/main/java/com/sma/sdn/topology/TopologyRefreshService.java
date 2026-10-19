@@ -209,9 +209,10 @@ public final class TopologyRefreshService implements AutoCloseable {
      * is in progress
      */
     public boolean ensureFresh() {
-        /** This operation is a life cycle aware process that allows for higher level mechanisms like the
-         * {@link com.sma.sdn.SdnMplsMlWorkflowService} service for example to review if the current topology is still fresh before performing
-         * an operation like packet pcoressing*/
+        /**
+         * <p>The {@link com.sma.sdn.SdnMplsMlWorkflowService} invokes this freshness check
+         * before continuing packet processing. An expired snapshot triggers an on-demand refresh.</p>
+         */
         if (!staleBeyondThreshold())  { //In the event that the staleness has not been reached we update the gauges but return
             // true diretly
             updateFreshnessGauges();

@@ -9,7 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Represents configured scope choices for tunnel updates.</p>
+ * <p>Selects whether a tunnel update is scoped to the observed packet direction or to both
+ * directions of a tunnel pair. This type expresses a configured scope; it does not itself
+ * compute a path or send an update.</p>
+ *
+ * <p>{@link com.sma.sdn.config.AppConfig} parses the scope and
+ * {@link com.sma.sdn.registry.DirectionRegistry} uses it to select the corresponding
+ * {@link TunnelDirection} values. This setting is distinct from pair-policy LSP application
+ * scope and should not be treated as evidence that both directions were updated.</p>
  */
 public enum TunnelUpdateScope {
     /** <p>Scope the update to the observed direction.</p> */

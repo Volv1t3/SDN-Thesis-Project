@@ -82,7 +82,7 @@ public record TunnelOperationRecord(
      * @param acceptedAt operation acceptance time
      * @param completedAt operation completion time
      * @param expiresAt expiration time
-     * @throws NullPointerException if a required value or copied list element is null
+     * @throws NullPointerException if the requested ERO or any of its elements is null
      */
     public TunnelOperationRecord {
         requestedEro = List.copyOf(requestedEro);

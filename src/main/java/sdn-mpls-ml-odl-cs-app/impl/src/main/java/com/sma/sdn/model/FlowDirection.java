@@ -9,7 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Identifies the packet's resolved direction between configured tunnel endpoints.</p>
+ * <p>Identifies the direction of a packet between the configured headend and tailend, or
+ * indicates that its ingress cannot be associated with either direction. The value describes
+ * observed packet direction rather than the scope of a subsequent tunnel update.</p>
+ *
+ * <p>{@link com.sma.sdn.packet.PacketInFeatureExtractor} obtains an ingress direction from
+ * {@link com.sma.sdn.config.AppConfig}, while {@link com.sma.sdn.registry.DirectionRegistry}
+ * resolves the packet context and maps known directions to tunnel directions. The workflow
+ * stops processing when the resolved direction is unknown.</p>
  */
 public enum FlowDirection {
     /** <p>Traffic flows from the configured headend toward the tailend.</p> */

@@ -42,9 +42,10 @@ public final class PcepReportedLspDeserializer {
      * @throws RuntimeException if XML value or XPath processing fails
      */
     public PcepReportedLspSnapshot deserialize(final String pccNode, final Node reportedLsp) {
-        /** This performs a search to find the first <path> sub element within the <reported-lsp> object that was extracted
-        * from each pccNodest that initially came into the {@link PcepTopologyXmlDeserializer}. From here this function is called
-         * which performs a deeper analysis for the reported LSP blocks*/
+        /**
+         * <p>Find the first {@code <path>} child of the {@code <reported-lsp>} selected by
+         * {@link PcepTopologyXmlDeserializer}; use the reported LSP itself when no path exists.</p>
+         */
         final Node path = first(reportedLsp, "./*[local-name()='path'][1]");
         final Node scope = path == null ? reportedLsp : path; /*Validates if the path element is not null and ergo
         marks whether or not it was extract or not*/
@@ -52,9 +53,8 @@ public final class PcepReportedLspDeserializer {
         final NodeList subobjects = XmlSupport.nodes(
                 scope,
                 /**
-                 * Similar to the expressios used in {@link PcepTopologyXmlDeserializer} this expression extracts those path elements
-                 * that within them contain an \<ero\>  suboject and within them at least one suboject element which would indicate
-                 * the reported path from the system.
+                 * <p>As in {@link PcepTopologyXmlDeserializer}, local-name() ignores namespace
+                 * prefixes. Select each {@code <subobject>} child of an {@code <ero>} descendant.</p>
                  */
                 ".//*[local-name()='ero']/*[local-name()='subobject']");
         for (int index = 0; index < subobjects.getLength(); index++) {
@@ -72,10 +72,9 @@ public final class PcepReportedLspDeserializer {
         }
 
         /**
-         * Finally, after the entire object has been deserialized through XPath, the next step is to extract its top
-         * level attributes that are required for identifying the tunnel in the update lsp functions like the lsp-id and the plsp-id.
-         * Moreover here we can extract the flags that indicate if the reported lsp can be modified, if its administrative or if its operational,
-         * etc.
+         * <p>Build the snapshot from the reported name, LSP identifiers, endpoint addresses,
+         * delegation and state flags, extracted ERO, and bandwidth. These values are consumed
+         * by the registry and by subsequent delegated-LSP operations.</p>
          */
         final PcepReportedLspSnapshot snapshot = new PcepReportedLspSnapshot(
                 pccNode,

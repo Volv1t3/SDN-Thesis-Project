@@ -72,7 +72,7 @@ public record OpenFlowSuppressionIntent(
      * @param udpDestinationPort UDP destination port, when applicable
      * @param classificationClassName classification class name
      * @param profileName traffic-policy profile name
-     * @throws NullPointerException if a required value or copied list element is null
+     * @throws NullPointerException if any required string identifier is null
      */
     public OpenFlowSuppressionIntent {
         Objects.requireNonNull(flowId, "flowId");

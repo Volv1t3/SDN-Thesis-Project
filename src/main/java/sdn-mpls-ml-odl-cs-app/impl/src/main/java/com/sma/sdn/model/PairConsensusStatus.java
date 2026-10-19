@@ -9,7 +9,14 @@
 package com.sma.sdn.model;
 
 /**
- * <p>Describes the result of evaluating directional evidence for a pair and service.</p>
+ * <p>Identifies the outcome of comparing directional classification evidence for a tunnel
+ * pair and service. It distinguishes missing evidence, matching policies, conflict resolution,
+ * unresolved conflicts, and a provisional selection based on one direction.</p>
+ *
+ * <p>{@link com.sma.sdn.policy.PairPolicyConsensusService} assigns these statuses to
+ * {@link PairConsensusDecision} and selected {@link PairPolicyCandidate} instances. The
+ * {@link com.sma.sdn.policy.PairPolicyCoordinator} consumes the decision and records
+ * status-specific metrics; a status alone does not establish that an LSP was updated.</p>
  */
 public enum PairConsensusStatus {
     /** <p>Usable evidence from the other direction is missing.</p> */

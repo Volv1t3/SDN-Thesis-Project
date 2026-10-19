@@ -11,7 +11,15 @@ package com.sma.sdn.model;
 import java.time.Instant;
 
 /**
- * <p>Carries one direction's classification, service identity, policy values, and validity interval. The directional evidence registry stores it for evaluation by the pair-policy consensus service.</p>
+ * <p>Captures a packet observation for one managed tunnel direction, including the packet's
+ * ingress, classification, normalized service identity, selected policy values, and validity
+ * interval. Its policy hash identifies the policy carried by this observation rather than a
+ * confirmed LSP update.</p>
+ *
+ * <p>{@link com.sma.sdn.registry.DirectionalClassificationEvidenceRegistry} stores the
+ * evidence in pair-and-service buckets for evaluation by
+ * {@link com.sma.sdn.policy.PairPolicyConsensusService}; a consensus result may then supply
+ * a candidate to the pair-policy coordinator.</p>
  *
  * @param pairKey managed tunnel-pair identifier
  * @param directionKey managed tunnel-direction identifier

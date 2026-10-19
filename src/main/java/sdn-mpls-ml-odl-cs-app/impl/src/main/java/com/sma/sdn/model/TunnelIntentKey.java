@@ -57,7 +57,7 @@ public record TunnelIntentKey(
      * @param holdPriority LSP holding priority
      * @param algorithm path-computation algorithm
      * @param classType path-computation class type
-     * @throws NullPointerException if a required value or copied list element is null
+     * @throws NullPointerException if any required string identifier is null
      */
     public TunnelIntentKey {
         Objects.requireNonNull(directionKey, "directionKey");

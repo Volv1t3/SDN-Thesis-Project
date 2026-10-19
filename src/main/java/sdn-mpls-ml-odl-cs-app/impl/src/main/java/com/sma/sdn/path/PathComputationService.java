@@ -236,14 +236,11 @@ public final class PathComputationService {
             * or an exception*/
             response = computeWithRetry(request);
 
-            /* Upon a correct result the operation deserializes the body which in this case would contain the
-            * <output> top level object and the <path-description> innner elements describing the remove ipv4 address and ipv4 addresses
-            * used to construct the ERO for the path. The <path-description> elements are then translated into a list of
-            */
-            /** {@link PathHop} objects that represent these deserialized hops, which are thenn translated internally
-             * towards an ERO list of {@link com.sma.sdn.model.EroSubobject} attached to the {@link CalculatedPath} object.
-             * It is important to note that for the ERO to work the last objecet must match the destination router ID or the
-             * identifier that is used for defining that router.*/
+            /**
+             * <p>Deserialize the accepted response into path descriptions represented by
+             * {@link com.sma.sdn.model.PathHop} records. The ERO translator later derives subobjects from the
+             * response for storage in the {@link CalculatedPath}.</p>
+             */
             parsed = responseDeserializer.deserialize(response.body());
         } catch (RuntimeException e) {
             metrics.observeHistogram("sma_path_computation_duration_seconds",

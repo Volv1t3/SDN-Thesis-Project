@@ -11,7 +11,14 @@ package com.sma.sdn.model;
 import java.time.Instant;
 
 /**
- * <p>Represents one policy selected from directional evidence by consensus. The pair-policy coordinator evaluates and applies this candidate to the configured LSP scope.</p>
+ * <p>Represents a policy selected from one direction's evidence during pair-policy consensus.
+ * It retains the selected direction and ingress switch alongside the service, policy values,
+ * fingerprint, consensus status, and selection time. Selection alone does not establish that
+ * the policy has been admitted or applied to any LSP.</p>
+ *
+ * <p>{@link com.sma.sdn.policy.PairPolicyConsensusService} constructs candidates from
+ * {@link DirectionalPolicyEvidence}; {@link com.sma.sdn.policy.PairPolicyCoordinator}
+ * evaluates the candidate against the active policy and the configured application scope.</p>
  *
  * @param pairKey managed tunnel-pair identifier
  * @param serviceKey normalized identity of the traffic service

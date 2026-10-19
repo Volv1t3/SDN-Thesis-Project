@@ -17,7 +17,6 @@ import com.sma.sdn.model.PairConsensusEqualPriorityAction;
 import com.sma.sdn.model.PairPolicyLspApplicationScope;
 import com.sma.sdn.model.TunnelDirection;
 import com.sma.sdn.model.TunnelEndpoint;
-import com.sma.sdn.model.TunnelUpdateScope;
 import com.sma.sdn.observability.StructuredLogger;
 import java.net.URI;
 import java.time.Duration;
@@ -51,8 +50,6 @@ import java.util.Objects;
  * @param reverseLspName delegated reverse LSP name
  * @param forwardTunnelInterface forward router tunnel-interface name
  * @param reverseTunnelInterface reverse router tunnel-interface name
- * @param headendToTailendIngress parsed forward ingress tokens
- * @param tailendToHeadendIngress parsed reverse ingress tokens
  * @param classificationCacheTtl classifier-result cache lifetime
  * @param pathCacheTtl calculated-path cache lifetime
  * @param topologyCacheTtl topology freshness interval
@@ -74,10 +71,8 @@ import java.util.Objects;
  * @param openflowIpv4Priority priority of baseline IPv4 rules
  * @param openflowInstallDefaultDrop whether bootstrap installs a default-drop rule
  * @param openflowDefaultDropPriority priority of the optional default-drop rule
- * @param tunnelUpdateScope direction scope updated for an admitted request
  * @param tunnelIntentTtl accepted tunnel-intent lifetime
  * @param tunnelPendingTtl pending tunnel-operation lifetime
- * @param tunnelOperationJournalMaxEntries maximum retained tunnel-operation journal entries
  * @param tunnelOperationLockTimeout per-tunnel lock-acquisition timeout
  * @param openflowSuppressionEnabled whether temporary suppression rules are enabled
  * @param openflowSuppressionIdleTimeoutSeconds suppression-rule idle timeout in seconds
@@ -97,9 +92,6 @@ import java.util.Objects;
  * @param pairPolicyHashVersion version included in pair-policy hashes
  * @param pairPolicyLspApplicationScope directions receiving an admitted pair policy
  * @param lspApplicationRequireAllDirections whether all selected directions must succeed
- * @param lspApplicationReapplyOnBandwidthMismatch whether bandwidth mismatch triggers reapplication
- * @param lspApplicationReapplyOnEroMismatch whether explicit-route mismatch triggers reapplication
- * @param lspApplicationReapplyOnPriorityMismatch whether priority mismatch triggers reapplication
  */
 public record AppConfig(
 
@@ -139,10 +131,6 @@ public record AppConfig(
         String forwardTunnelInterface,
         /** <p>Router tunnel-interface name associated with the reverse LSP.</p> */
         String reverseTunnelInterface,
-        /** <p>Parsed ingress tokens configured for the forward direction.</p> */
-        IngressMapping headendToTailendIngress,
-        /** <p>Parsed ingress tokens configured for the reverse direction.</p> */
-        IngressMapping tailendToHeadendIngress,
         /** <p>Lifetime assigned to cached classifier results.</p> */
         Duration classificationCacheTtl,
         /** <p>Lifetime assigned to cached calculated paths.</p> */
@@ -185,14 +173,10 @@ public record AppConfig(
         boolean openflowInstallDefaultDrop,
         /** <p>Priority assigned to the optional default-drop rule.</p> */
         int openflowDefaultDropPriority,
-        /** <p>Direction scope updated for an admitted tunnel request.</p> */
-        TunnelUpdateScope tunnelUpdateScope,
         /** <p>Lifetime assigned to accepted tunnel intents.</p> */
         Duration tunnelIntentTtl,
         /** <p>Lifetime assigned to pending tunnel operations.</p> */
         Duration tunnelPendingTtl,
-        /** <p>Maximum number of tunnel-operation journal entries retained.</p> */
-        int tunnelOperationJournalMaxEntries,
         /** <p>Maximum time spent waiting for a per-tunnel operation lock.</p> */
         Duration tunnelOperationLockTimeout,
         /** <p>Whether temporary OpenFlow suppression rules may be installed.</p> */
@@ -230,13 +214,7 @@ public record AppConfig(
         /** <p>Directions to which an admitted pair policy is applied.</p> */
         PairPolicyLspApplicationScope pairPolicyLspApplicationScope,
         /** <p>Whether applying a pair policy succeeds only when all selected directions succeed.</p> */
-        boolean lspApplicationRequireAllDirections,
-        /** <p>Whether a bandwidth mismatch requires reapplying an LSP policy.</p> */
-        boolean lspApplicationReapplyOnBandwidthMismatch,
-        /** <p>Whether an explicit-route mismatch requires reapplying an LSP policy.</p> */
-        boolean lspApplicationReapplyOnEroMismatch,
-        /** <p>Whether a setup- or hold-priority mismatch requires reapplying an LSP policy.</p> */
-        boolean lspApplicationReapplyOnPriorityMismatch) {
+        boolean lspApplicationRequireAllDirections) {
 
     /** <p>Structured event logger for configuration loading.</p> */
     private static final StructuredLogger LOG = StructuredLogger.getLogger(AppConfig.class);
@@ -251,7 +229,7 @@ public record AppConfig(
 
     /**
      * <p>Validates a complete configuration snapshot before the record becomes available to application services.
-     * Required reference values must be present, time-to-live values must be positive, and OpenFlow, journal,
+     * Required reference values must be present, time-to-live values must be positive, and OpenFlow,
      * suppression, and pair-policy numeric settings must satisfy their local ranges.</p>
      *
      * <p>Validation proceeds in the following order:</p>
@@ -259,11 +237,71 @@ public record AppConfig(
      *   <li>Require every reference-valued setting consumed without a null fallback by downstream services.</li>
      *   <li>Reject negative OpenFlow table identifiers or priorities.</li>
      *   <li>Require positive cache, tunnel-operation, consensus, and active-policy durations.</li>
-     *   <li>Require a positive journal limit and policy-hash version, and non-negative suppression settings.</li>
+     *   <li>Require a positive policy-hash version and non-negative suppression settings.</li>
      * </ol>
      *
      * <p>The validated record is subsequently injected into the provider's clients and services as their shared,
      * immutable runtime contract.</p>
+     *
+     * @param tunnelCreationMode strategy for applying tunnel changes
+     * @param odlRestconfDataBaseUrl RESTCONF data-store base URI
+     * @param odlRestsOperationsBaseUrl RESTS operations base URI
+     * @param odlUsername OpenDaylight HTTP Basic user name
+     * @param odlPassword OpenDaylight HTTP Basic password
+     * @param classifierEndpoint fully resolved classifier API endpoint
+     * @param bgplsTopologyId BGP-LS topology identifier
+     * @param pcepTopologyId PCEP topology identifier
+     * @param pathComputationGraphName graph name supplied to path computation
+     * @param headend endpoint that originates the forward direction
+     * @param tailend endpoint that terminates the forward direction
+     * @param headendToTailend forward tunnel direction
+     * @param tailendToHeadend reverse tunnel direction
+     * @param forwardLspName delegated forward LSP name
+     * @param reverseLspName delegated reverse LSP name
+     * @param forwardTunnelInterface forward router tunnel-interface name
+     * @param reverseTunnelInterface reverse router tunnel-interface name
+     * @param classificationCacheTtl classifier-result cache lifetime
+     * @param pathCacheTtl calculated-path cache lifetime
+     * @param topologyCacheTtl topology freshness interval
+     * @param operationalValidationTimeout operational validation timeout
+     * @param httpRequestTimeout outbound HTTP request timeout
+     * @param odlRetryInitialDelayMs initial OpenDaylight retry delay in milliseconds
+     * @param odlRetryMaxDelayMs maximum OpenDaylight retry delay in milliseconds
+     * @param odlRetryJitterPercent percentage of random retry-delay jitter
+     * @param topologyDiscoveryMaxAttempts maximum topology discovery attempts
+     * @param openflowBootstrapEnabled whether baseline OpenFlow provisioning is enabled
+     * @param openflowTableId OpenFlow table used for controller-installed rules
+     * @param ovsEchoManagementIp ECHO management IP
+     * @param ovsEchoHostPortName ECHO host-facing port name
+     * @param ovsEchoCorePortName ECHO core-facing port name
+     * @param ovsFoxtrotManagementIp FOXTROT management IP
+     * @param ovsFoxtrotHostPortName FOXTROT host-facing port name
+     * @param ovsFoxtrotCorePortName FOXTROT core-facing port name
+     * @param openflowArpPriority priority of baseline ARP rules
+     * @param openflowIpv4Priority priority of baseline IPv4 rules
+     * @param openflowInstallDefaultDrop whether bootstrap installs a default-drop rule
+     * @param openflowDefaultDropPriority priority of the optional default-drop rule
+     * @param tunnelIntentTtl accepted tunnel-intent lifetime
+     * @param tunnelPendingTtl pending tunnel-operation lifetime
+     * @param tunnelOperationLockTimeout per-tunnel lock-acquisition timeout
+     * @param openflowSuppressionEnabled whether temporary suppression rules are enabled
+     * @param openflowSuppressionIdleTimeoutSeconds suppression-rule idle timeout in seconds
+     * @param openflowSuppressionHardTimeoutSeconds suppression-rule hard timeout in seconds
+     * @param openflowSuppressionPriority suppression-rule priority
+     * @param openflowSuppressionCookieBase base used to derive suppression cookies
+     * @param odlXmlBodyLogLevel logging threshold for OpenDaylight XML bodies
+     * @param pairConsensusEnabled whether pair-consensus coordination is enabled
+     * @param pairConsensusRequireBothDirections whether consensus requires both traffic directions
+     * @param pairConsensusEvidenceTtl pair-consensus evidence lifetime
+     * @param pairConsensusSingleSideProvisionalEnabled whether one-sided evidence may be provisional
+     * @param pairConsensusEqualPriorityAction equal-priority consensus resolution
+     * @param activePairPolicyIdleTtl idle lifetime of an active pair policy
+     * @param activePairPolicySweeperEnabled whether active-policy expiration sweeps are enabled
+     * @param activePairPolicySweeperInterval interval between active-policy expiration sweeps
+     * @param pairPolicyPriorityPreemptionEnabled whether higher-priority policies may preempt
+     * @param pairPolicyHashVersion version included in pair-policy hashes
+     * @param pairPolicyLspApplicationScope directions receiving an admitted pair policy
+     * @param lspApplicationRequireAllDirections whether all selected directions must succeed
      *
      * @throws NullPointerException if a required reference-valued setting is {@code null}
      * @throws IllegalArgumentException if a validated numeric or duration setting is outside its accepted range
@@ -291,7 +329,6 @@ public record AppConfig(
         Objects.requireNonNull(topologyCacheTtl, "topologyCacheTtl");
         Objects.requireNonNull(operationalValidationTimeout, "operationalValidationTimeout");
         Objects.requireNonNull(httpRequestTimeout, "httpRequestTimeout");
-        Objects.requireNonNull(tunnelUpdateScope, "tunnelUpdateScope");
         Objects.requireNonNull(tunnelIntentTtl, "tunnelIntentTtl");
         Objects.requireNonNull(tunnelPendingTtl, "tunnelPendingTtl");
         Objects.requireNonNull(tunnelOperationLockTimeout, "tunnelOperationLockTimeout");
@@ -321,10 +358,10 @@ public record AppConfig(
                 || tunnelOperationLockTimeout.isNegative() || tunnelOperationLockTimeout.isZero()) {
             throw new IllegalArgumentException("Los TTL y el tiempo de bloqueo deben ser positivos");
         }
-        if (tunnelOperationJournalMaxEntries <= 0 || openflowSuppressionIdleTimeoutSeconds < 0
+        if (openflowSuppressionIdleTimeoutSeconds < 0
                 || openflowSuppressionHardTimeoutSeconds < 0 || openflowSuppressionPriority < 0
                 || openflowSuppressionCookieBase < 0L) {
-            throw new IllegalArgumentException("La configuracion de operaciones y supresion no es valida");
+            throw new IllegalArgumentException("La configuracion de supresion no es valida");
         }
         if (pairConsensusEvidenceTtl.isNegative() || pairConsensusEvidenceTtl.isZero()
                 || activePairPolicyIdleTtl.isNegative() || activePairPolicyIdleTtl.isZero()
@@ -389,7 +426,7 @@ public record AppConfig(
      * <ol>
      *   <li>Parse the tunnel mode and construct the RESTCONF, RESTS, and classifier URIs.</li>
      *   <li>Resolve topology identifiers, endpoint router/PCC identities, and both {@link TunnelDirection} values.</li>
-     *   <li>Parse ingress tokens, cache and operation durations, retry controls, and OpenFlow settings.</li>
+     *   <li>Parse cache and operation durations, retry controls, and OpenFlow settings.</li>
      *   <li>Parse tunnel, suppression, consensus, preemption, and LSP-application policy settings.</li>
      *   <li>Construct the record, thereby running compact-constructor validation.</li>
      *   <li>Log non-secret configuration metadata and return the validated snapshot.</li>
@@ -401,7 +438,7 @@ public record AppConfig(
      * @param env environment-style key/value map used as the configuration source
      * @return a validated configuration snapshot containing defaults for missing or blank entries
      * @throws NullPointerException if {@code env} is {@code null} or a required constructed value is {@code null}
-     * @throws IllegalArgumentException if an enum, URI, number, boolean, ingress mapping, duration, or validated range
+     * @throws IllegalArgumentException if an enum, URI, number, boolean, duration, or validated range
      *         is invalid
      */
     public static AppConfig from(final Map<String, String> env) {
@@ -444,75 +481,71 @@ public record AppConfig(
                 endpointPair.tailend(),
                 endpointPair.headend());
 
+        // Each trailing comment names the record component receiving that positional argument.
+        // Environment keys and fallback values remain visible in the corresponding expressions;
+        // variables above are resolved before this call, and the compact constructor validates the result.
         final AppConfig config = new AppConfig(
-                mode,
-                dataUrl,
-                operationsUrl,
-                value(env, "ODL_USERNAME", "admin"),
-                value(env, "ODL_PASSWORD", "admin"),
-                classifierEndpoint,
-                bgplsTopologyId,
-                pcepTopologyId,
-                graphName,
-                endpointPair.headend(),
-                endpointPair.tailend(),
-                forward,
-                reverse,
-                value(env, "SMA_FORWARD_LSP_NAME", "sma-lsr1-lsr4-delegated"),
-                value(env, "SMA_REVERSE_LSP_NAME", "sma-lsr4-lsr1-delegated"),
-                value(env, "SMA_FORWARD_TUNNEL_INTERFACE", "tunnel-te110"),
-                value(env, "SMA_REVERSE_TUNNEL_INTERFACE", "tunnel-te410"),
-                IngressMapping.parse(value(env, "SMA_HEADEND_TO_TAILEND_INGRESS", "sma-ovs-pe1-echo|host-golf")),
-                IngressMapping.parse(value(env, "SMA_TAILEND_TO_HEADEND_INGRESS", "sma-ovs-pe2-foxtrot|host-hotel")),
-                seconds(env, "CLASSIFICATION_CACHE_TTL_SECONDS", 3600),
-                seconds(env, "PATH_CACHE_TTL_SECONDS", 60),
-                seconds(env, "TOPOLOGY_CACHE_TTL_SECONDS", 300),
-                seconds(env, "ODL_OPERATIONAL_VALIDATION_TIMEOUT_SECONDS", 120),
-                seconds(env, "HTTP_REQUEST_TIMEOUT_SECONDS", 10),
-                longValue(env, "ODL_RETRY_INITIAL_DELAY_MS", 500),
-                longValue(env, "ODL_RETRY_MAX_DELAY_MS", 5000),
-                (int) longValue(env, "ODL_RETRY_JITTER_PERCENT", 20),
-                (int) longValue(env, "ODL_TOPOLOGY_DISCOVERY_MAX_ATTEMPTS", 5),
-                booleanValue(env, "SMA_OPENFLOW_BOOTSTRAP_ENABLED", true),
-                (int) longValue(env, "SMA_OPENFLOW_TABLE_ID", 0),
-                value(env, "SMA_OVS_ECHO_MGMT_IP", "172.21.121.15"),
-                value(env, "SMA_OVS_ECHO_HOST_PORT_NAME", "host-golf"),
-                value(env, "SMA_OVS_ECHO_CORE_PORT_NAME", "core-lsr1"),
-                value(env, "SMA_OVS_FOXTROT_MGMT_IP", "172.21.121.16"),
-                value(env, "SMA_OVS_FOXTROT_HOST_PORT_NAME", "host-hotel"),
-                value(env, "SMA_OVS_FOXTROT_CORE_PORT_NAME", "core-lsr4"),
-                (int) longValue(env, "SMA_OPENFLOW_ARP_PRIORITY", 300),
-                (int) longValue(env, "SMA_OPENFLOW_IPV4_PRIORITY", 200),
-                booleanValue(env, "SMA_OPENFLOW_INSTALL_DEFAULT_DROP", false),
-                (int) longValue(env, "SMA_OPENFLOW_DEFAULT_DROP_PRIORITY", 0),
-                parseTunnelUpdateScope(value(env, "SMA_TUNNEL_UPDATE_SCOPE", "OBSERVED_DIRECTION")),
-                seconds(env, "SMA_TUNNEL_INTENT_TTL_SECONDS", 30),
-                seconds(env, "SMA_TUNNEL_PENDING_TTL_SECONDS", 10),
-                (int) longValue(env, "SMA_TUNNEL_OPERATION_JOURNAL_MAX_ENTRIES", 500),
-                Duration.ofMillis(longValue(env, "SMA_TUNNEL_OPERATION_LOCK_TIMEOUT_MS", 5000)),
-                booleanValue(env, "SMA_OPENFLOW_SUPPRESSION_ENABLED", false),
-                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_IDLE_TIMEOUT_SECONDS", 10),
-                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_HARD_TIMEOUT_SECONDS", 60),
-                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_PRIORITY", 250),
-                longValue(env, "SMA_OPENFLOW_SUPPRESSION_COOKIE_BASE", 0x8ADC00L),
-                parseOdlXmlBodyLogLevel(value(env, "SMA_ODL_XML_BODY_LOG_LEVEL", "DEBUG")),
-                booleanValue(env, "SMA_PAIR_CONSENSUS_ENABLED", true),
-                booleanValue(env, "SMA_PAIR_CONSENSUS_REQUIRE_BOTH_DIRECTIONS", true),
-                seconds(env, "SMA_PAIR_CONSENSUS_EVIDENCE_TTL_SECONDS", 10),
-                booleanValue(env, "SMA_PAIR_CONSENSUS_SINGLE_SIDE_PROVISIONAL_ENABLED", false),
+                mode, // tunnelCreationMode: TUNNEL_CREATION_MODE, parsed above
+                dataUrl, // odlRestconfDataBaseUrl: SMA_ODL_RESTCONF_DATA_BASE_URL, then ODL_RESTCONF_DATA_BASE_URL
+                operationsUrl, // odlRestsOperationsBaseUrl: ODL_RESTS_OPERATIONS_BASE_URL, parsed above
+                value(env, "ODL_USERNAME", "admin"), // odlUsername
+                value(env, "ODL_PASSWORD", "admin"), // odlPassword
+                classifierEndpoint, // classifierEndpoint: CLASSIFIER_BASE_URL and CLASSIFIER_CLASSIFY_PATH
+                bgplsTopologyId, // bgplsTopologyId: ODL_BGPLS_TOPOLOGY_ID, resolved above
+                pcepTopologyId, // pcepTopologyId: ODL_PCEP_TOPOLOGY_ID, resolved above
+                graphName, // pathComputationGraphName: ODL_PATH_COMPUTATION_GRAPH_NAME, resolved above
+                endpointPair.headend(), // headend: SMA_HEADEND_RID and SMA_HEADEND_PCC_NODE
+                endpointPair.tailend(), // tailend: SMA_TAILEND_RID and SMA_TAILEND_PCC_NODE
+                forward, // headendToTailend: SMA_FORWARD_DIRECTION_KEY and endpointPair
+                reverse, // tailendToHeadend: SMA_REVERSE_DIRECTION_KEY and endpointPair
+                value(env, "SMA_FORWARD_LSP_NAME", "sma-lsr1-lsr4-delegated"), // forwardLspName
+                value(env, "SMA_REVERSE_LSP_NAME", "sma-lsr4-lsr1-delegated"), // reverseLspName
+                value(env, "SMA_FORWARD_TUNNEL_INTERFACE", "tunnel-te110"), // forwardTunnelInterface
+                value(env, "SMA_REVERSE_TUNNEL_INTERFACE", "tunnel-te410"), // reverseTunnelInterface
+                seconds(env, "CLASSIFICATION_CACHE_TTL_SECONDS", 3600), // classificationCacheTtl
+                seconds(env, "PATH_CACHE_TTL_SECONDS", 60), // pathCacheTtl
+                seconds(env, "TOPOLOGY_CACHE_TTL_SECONDS", 300), // topologyCacheTtl
+                seconds(env, "ODL_OPERATIONAL_VALIDATION_TIMEOUT_SECONDS", 120), // operationalValidationTimeout
+                seconds(env, "HTTP_REQUEST_TIMEOUT_SECONDS", 10), // httpRequestTimeout
+                longValue(env, "ODL_RETRY_INITIAL_DELAY_MS", 500), // odlRetryInitialDelayMs
+                longValue(env, "ODL_RETRY_MAX_DELAY_MS", 5000), // odlRetryMaxDelayMs
+                (int) longValue(env, "ODL_RETRY_JITTER_PERCENT", 20), // odlRetryJitterPercent
+                (int) longValue(env, "ODL_TOPOLOGY_DISCOVERY_MAX_ATTEMPTS", 5), // topologyDiscoveryMaxAttempts
+                booleanValue(env, "SMA_OPENFLOW_BOOTSTRAP_ENABLED", true), // openflowBootstrapEnabled
+                (int) longValue(env, "SMA_OPENFLOW_TABLE_ID", 0), // openflowTableId
+                value(env, "SMA_OVS_ECHO_MGMT_IP", "172.21.121.15"), // ovsEchoManagementIp
+                value(env, "SMA_OVS_ECHO_HOST_PORT_NAME", "host-golf"), // ovsEchoHostPortName
+                value(env, "SMA_OVS_ECHO_CORE_PORT_NAME", "core-lsr1"), // ovsEchoCorePortName
+                value(env, "SMA_OVS_FOXTROT_MGMT_IP", "172.21.121.16"), // ovsFoxtrotManagementIp
+                value(env, "SMA_OVS_FOXTROT_HOST_PORT_NAME", "host-hotel"), // ovsFoxtrotHostPortName
+                value(env, "SMA_OVS_FOXTROT_CORE_PORT_NAME", "core-lsr4"), // ovsFoxtrotCorePortName
+                (int) longValue(env, "SMA_OPENFLOW_ARP_PRIORITY", 300), // openflowArpPriority
+                (int) longValue(env, "SMA_OPENFLOW_IPV4_PRIORITY", 200), // openflowIpv4Priority
+                booleanValue(env, "SMA_OPENFLOW_INSTALL_DEFAULT_DROP", false), // openflowInstallDefaultDrop
+                (int) longValue(env, "SMA_OPENFLOW_DEFAULT_DROP_PRIORITY", 0), // openflowDefaultDropPriority
+                seconds(env, "SMA_TUNNEL_INTENT_TTL_SECONDS", 30), // tunnelIntentTtl
+                seconds(env, "SMA_TUNNEL_PENDING_TTL_SECONDS", 10), // tunnelPendingTtl
+                Duration.ofMillis(longValue(env, "SMA_TUNNEL_OPERATION_LOCK_TIMEOUT_MS", 5000)), // tunnelOperationLockTimeout
+                booleanValue(env, "SMA_OPENFLOW_SUPPRESSION_ENABLED", false), // openflowSuppressionEnabled
+                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_IDLE_TIMEOUT_SECONDS", 10), // openflowSuppressionIdleTimeoutSeconds
+                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_HARD_TIMEOUT_SECONDS", 60), // openflowSuppressionHardTimeoutSeconds
+                (int) longValue(env, "SMA_OPENFLOW_SUPPRESSION_PRIORITY", 250), // openflowSuppressionPriority
+                longValue(env, "SMA_OPENFLOW_SUPPRESSION_COOKIE_BASE", 0x8ADC00L), // openflowSuppressionCookieBase
+                parseOdlXmlBodyLogLevel(value(env, "SMA_ODL_XML_BODY_LOG_LEVEL", "DEBUG")), // odlXmlBodyLogLevel
+                booleanValue(env, "SMA_PAIR_CONSENSUS_ENABLED", true), // pairConsensusEnabled
+                booleanValue(env, "SMA_PAIR_CONSENSUS_REQUIRE_BOTH_DIRECTIONS", true), // pairConsensusRequireBothDirections
+                seconds(env, "SMA_PAIR_CONSENSUS_EVIDENCE_TTL_SECONDS", 10), // pairConsensusEvidenceTtl
+                booleanValue(env, "SMA_PAIR_CONSENSUS_SINGLE_SIDE_PROVISIONAL_ENABLED", false), // pairConsensusSingleSideProvisionalEnabled
                 parsePairConsensusEqualPriorityAction(value(env,
-                        "SMA_PAIR_CONSENSUS_EQUAL_PRIORITY_ACTION", "KEEP_CURRENT_OR_DEFER")),
-                seconds(env, "SMA_ACTIVE_PAIR_POLICY_IDLE_TTL_SECONDS", 60),
-                booleanValue(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_ENABLED", true),
-                seconds(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_INTERVAL_SECONDS", 15),
-                "PRIORITY_PREEMPT".equalsIgnoreCase(value(env, "SMA_PAIR_POLICY_PREEMPTION_MODE", "PRIORITY_PREEMPT")),
-                (int) longValue(env, "SMA_PAIR_POLICY_HASH_VERSION", 1),
+                        "SMA_PAIR_CONSENSUS_EQUAL_PRIORITY_ACTION", "KEEP_CURRENT_OR_DEFER")), // pairConsensusEqualPriorityAction
+                seconds(env, "SMA_ACTIVE_PAIR_POLICY_IDLE_TTL_SECONDS", 60), // activePairPolicyIdleTtl
+                booleanValue(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_ENABLED", true), // activePairPolicySweeperEnabled
+                seconds(env, "SMA_ACTIVE_PAIR_POLICY_SWEEPER_INTERVAL_SECONDS", 15), // activePairPolicySweeperInterval
+                "PRIORITY_PREEMPT".equalsIgnoreCase(value(env, "SMA_PAIR_POLICY_PREEMPTION_MODE", "PRIORITY_PREEMPT")), // pairPolicyPriorityPreemptionEnabled
+                (int) longValue(env, "SMA_PAIR_POLICY_HASH_VERSION", 1), // pairPolicyHashVersion
                 parsePairPolicyLspApplicationScope(value(env,
-                        "SMA_PAIR_POLICY_LSP_APPLICATION_SCOPE", "BIDIRECTIONAL_PAIR")),
-                booleanValue(env, "SMA_LSP_APPLICATION_REQUIRE_ALL_DIRECTIONS", true),
-                booleanValue(env, "SMA_LSP_APPLICATION_REAPPLY_ON_BANDWIDTH_MISMATCH", true),
-                booleanValue(env, "SMA_LSP_APPLICATION_REAPPLY_ON_ERO_MISMATCH", true),
-                booleanValue(env, "SMA_LSP_APPLICATION_REAPPLY_ON_PRIORITY_MISMATCH", true));
+                        "SMA_PAIR_POLICY_LSP_APPLICATION_SCOPE", "BIDIRECTIONAL_PAIR")), // pairPolicyLspApplicationScope
+                booleanValue(env, "SMA_LSP_APPLICATION_REQUIRE_ALL_DIRECTIONS", true)); // lspApplicationRequireAllDirections
         LOG.info("application_configuration_loaded", "from",
                 "Se cargo y valido la configuracion de la aplicacion desde el entorno",
                 StructuredLogger.fields("tunnel_creation_mode", config.tunnelCreationMode(),
@@ -526,7 +559,6 @@ public record AppConfig(
                         "reverse_direction_key", config.tailendToHeadend().directionKey(),
                         "openflow_bootstrap_enabled", config.openflowBootstrapEnabled(),
                         "openflow_table_id", config.openflowTableId(),
-                        "tunnel_update_scope", config.tunnelUpdateScope(),
                         "tunnel_intent_ttl_seconds", config.tunnelIntentTtl().toSeconds(),
                         "openflow_suppression_enabled", false,
                         "pair_consensus_require_both_directions", config.pairConsensusRequireBothDirections(),
@@ -595,32 +627,6 @@ public record AppConfig(
             return TunnelCreationMode.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("El valor de TUNNEL_CREATION_MODE no es reconocido: " + rawValue, e);
-        }
-    }
-
-    /**
-     * <p>Parses the configured tunnel-update scope using locale-independent case normalization.</p>
-     *
-     * <p>The helper performs the following steps:</p>
-     * <ol>
-     *   <li>Trim and upper-case the supplied text with {@link Locale#ROOT}.</li>
-     *   <li>Resolve the normalized text with {@link TunnelUpdateScope#valueOf(String)}.</li>
-     *   <li>Wrap an unsupported value with an error that names {@code SMA_TUNNEL_UPDATE_SCOPE}.</li>
-     * </ol>
-     *
-     * @param rawValue textual update scope
-     * @return the matching tunnel-update scope
-     * @throws NullPointerException if {@code rawValue} is {@code null}
-     * @throws IllegalArgumentException if the normalized value does not name a supported scope
-     */
-    private static TunnelUpdateScope parseTunnelUpdateScope(final String rawValue) {
-        /*This is another validator that parses the text, but Java utilizes a default value of Direction Only update. In some cases
-        * it might be incorrect for the information see from one side update the other reverse tunnel. This was documented during research*/
-        try {
-            return TunnelUpdateScope.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("El valor de SMA_TUNNEL_UPDATE_SCOPE no es reconocido: "
-                    + rawValue, e);
         }
     }
 

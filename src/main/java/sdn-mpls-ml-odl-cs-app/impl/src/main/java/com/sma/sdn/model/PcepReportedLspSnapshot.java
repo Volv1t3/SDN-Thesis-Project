@@ -18,8 +18,8 @@ import java.util.List;
  *
  * <p>This is a reported view, not yet a managed directional record. The topology deserializer
  * supplies the containing PCC identity; the delegated LSP service matches the PCC and name against
- * configuration, validates the endpoints and operational flags, and constructs a
- * {@link DelegatedLspRecord} before replacing the registry.</p>
+ * configuration and checks the endpoints. It constructs a {@link DelegatedLspRecord},
+ * checks the resulting record's operational flags, and then replaces the registry.</p>
  *
  * @param pccNode PCEP client node identifier
  * @param name reported LSP name

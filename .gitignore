@@ -9,7 +9,12 @@
 # Local agent/tool state and generated repository analysis
 .agents/
 .codex/
-**/graphify-out/
+!.codex/
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/javadoc-documenter.toml
+
 **/skills/
 
 # Runtime and operating-system artifacts
@@ -26,15 +31,3 @@ SDNFlow_Dataset/
 /src/main/containerlab/data-folders/
 
 # Local/reference documentation assets; canonical documentation remains versioned.
-/docs/*
-/docs/java-controller/*
-/docs/prompts/*
-/docs/python-api/*
-/docs/.DS_Store
-/docs/science-refs/
-/docs/*.docx
-/docs/*.drawio
-/docs/*.eapx
-/docs/*.ldb
-/docs/graphs/
-/docs/sequence-shortened.png
