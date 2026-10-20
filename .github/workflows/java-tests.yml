@@ -1,0 +1,44 @@
+name: Java tests
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "src/main/java/sdn-mpls-ml-odl-cs-app/**"
+      - ".github/workflows/java-tests.yml"
+  pull_request:
+    branches: ["master"]
+    paths:
+      - "src/main/java/sdn-mpls-ml-odl-cs-app/**"
+      - ".github/workflows/java-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Compile and run Maven tests
+    runs-on: ubuntu-latest
+    container: maven:3.9.9-eclipse-temurin-21
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-java21-${{ hashFiles('src/main/java/sdn-mpls-ml-odl-cs-app/**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-java21-
+
+      - name: Compile and run tests
+        working-directory: src/main/java/sdn-mpls-ml-odl-cs-app
+        run: mvn clean test -Pq -Dcheckstyle.skip=true

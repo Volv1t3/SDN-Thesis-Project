@@ -8,7 +8,7 @@ WORKDIR /build/sdn-mpls-ml-odl-cs-app
 
 COPY sdn-mpls-ml-odl-cs-app/ ./
 
-RUN mvn clean install -Pq -DskipTests
+RUN mvn clean install -Pq -DskipTests -Dcheckstyle.skip=true
 
 FROM eclipse-temurin:21-jre-jammy
 
