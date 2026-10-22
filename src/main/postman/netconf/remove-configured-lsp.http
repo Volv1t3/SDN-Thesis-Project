@@ -1,0 +1,27 @@
+# Request: Remove configured LSP
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Full Flow for ODL-Enabled Tunnel Creation / Remove configured LSP
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8182/restconf/operations/network-topology-pcep:remove-lsp
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://172.21.121.100:8182/restconf/operations/network-topology-pcep:remove-lsp HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Accept: application/xml
+Content-Type: application/xml
+
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+	<network-topology-ref xmlns:nt="urn:TBD:params:xml:ns:yang:network-topology">/nt:network-topology/nt:topology[nt:topology-id="pcep-topology"]</network-topology-ref>
+	<node>pcc://10.100.10.1</node>
+    <name>sma-lsr4-lsr1-cspf-80m</name>
+</input>

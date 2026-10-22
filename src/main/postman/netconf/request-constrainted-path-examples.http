@@ -1,0 +1,32 @@
+# Request: Request Constrainted Path Examples
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Full Flow for ODL-Enabled Tunnel Creation / Request Constrainted Path Examples
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8181/rests/operations/path-computation:get-constrained-path
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response (recorded by Postman): 200 OK.
+
+###
+POST http://172.21.121.100:8181/rests/operations/path-computation:get-constrained-path HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<input xmlns="urn:opendaylight:params:xml:ns:yang:path:computation">
+	<graph-name>ted://sma-bgp-linkstate-topology</graph-name>
+	<source>185273099</source>
+	<destination>235802126</destination>
+	<constraints xmlns="urn:opendaylight:params:xml:ns:yang:path:computation">
+		<address-family>ipv4</address-family>
+        <bandwidth>10000000</bandwidth>
+        <class-type>0</class-type>
+	</constraints>
+	<algorithm>cspf</algorithm>
+</input>

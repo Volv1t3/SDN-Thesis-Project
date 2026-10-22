@@ -1,0 +1,25 @@
+# Request: Rejected body because client sends forbidden request_id
+# Technology: Python ML API Examples
+# Collection path: Python ML API Examples / Rejected body because client sends forbidden request_id
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://127.0.0.1:8000/api/v1/classify
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers: none declared in the collection
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://127.0.0.1:8000/api/v1/classify HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+
+{
+    "request_id": "11111111-1111-1111-1111-111111111111",
+    "packet_features": {
+      "eth_type": 2048,
+      "ip_proto": 17,
+      "src_port": 53000,
+      "dst_port": 53
+    }
+  }

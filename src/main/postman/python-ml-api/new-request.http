@@ -1,0 +1,15 @@
+# Request: New Request
+# Technology: Python ML API Examples
+# Collection path: Python ML API Examples / New Request
+# HTTP version: HTTP/1.1
+# Method: GET
+# Endpoint: http://127.0.0.1:33761/metrics
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers: none declared in the collection
+# Request body: none
+# Expected response: not recorded in the source Postman collection.
+
+###
+GET http://127.0.0.1:33761/metrics HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}

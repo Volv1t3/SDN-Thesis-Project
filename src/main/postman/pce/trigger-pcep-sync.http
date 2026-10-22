@@ -1,0 +1,25 @@
+# Request: Trigger PCEP Sync
+# Technology: PCE Management
+# Collection path: PCE Management / Trigger PCEP Sync
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8181/rests/operations/network-topology-pcep:trigger-sync
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://172.21.121.100:8181/rests/operations/network-topology-pcep:trigger-sync HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+    <node>pcc://10.100.10.1</node>
+    <network-topology-ref xmlns:topo="urn:TBD:params:xml:ns:yang:network-topology">/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]</network-topology-ref>
+</input>

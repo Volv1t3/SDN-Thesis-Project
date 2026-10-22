@@ -1,0 +1,18 @@
+# Request: Read Topology State for LSR2 Bravo
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Read Topology State for LSR2 Bravo
+# HTTP version: HTTP/1.1
+# Method: GET
+# Endpoint: http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr2-bravo?content=all
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters:
+# - content: all
+# Headers:
+# - Accept: application/xml
+# Request body: none
+# Expected response: not recorded in the source Postman collection.
+
+###
+GET http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr2-bravo?content=all HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml

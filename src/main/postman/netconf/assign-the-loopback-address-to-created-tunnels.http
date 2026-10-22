@@ -1,0 +1,30 @@
+# Request: Assign the Loopback Address to Created Tunnels
+# Technology: Initialize NETCONF
+# Collection path: Initialize NETCONF / Full Flow for ODL-Enabled Tunnel Creation / Assign the Loopback Address to Created Tunnels
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr1-alpha/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations/interface-configuration=act,tunnel-te300
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response (recorded by Postman): 204 No Content.
+
+###
+PUT http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=topology-netconf/node=sma-xrv-lsr1-alpha/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations/interface-configuration=act,tunnel-te300 HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<interface-configuration xmlns="http://cisco.com/ns/yang/Cisco-IOS-XR-ifmgr-cfg">
+    <active>act</active>
+    <interface-name>tunnel-te300</interface-name>
+
+    <ipv4-network xmlns="http://cisco.com/ns/yang/Cisco-IOS-XR-ipv4-io-cfg">
+        <addresses>
+            <unnumbered>Loopback0</unnumbered>
+        </addresses>
+    </ipv4-network>
+</interface-configuration>

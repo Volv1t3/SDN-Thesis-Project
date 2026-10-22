@@ -6,6 +6,9 @@
 # Java/Maven build outputs (including generated YANG bindings and Checkstyle files)
 **/target/
 
+#Python Environments
+**/.venv
+
 # Local agent/tool state and generated repository analysis
 .agents/
 .codex/

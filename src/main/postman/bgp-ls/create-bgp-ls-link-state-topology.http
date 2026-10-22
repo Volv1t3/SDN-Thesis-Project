@@ -1,0 +1,30 @@
+# Request: Create BGP-LS Link State Topology
+# Technology: Initialize BGP-LS
+# Collection path: Initialize BGP-LS / Create BGP-LS Link State Topology
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=sma-bgp-linkstate-topology
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+PUT http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=sma-bgp-linkstate-topology HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<topology xmlns="urn:TBD:params:xml:ns:yang:network-topology">
+    <topology-id>sma-bgp-linkstate-topology</topology-id>
+
+    <topology-types>
+        <bgp-linkstate-topology
+            xmlns="urn:opendaylight:params:xml:ns:yang:odl-bgp-topology-types"/>
+    </topology-types>
+
+    <rib-id xmlns="urn:opendaylight:params:xml:ns:yang:odl-bgp-topology-config">sma-bgp-ls</rib-id>
+</topology>

@@ -1,0 +1,32 @@
+# Request: Request PCE Delegated LSP 10k Bandwidth
+# Technology: PCE Management
+# Collection path: PCE Management / Request PCE Delegated LSP 10k Bandwidth
+# HTTP version: HTTP/1.1
+# Method: POST
+# Endpoint: http://172.21.121.100:8181/rests/data/network-topology:network-topology/topology=pcep-topology/node=pcc%3A%2F%2F10.100.10.1
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload follows the request headers.
+# Expected response: not recorded in the source Postman collection.
+
+###
+POST http://172.21.121.100:8181/rests/data/network-topology:network-topology/topology=pcep-topology/node=pcc%3A%2F%2F10.100.10.1 HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<configured-lsp xmlns="urn:opendaylight:params:xml:ns:yang:pcep:server">
+    <name>dns-lsr1-lsr4-test</name>
+    <intended-path>
+        <source>11.11.11.11</source>
+        <destination>14.14.14.14</destination>
+        <constraints>
+        <bandwidth>10000000</bandwidth>
+        <address-family>ipv4</address-family>
+    </constraints>
+    </intended-path>
+
+</configured-lsp>

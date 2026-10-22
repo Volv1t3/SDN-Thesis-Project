@@ -1,0 +1,17 @@
+# Request: Query PCC Node State
+# Technology: PCE Management
+# Collection path: PCE Management / Query PCC Node State
+# HTTP version: HTTP/1.1
+# Method: GET
+# Endpoint: http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=pcep-topology/node=pcc:%2F%2F10.100.10.1
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# Request body: none
+# Expected response: not recorded in the source Postman collection.
+
+###
+GET http://172.21.121.100:8182/restconf/data/network-topology:network-topology/topology=pcep-topology/node=pcc:%2F%2F10.100.10.1 HTTP/1.1
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
