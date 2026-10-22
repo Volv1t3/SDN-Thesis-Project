@@ -2,10 +2,7 @@
 <!DOCTYPE instance-profile
         SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
 
-<instance-profile id="stdd"
-                 name="SDN-MPLS-ML Tech Demonstrator Documentation"
->
-
+<instance-profile id="stdd" name="SDN-MPLS-ML Tech Demonstrator Documentation">
     <toc-element topic="sdn-mpls-ml-tech-demo-documentation-overview.md"/>
     <toc-element toc-title="SDN-MPLS-ML Tech Demonstrator Full Application Documentation">
         <toc-element toc-title="Network Topology Implementation">
