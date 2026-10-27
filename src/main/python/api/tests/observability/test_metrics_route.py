@@ -16,11 +16,11 @@ def test_metrics_route_exports_baseline_metrics_and_is_hidden_from_openapi(clien
     assert response.headers["content-type"] == CONTENT_TYPE_LATEST
     assert response.headers["x-request-id"]
     for metric_name in (
-        "sdnflow_worker_info",
-        "sdnflow_readiness",
-        "sdnflow_classifier_pool_capacity",
-        "sdnflow_classifier_pool_available",
-        "sdnflow_classifier_pool_borrowed",
+        "sdn_mpls_ml_api_obs_worker_info",
+        "sdn_mpls_ml_api_obs_readiness",
+        "sdn_mpls_ml_api_obs_classifier_pool_capacity",
+        "sdn_mpls_ml_api_obs_classifier_pool_available",
+        "sdn_mpls_ml_api_obs_classifier_pool_borrowed",
     ):
         assert metric_name in response.text
 

@@ -11,14 +11,15 @@
 
 # Local agent/tool state and generated repository analysis
 .agents/
-.codex/
 !.codex/
-.codex/*
+!.codex/
+!.codex/*
 !.codex/agents/
 .codex/agents/*
 !.codex/agents/javadoc-documenter.toml
 
-**/skills/
+!**/skills/
+!.codex/skills
 
 # Runtime and operating-system artifacts
 **/logs/

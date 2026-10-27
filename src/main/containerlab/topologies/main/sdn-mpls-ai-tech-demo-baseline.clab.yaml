@@ -110,32 +110,28 @@ topology:
       image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ubuntu-edge-tools:0.23.1-baseline
       mgmt-ipv4: 172.21.121.17
       image-pull-policy: Always
+      privileged: false
       cap-add:
         - NET_ADMIN
-        - SYS_ADMIN
       exec: 
         - sudo ip addr add 192.168.10.10/24 dev eth1
         - sudo ip link set eth1 up
         - sudo ip link set dev eth1 mtu 1496
         - sudo ip route add 192.168.20.0/24 via 192.168.10.1 dev eth1
-        - sudo ip route add 10.0.0.0/8 via 192.168.10.1 dev eth1
-        - sudo ip route add 10.100.0.0/16 via 192.168.10.1 dev eth1
 
     sma-ubuntu-edge-hotel:
       kind: linux
       image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ubuntu-edge-tools:0.23.1-baseline
       mgmt-ipv4: 172.21.121.18
       image-pull-policy: Always
+      privileged: false
       cap-add:
         - NET_ADMIN
-        - SYS_ADMIN
       exec:
         - sudo ip addr add 192.168.20.10/24 dev eth1
         - sudo ip link set eth1 up
         - sudo ip link set dev eth1 mtu 1496
         - sudo ip route add 192.168.10.0/24 via 192.168.20.1 dev eth1
-        - sudo ip route add 10.0.0.0/8 via 192.168.20.1 dev eth1
-        - sudo ip route add 10.100.0.0/16 via 192.168.20.1 dev eth1
 
 
     sma-odl-controller-india:
@@ -241,9 +237,7 @@ topology:
       image-pull-policy: Always
       ports:
         - 33761:33761
-      cap-add:
-        - NET_ADMIN
-        - SYS_ADMIN
+      privileged: false
       mgmt-ipv4: 172.21.121.200
       env:
         APP_NAME: sma-ml-api-kilo

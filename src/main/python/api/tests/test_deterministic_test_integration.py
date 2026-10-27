@@ -113,7 +113,7 @@ def test_deterministic_test_classify_returns_full_response_shape(
             "mpls_tc": 0,
             "path_constraints": {
                 "requested_bandwidth_kbps": 25000,
-                "setup_priority": 5,
+                "setup_priority": 6,
                 "hold_priority": 5,
             },
             "policy_fallback": False,
