@@ -599,26 +599,6 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
             retryable=False,
         )
 
-    #? Validamos la ruta de métricas
-    metrics_path = raw.metrics_path.strip()
-    if not metrics_path or not metrics_path.startswith("/"):
-        raise _startup_error(
-            code="CONFIGURATION_INVALID",
-            message=Messages.METRICS_PATH_INVALID,
-            component="application_settings",
-            failed_stage=STAGE_CONFIGURATION_PREFLIGHT,
-            failed_check="metrics_path_absolute",
-            retryable=False,
-        )
-    if "?" in metrics_path or "#" in metrics_path:
-        raise _startup_error(
-            code="CONFIGURATION_INVALID",
-            message=Messages.METRICS_PATH_INVALID,
-            component="application_settings",
-            failed_stage=STAGE_CONFIGURATION_PREFLIGHT,
-            failed_check="metrics_path_format",
-            retryable=False,
-        )
     #? Validamos si se van a exportar las metricas de prometheus
     enable_prometheus_metrics = _parse_bool(
         raw.enable_prometheus_metrics,
@@ -821,7 +801,6 @@ def _validate_settings(raw: RawSettings) -> ValidatedSettings:
         port=port,
         log_level=log_level,
         enable_prometheus_metrics=enable_prometheus_metrics,
-        metrics_path=metrics_path,
         instance_id=raw.instance_id.strip(),
         model_dir=model_dir,
         config_dir=config_dir,

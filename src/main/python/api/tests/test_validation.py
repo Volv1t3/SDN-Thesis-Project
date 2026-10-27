@@ -100,6 +100,28 @@ def test_classifier_pool_settings_use_environment_overrides(monkeypatch):
     assert overrides.classifier_pool_size == "7"
 
 
+def test_metrics_path_is_not_an_application_setting(monkeypatch):
+    """La ruta de metricas permanece fija y no se registra como configuracion."""
+
+    monkeypatch.setenv("METRICS_PATH", "/alternate-metrics")
+    settings = RawSettings()
+
+    assert "metrics_path" not in RawSettings.model_fields
+    assert not hasattr(settings, "metrics_path")
+
+
+def test_policy_mapping_defaults_to_enabled_with_confidence_threshold(monkeypatch):
+    """La configuracion de produccion conserva el mapeo y su umbral por defecto."""
+
+    monkeypatch.delenv("ENABLE_POLICY_MAPPING", raising=False)
+    monkeypatch.delenv("MIN_POLICY_CONFIDENCE", raising=False)
+
+    settings = RawSettings()
+
+    assert settings.enable_policy_mapping == "true"
+    assert settings.min_policy_confidence == "0.75"
+
+
 def test_invalid_port_fails_readiness(
     monkeypatch,
     model_dir,
