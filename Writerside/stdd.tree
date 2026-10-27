@@ -2,7 +2,7 @@
 <!DOCTYPE instance-profile
         SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
 
-<instance-profile id="stdd" name="SDN-MPLS-ML Tech Demonstrator Documentation">
+<instance-profile id="stdd" name="SDN-MPLS-ML Tech Demonstrator Documentation" start-page="sdn-mpls-ml-tech-demo-documentation-overview.md">
     <toc-element topic="sdn-mpls-ml-tech-demo-documentation-overview.md"/>
     <toc-element toc-title="SDN-MPLS-ML Tech Demonstrator Full Application Documentation">
         <toc-element toc-title="Network Topology Implementation">
@@ -15,8 +15,16 @@
             <toc-element topic="Model-Exploration-and-Training-—-Exploratory-Data-Analysis.md"/>
             <toc-element topic="Model-Exploration-and-Training-—-Model-Training.md"/>
         </toc-element>
+        <toc-element toc-title="Python Inference API Implementation and Validation">
+            <toc-element topic="Python-Inference-API-—-Application-Construction.md" wip="true"/>
+            <toc-element topic="Python-Inference-API-—-API-Request-Directory.md"/>
+        </toc-element>
         <toc-element toc-title="OpenDaylight RESTCONF Exploration and Configuration">
             <toc-element topic="ODL-RESTCONF-—-BGP-LS-Requests.md"/>
+            <toc-element topic="ODL-RESTCONF-—-NETCONF-Requests.md"/>
+            <toc-element topic="ODL-RESTCONF-—-PCEP-Requests.md"/>
+            <toc-element topic="ODL-RESTCONF-—-OpenFlow-Requests.md"/>
+            <toc-element topic="ODL-RESTCONF-—-CSA-Operational-State-Requests.md"/>
         </toc-element>
     </toc-element>
 </instance-profile>

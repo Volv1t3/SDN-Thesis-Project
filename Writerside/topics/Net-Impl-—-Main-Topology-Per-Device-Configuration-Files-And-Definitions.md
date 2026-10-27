@@ -896,13 +896,112 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 </def>
 </deflist>
 
-### Controller Configuration — RESTCONF and RPC Operations used for controller preconfiguration
-<p>The calls presented in this section are to be executed in the order they are provided as these determine the configuration of the baseline 
-entities required for making the controller usable for the controller side application, and in general, for enabling the entire
-system to function properly. The specific order of these calls allows for the configuration intially of BGP-LS, then 
-registering all core routers as BGP-LS peers, then link state topologies used to store the corresponding link state informationa rriving from 
-the MPLS-TE core peers in the controller so that finally we can mount all devices using NETCONF.
-</p>
+### Controller Configuration — RESTCONF and RPC Operations Used for Controller Preconfiguration {id="controller-restconf-preconfiguration"}
+
+<p>The controller must first receive its BGP-LS configuration, associate that RIB with a topology resource, and register the four NETCONF-managed routers. The controller-side application then reads the BGP-LS, graph, PCEP, and OpenFlow operational state that those subsystems publish. A successful configuration request records intended controller state. It does not by itself establish a BGP session, NETCONF session, PCEP session, or OpenFlow connection.</p>
+
+<deflist type="full" collapsible="true">
+<def title="1. Create the BGP-LS Speaker">
+<tabs group="controller-restconf-speaker">
+<tab title="Request" group-key="request">
+<code-block lang="http" src="../../src/main/postman/bgp-ls/create-odl-bgp-ls-speaker.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>Create protocol <code>sma-bgp-ls</code> under <code>network-instance=global-bgp</code>. The request sets the controller router ID to <code>172.21.121.100</code>, local AS to <code>65000</code>, and the <code>LINKSTATE</code> AFI/SAFI. This establishes the BGPCEP RIB identity that later peer and topology requests reference.</p>
+<p>A new protocol entry is expected to return <code>201 Created</code>. The saved request contains no observed response. See [Create the OpenDaylight BGP-LS speaker](ODL-RESTCONF-—-BGP-LS-Requests.md#create-odl-bgpls-speaker) for the resource path, YANG keys, and payload mapping.</p>
+</tab>
+</tabs>
+</def>
+<def title="2. Register the Four BGP-LS Peers">
+<tabs group="controller-restconf-peers">
+<tab title="Requests" group-key="request">
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr1-as-a-bgp-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr2-as-bgp-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr3-as-bpg-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr4-as-bgp-ls-peer.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>Each POST creates one <code>neighbor</code> list entry under the speaker's BGP augmentation. The peer key is its control-network address: LSR1 <code>10.100.10.1</code>, LSR2 <code>10.100.20.1</code>, LSR3 <code>10.100.30.1</code>, and LSR4 <code>10.100.40.1</code>. Every request enables the <code>LINKSTATE</code> AFI/SAFI for that peer.</p>
+<p>These writes make the peers available to BGPCEP. TCP and BGP session establishment, capability negotiation, and BGP-LS UPDATE reception occur later. The detailed [BGP-LS request catalog](ODL-RESTCONF-—-BGP-LS-Requests.md#add-lsr1-bgpls-peer) documents the shared resource structure and each individual request.</p>
+</tab>
+</tabs>
+</def>
+<def title="3. Create the BGP-LS Topology">
+<tabs group="controller-restconf-bgpls-topology">
+<tab title="Request" group-key="request">
+<code-block lang="http" src="../../src/main/postman/bgp-ls/create-bgp-ls-link-state-topology.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>This request creates topology <code>sma-bgp-linkstate-topology</code>. Its BGP-LS topology marker and <code>rib-id=sma-bgp-ls</code> associate the topology provider with the speaker RIB. When BGP-LS routes are available, the provider maps their topology and traffic-engineering information into this resource.</p>
+<p>The operation configures the association. It does not prove that routes have already been received or that the topology contains nodes and links. See [Create the BGP-LS Link-State topology](ODL-RESTCONF-—-BGP-LS-Requests.md#create-bgpls-linkstate-topology).</p>
+</tab>
+</tabs>
+</def>
+<def title="4. Register the Four NETCONF Devices">
+<tabs group="controller-restconf-netconf-mounts">
+<tab title="Requests" group-key="request">
+<code-block lang="http" src="../../src/main/postman/netconf/mount-lsr1-through-netconf.http"/>
+<code-block lang="http" src="../../src/main/postman/netconf/mount-lsr2-through-netconf.http"/>
+<code-block lang="http" src="../../src/main/postman/netconf/mount-lsr3-through-netconf.http"/>
+<code-block lang="http" src="../../src/main/postman/netconf/mount-lsr4-through-netconf.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>Each PUT creates one <code>network-topology:topology[topology-id='topology-netconf']/node[node-id]</code> entry with a <code>netconf-node</code> connection configuration. The entries target LSR1 Alpha, LSR2 Bravo, LSR3 Charlie, and LSR4 Delta on NETCONF port <code>830</code>.</p>
+<p>OpenDaylight attempts the SSH NETCONF connection after the datastore write. Mount availability, device capabilities, and mounted-device data require a successful authenticated session. See [Required RESTCONF Calls for Controller Initialization](ODL-RESTCONF-—-NETCONF-Requests.md#netconf-required-initialization).</p>
+</tab>
+</tabs>
+</def>
+<def title="5. Validate BGP-LS and Graph Availability">
+<tabs group="controller-restconf-bgpls-reads">
+<tab title="Requests" group-key="request">
+<code-block lang="http" src="../../src/main/postman/bgp-ls/list-topologies.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/get-topology-graph-information.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>The controller-side application uses the topology list to discover published topology resources. The graph read returns the named traffic-engineering graph <code>ted://sma-bgp-linkstate-topology</code>, including its keyed vertices, directed edges, prefixes, and per-class-type unreserved bandwidth.</p>
+<p>Both requests are read-only. Their successful response demonstrates controller-published state, while an empty collection or graph does not establish that the BGP-LS producer routers have converged. See [List topologies](ODL-RESTCONF-—-BGP-LS-Requests.md#list-topologies) and [Get topology graph information](ODL-RESTCONF-—-BGP-LS-Requests.md#get-topology-graph-information).</p>
+</tab>
+</tabs>
+</def>
+<def title="6. Read PCEP State Before Controller-Side Operations">
+<tabs group="controller-restconf-pcep-reads">
+<tab title="Requests" group-key="request">
+<code-block lang="http" src="../../src/main/postman/pce/query-pcep-topology.http"/>
+<code-block lang="http" src="../../src/main/postman/pce/query-pcc-node-ids.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>The controller-side application first reads <code>pcep-topology</code> and its PCC node identities. These reads identify the PCEP topology and delegated-LSP state that later path computation and LSP-update operations use. They do not configure a tunnel.</p>
+<p>The detailed [PCEP request catalog](ODL-RESTCONF-—-PCEP-Requests.md#pcep-query-topology) records the topology and PCC resource hierarchy. The CSA uses a <code>content=all</code> topology read when it needs both intended and operational state.</p>
+</tab>
+</tabs>
+</def>
+<def title="7. Discover and Bootstrap OpenFlow Access Switches">
+<tabs group="controller-restconf-openflow-bootstrap">
+<tab title="Request pattern" group-key="request">
+<code-block lang="http" src="../../src/main/postman/openflow/read-openflow-node-inventory.http"/>
+<code-block lang="http"><![CDATA[PUT ${ODL_RESTCONF_DATA_BASE_URL}/opendaylight-inventory:nodes/node=${encodedNodeId}/flow-node-inventory:table=${tableId}/flow=${encodedFlowId}]]></code-block>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p><code>OpenflowBootstrapService</code> discovers ECHO and FOXTROT from operational inventory and resolves their current node and connector IDs. It then writes four flows for each switch: ARP host-to-core, ARP core-to-host, IPv4 host-to-core with a controller copy, and IPv4 core-to-host.</p>
+<p>The service verifies configured IDs and polls the operational table before it makes the control plane ready. The PUT is generated by the application, rather than stored as a static request, because runtime OpenFlow node IDs are dynamic. See [Controller-Side OpenFlow Flow Injection](ODL-RESTCONF-—-OpenFlow-Requests.md#openflow-controller-flow-injection).</p>
+</tab>
+</tabs>
+</def>
+<def title="8. Compute and Apply a Delegated LSP When Requested">
+<tabs group="controller-restconf-pcep-operations">
+<tab title="Requests" group-key="request">
+<code-block lang="http" src="../../src/main/postman/pce/request-pcep-computed-path-from-lsr1-to-lsr4-test.http"/>
+<code-block lang="http" src="../../src/main/postman/pce/configurte-lsp-tunnel-after-the-fact.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>After the graph and PCEP topology have been read, the application invokes <code>path-computation:get-constrained-path</code> and then <code>network-topology-pcep:update-lsp</code>. The first RPC computes a path against the named graph. The second sends an update for the selected delegated LSP to its PCC.</p>
+<p>These are controller-side operations, not baseline bootstrap writes. An HTTP success response to the update does not establish tunnel convergence. The PCEP operational state and RPC result provide the acknowledgment evidence. See [Compute a Constrained Path from LSR1 to LSR4](ODL-RESTCONF-—-PCEP-Requests.md#pcep-compute-lsr1-lsr4-path) and [Update the Delegated LSP after Path Computation](ODL-RESTCONF-—-PCEP-Requests.md#pcep-update-delegated-lsp).</p>
+</tab>
+</tabs>
+</def>
+</deflist>
+
+<!-- Historical draft retained in source only while the completed RESTCONF sequence above supersedes it.
 <deflist type="full">
 <def title="1. Configuring the BGP-LS Listener upon the Global BGP Network Instance">
 
@@ -1228,6 +1327,8 @@ Body:
 ```
 </def>
 </deflist>
+
+-->
 
 ## OpenFlow Switches {id="per-device-openflow-switches"}
 
