@@ -16,7 +16,9 @@
             <toc-element topic="Model-Exploration-and-Training-—-Model-Training.md"/>
         </toc-element>
         <toc-element toc-title="Python Inference API Implementation and Validation">
-            <toc-element topic="Python-Inference-API-—-Application-Construction.md" wip="true"/>
+            <toc-element topic="Python-Inference-API-—-Application-Construction.md" wip="true">
+                <toc-element topic="Python-Inference-API-—-Application-Construction-Environment-Variables.md"/>
+            </toc-element>
             <toc-element topic="Python-Inference-API-—-API-Request-Directory.md"/>
         </toc-element>
         <toc-element toc-title="OpenDaylight RESTCONF Exploration and Configuration">

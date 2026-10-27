@@ -30,7 +30,7 @@ DEFAULT_LOG_FILENAME = "sdn_mpls_ml_api.log"
 DEFAULT_LOG_FILE_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_LOG_FILE_BACKUP_COUNT = 5
 DEFAULT_ENABLE_PROMETHEUS_METRICS = "true"
-DEFAULT_METRICS_PATH = "/metrics"
+DEFAULT_ENABLE_POLICY_MAPPING = "true"
 DEFAULT_INSTANCE_ID = ""
 DEFAULT_MODEL_DIR = "/models"
 DEFAULT_CONFIG_DIR = "/configs"
@@ -43,6 +43,7 @@ MAX_CLASSIFIER_POOL_SIZE = 32
 DEFAULT_REQUEST_TIMEOUT_SECONDS = "10"
 DEFAULT_MAX_REQUEST_BODY_BYTES = 16384
 DEFAULT_PROBABILITY_TOLERANCE = 0.001
+DEFAULT_MIN_POLICY_CONFIDENCE = "0.75"
 DEFAULT_MIN_TUNNEL_BANDWIDTH_KBPS = "10000"
 DEFAULT_MAX_TUNNEL_BANDWIDTH_KBPS = "100000"
 IPV4_ETHERTYPE = 2048
@@ -112,7 +113,6 @@ class RawSettings(BaseSettings):
         default=DEFAULT_ENABLE_PROMETHEUS_METRICS,
         alias="ENABLE_PROMETHEUS_METRICS",
     )
-    metrics_path: str = Field(default=DEFAULT_METRICS_PATH, alias="METRICS_PATH")
     instance_id: str = Field(default=DEFAULT_INSTANCE_ID, alias="INSTANCE_ID")
 
     model_dir: str = Field(default=DEFAULT_MODEL_DIR, alias="MODEL_DIR")
@@ -125,12 +125,15 @@ class RawSettings(BaseSettings):
         alias="DETERMINISTIC_RULE_FILENAME",
     )
 
-    enable_policy_mapping: str = Field(default="true", alias="ENABLE_POLICY_MAPPING")
+    enable_policy_mapping: str = Field(default=DEFAULT_ENABLE_POLICY_MAPPING, alias="ENABLE_POLICY_MAPPING")
     classifier_pool_size: str = Field(default=DEFAULT_CLASSIFIER_POOL_SIZE, alias="CLASSIFIER_POOL_SIZE")
     request_timeout_seconds: str = Field(default=DEFAULT_REQUEST_TIMEOUT_SECONDS, alias="REQUEST_TIMEOUT_SECONDS")
     max_request_body_bytes: str = Field(default=str(DEFAULT_MAX_REQUEST_BODY_BYTES), alias="MAX_REQUEST_BODY_BYTES")
     probability_tolerance: str = Field(default=str(DEFAULT_PROBABILITY_TOLERANCE), alias="PROBABILITY_TOLERANCE")
-    min_policy_confidence: str | None = Field(default=None, alias="MIN_POLICY_CONFIDENCE")
+    min_policy_confidence: str | None = Field(
+        default=DEFAULT_MIN_POLICY_CONFIDENCE,
+        alias="MIN_POLICY_CONFIDENCE",
+    )
     classification_mode: str = Field(default=ClassificationMode.MODEL.value, alias="CLASSIFICATION_MODE")
     min_tunnel_bandwidth_kbps: str = Field(
         default=DEFAULT_MIN_TUNNEL_BANDWIDTH_KBPS,
@@ -155,7 +158,6 @@ class ValidatedSettings:
     port: int
     log_level: str
     enable_prometheus_metrics: bool
-    metrics_path: str
     instance_id: str
     model_dir: str
     config_dir: str

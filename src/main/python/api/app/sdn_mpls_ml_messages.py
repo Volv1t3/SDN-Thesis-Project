@@ -96,7 +96,6 @@ class Messages:
     TUNNEL_BANDWIDTH_BOUNDS = "MIN_TUNNEL_BANDWIDTH_KBPS no debe superar MAX_TUNNEL_BANDWIDTH_KBPS."
     ENABLE_POLICY_MAPPING_BOOLEAN = "ENABLE_POLICY_MAPPING debe ser un valor booleano."
     ENABLE_PROMETHEUS_METRICS_BOOLEAN = "ENABLE_PROMETHEUS_METRICS debe ser un valor booleano."
-    METRICS_PATH_INVALID = "METRICS_PATH debe ser una ruta HTTP absoluta valida."
     PROMETHEUS_METRICS_ENABLED = "La exportacion de metricas Prometheus esta habilitada."
     PROMETHEUS_METRICS_DISABLED = "La exportacion de metricas Prometheus esta deshabilitada."
     PROMETHEUS_MULTIPROCESS_CONFIGURATION_INVALID = (
