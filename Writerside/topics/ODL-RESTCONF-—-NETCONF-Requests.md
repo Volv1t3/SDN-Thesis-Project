@@ -37,7 +37,7 @@ The NETCONF augmentation uses the `credentials` and `connection-parameters` grou
 The saved XML places the unprefixed credential and connection fields in the `netconf-node` namespace. Those namespaces conflict with the pinned model, so compatibility with this model cannot be established. An earlier controller schema may have accepted the request. The original XML is preserved for comparison.
 
 <compare type="top-bottom" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
-<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr1-through-netconf.http" include-lines="21-42"/>
+<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr1-through-netconf.http"/>
 <code-block lang="text">
 network-topology:network-topology
   topology [key: topology-id]
@@ -117,7 +117,7 @@ The NETCONF augmentation uses the `credentials` and `connection-parameters` grou
 The saved XML places the unprefixed credential and connection fields in the `netconf-node` namespace. Those namespaces conflict with the pinned model, so compatibility with this model cannot be established. An earlier controller schema may have accepted the request. The original XML is preserved for comparison.
 
 <compare type="top-bottom" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
-<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr2-through-netconf.http" include-lines="21-42"/>
+<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr2-through-netconf.http"/>
 <code-block lang="text">
 network-topology:network-topology
   topology [key: topology-id]
@@ -197,7 +197,7 @@ The NETCONF augmentation uses the `credentials` and `connection-parameters` grou
 The saved XML places the unprefixed credential and connection fields in the `netconf-node` namespace. Those namespaces conflict with the pinned model, so compatibility with this model cannot be established. An earlier controller schema may have accepted the request. The original XML is preserved for comparison.
 
 <compare type="top-bottom" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
-<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr3-through-netconf.http" include-lines="21-42"/>
+<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr3-through-netconf.http"/>
 <code-block lang="text">
 network-topology:network-topology
   topology [key: topology-id]
@@ -277,7 +277,7 @@ The NETCONF augmentation uses the `credentials` and `connection-parameters` grou
 The saved XML places the unprefixed credential and connection fields in the `netconf-node` namespace. Those namespaces conflict with the pinned model, so compatibility with this model cannot be established. An earlier controller schema may have accepted the request. The original XML is preserved for comparison.
 
 <compare type="top-bottom" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
-<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr4-through-netconf.http" include-lines="21-42"/>
+<code-block lang="xml" src="../../src/main/postman/netconf/mount-lsr4-through-netconf.http"/>
 <code-block lang="text">
 network-topology:network-topology
   topology [key: topology-id]
