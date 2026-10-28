@@ -1,3 +1,4 @@
+
 # ------------------------------------------------------------------------------
 # Build SDN-MPLS-ML OpenDaylight controller-side application
 # ------------------------------------------------------------------------------
@@ -130,7 +131,6 @@ COPY --from=sma-odl-csa-builder \
     /build/sdn-mpls-ml-odl-cs-app/features/pom.xml \
     ${ODL_HOME}/system/com/sma/sdn/sdn-mpls-ml-cs-app-features/${SDN_MPLS_ML_APP_VERSION}/sdn-mpls-ml-cs-app-features-${SDN_MPLS_ML_APP_VERSION}.pom
 
-
 # ------------------------------------------------------------------------------
 # Maven repositories for Karaf / Pax URL
 #
@@ -237,10 +237,13 @@ print(app_feature_name)
 PY
 
 # ------------------------------------------------------------------------------
-# Non-root Karaf runtime identity
+# Karaf runtime identity and privilege escalation
 #
-# The fixed 10002:10002 identity must match the ownership assigned to the host
-# karaf-csa-logs directory before Containerlab mounts it at /logs.
+# The entrypoint runs as UID:GID 10002:10002, maintaining compatibility with
+# the host-mounted logging directory.
+#
+# Only the final Karaf process is elevated to root through sudo, retaining
+# primary GID 10002. This is required for BGPCEP's privileged port 179 test.
 # ------------------------------------------------------------------------------
 
 RUN set -eux; \
@@ -252,7 +255,7 @@ RUN set -eux; \
         --no-create-home \
         --shell /bin/bash \
         "${KARAF_USER}"; \
-    printf '%s ALL=(ALL) NOPASSWD: ALL\n' "${KARAF_USER}" \
+    printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "${KARAF_USER}" \
         > "/etc/sudoers.d/${KARAF_USER}"; \
     chmod 0440 "/etc/sudoers.d/${KARAF_USER}"; \
     chown -R "${KARAF_UID}:${KARAF_GID}" "${ODL_HOME}" /logs
@@ -263,7 +266,7 @@ RUN set -eux; \
 
 WORKDIR /opt/opendaylight
 
-# Karaf and the SDN-MPLS-ML logging system always run as UID:GID 10002:10002.
+# The entrypoint and healthcheck retain the existing 10002:10002 identity.
 USER 10002:10002
 
 # ------------------------------------------------------------------------------
@@ -314,4 +317,7 @@ HEALTHCHECK \
 # ------------------------------------------------------------------------------
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/sma-odl-entrypoint"]
-CMD ["./bin/karaf", "server"]
+
+# Run Karaf with root UID and the existing sma-karaf group (GID 10002).
+# Preserve its configured environment, including JAVA_OPTS and Karaf paths.
+CMD ["sudo", "-n", "-E", "-u", "root", "-g", "sma-karaf", "--", "./bin/karaf", "server"]
