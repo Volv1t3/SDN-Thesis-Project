@@ -216,7 +216,7 @@ topology:
         - sudo ip link set dev eth4 up
         - sudo ip address replace 10.100.40.2/30 dev eth4
         # Modifications: Changing from BGP on 10.100.X.X to 21.21.21.21 Cisco Style
-        - sudo ip address replace 21.21.21.21/30 dev lo
+        - sudo ip address replace 21.21.21.21/32 dev lo
         - sudo ip route replace 11.11.11.11/32 via 10.100.10.1
         - sudo ip route replace 12.12.12.12/32 via 10.100.20.1
         - sudo ip route replace 13.13.13.13/32 via 10.100.30.1
