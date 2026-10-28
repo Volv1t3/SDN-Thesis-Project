@@ -20,16 +20,13 @@ Content-Type: application/xml
 
 <node xmlns="urn:TBD:params:xml:ns:yang:network-topology">
     <node-id>sma-xrv-lsr4-delta</node-id>
-
     <netconf-node xmlns="urn:opendaylight:netconf-node-topology">
-        <host>172.21.121.14</host>
+        <host>14.14.14.14</host>
         <port>830</port>
-
         <login-password-unencrypted>
             <username>{{xrv_netconf_user}}</username>
             <password>{{xrv_netconf_pwd}}</password>
         </login-password-unencrypted>
-
         <tcp-only>false</tcp-only>
         <reconnect-on-changed-schema>false</reconnect-on-changed-schema>
         <connection-timeout-millis>20000</connection-timeout-millis>

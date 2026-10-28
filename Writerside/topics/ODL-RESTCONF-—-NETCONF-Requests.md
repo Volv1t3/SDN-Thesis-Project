@@ -14,7 +14,7 @@ Run the mount configuration calls for LSR1, LSR2, LSR3, and LSR4 against the con
 
 ### Mount LSR1 through NETCONF {id="mount-lsr1-netconf"}
 
-This PUT configures the NETCONF connector for `sma-xrv-lsr1-alpha` at `172.21.121.11:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
+This PUT configures the NETCONF connector for `sma-xrv-lsr1-alpha` at its loopback address, `11.11.11.11:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
 
 #### Request {id="mount-lsr1-netconf-request"}
 
@@ -73,7 +73,7 @@ The `credentials` choice in the YANG model selects the `login-password-unencrypt
 |---|---|---|---|
 | `node` / `node-id` | Topology node list entry and key | `sma-xrv-lsr1-alpha` | Selects the same node as the URI and identifies the connector in this topology. |
 | `netconf-node` | Augmented presence container | Present | Declares the node's NETCONF device configuration. |
-| `host` | `inet:host` leaf | `172.21.121.11` | Device management address used by the connector. |
+| `host` | `inet:host` leaf | `11.11.11.11` | Router loopback address used by the connector. |
 | `port` | `inet:port-number` leaf | `830` | Device NETCONF transport port. |
 | `login-password-unencrypted` | Container selected by the mandatory credentials choice | Present | Supplies the device password in unencrypted form within the configuration payload. |
 | `username` / `password` | String credential leaves | `{{xrv_netconf_user}}` / `{{xrv_netconf_pwd}}` | Device-login credentials, independently supplied from the RESTCONF authorization credential. |
@@ -94,7 +94,7 @@ The source Postman collection contains no recorded response for this request. Un
 
 ### Mount LSR2 through NETCONF {id="mount-lsr2-netconf"}
 
-This PUT configures the NETCONF connector for `sma-xrv-lsr2-bravo` at `172.21.121.12:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
+This PUT configures the NETCONF connector for `sma-xrv-lsr2-bravo` at its loopback address, `12.12.12.12:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
 
 #### Request {id="mount-lsr2-netconf-request"}
 
@@ -153,7 +153,7 @@ The `credentials` choice in the YANG model selects the `login-password-unencrypt
 |---|---|---|---|
 | `node` / `node-id` | Topology node list entry and key | `sma-xrv-lsr2-bravo` | Selects the same node as the URI and identifies the connector in this topology. |
 | `netconf-node` | Augmented presence container | Present | Declares the node's NETCONF device configuration. |
-| `host` | `inet:host` leaf | `172.21.121.12` | Device management address used by the connector. |
+| `host` | `inet:host` leaf | `12.12.12.12` | Router loopback address used by the connector. |
 | `port` | `inet:port-number` leaf | `830` | Device NETCONF transport port. |
 | `login-password-unencrypted` | Container selected by the mandatory credentials choice | Present | Supplies the device password in unencrypted form within the configuration payload. |
 | `username` / `password` | String credential leaves | `{{xrv_netconf_user}}` / `{{xrv_netconf_pwd}}` | Device-login credentials, independently supplied from the RESTCONF authorization credential. |
@@ -174,7 +174,7 @@ The source Postman collection contains no recorded response for this request. Un
 
 ### Mount LSR3 through NETCONF {id="mount-lsr3-netconf"}
 
-This PUT configures the NETCONF connector for `sma-xrv-lsr3-charlie` at `172.21.121.13:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
+This PUT configures the NETCONF connector for `sma-xrv-lsr3-charlie` at its loopback address, `13.13.13.13:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
 
 #### Request {id="mount-lsr3-netconf-request"}
 
@@ -233,7 +233,7 @@ The `credentials` choice in the YANG model selects the `login-password-unencrypt
 |---|---|---|---|
 | `node` / `node-id` | Topology node list entry and key | `sma-xrv-lsr3-charlie` | Selects the same node as the URI and identifies the connector in this topology. |
 | `netconf-node` | Augmented presence container | Present | Declares the node's NETCONF device configuration. |
-| `host` | `inet:host` leaf | `172.21.121.13` | Device management address used by the connector. |
+| `host` | `inet:host` leaf | `13.13.13.13` | Router loopback address used by the connector. |
 | `port` | `inet:port-number` leaf | `830` | Device NETCONF transport port. |
 | `login-password-unencrypted` | Container selected by the mandatory credentials choice | Present | Supplies the device password in unencrypted form within the configuration payload. |
 | `username` / `password` | String credential leaves | `{{xrv_netconf_user}}` / `{{xrv_netconf_pwd}}` | Device-login credentials, independently supplied from the RESTCONF authorization credential. |
@@ -254,7 +254,7 @@ The source Postman collection contains no recorded response for this request. Un
 
 ### Mount LSR4 through NETCONF {id="mount-lsr4-netconf"}
 
-This PUT configures the NETCONF connector for `sma-xrv-lsr4-delta` at `172.21.121.14:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
+This PUT configures the NETCONF connector for `sma-xrv-lsr4-delta` at its loopback address, `14.14.14.14:830`. The parent `topology-netconf` topology must already contain the NETCONF topology-type marker because this node-level PUT does not create it.
 
 #### Request {id="mount-lsr4-netconf-request"}
 
@@ -313,7 +313,7 @@ The `credentials` choice in the YANG model selects the `login-password-unencrypt
 |---|---|---|---|
 | `node` / `node-id` | Topology node list entry and key | `sma-xrv-lsr4-delta` | Selects the same node as the URI and identifies the connector in this topology. |
 | `netconf-node` | Augmented presence container | Present | Declares the node's NETCONF device configuration. |
-| `host` | `inet:host` leaf | `172.21.121.14` | Device management address used by the connector. |
+| `host` | `inet:host` leaf | `14.14.14.14` | Router loopback address used by the connector. |
 | `port` | `inet:port-number` leaf | `830` | Device NETCONF transport port. |
 | `login-password-unencrypted` | Container selected by the mandatory credentials choice | Present | Supplies the device password in unencrypted form within the configuration payload. |
 | `username` / `password` | String credential leaves | `{{xrv_netconf_user}}` / `{{xrv_netconf_pwd}}` | Device-login credentials, independently supplied from the RESTCONF authorization credential. |
@@ -377,7 +377,7 @@ The controller-side path uses [network-topology, revision 2013-10-21](https://gi
             <max-connection-attempts>0</max-connection-attempts>
             <min-backoff-millis>2000</min-backoff-millis>
             <backoff-multiplier>1.5</backoff-multiplier>
-            <host>172.21.121.12</host>
+            <host>12.12.12.12</host>
         </netconf-node>
     </node>
     <node>
@@ -397,7 +397,7 @@ The controller-side path uses [network-topology, revision 2013-10-21](https://gi
             <max-connection-attempts>0</max-connection-attempts>
             <min-backoff-millis>2000</min-backoff-millis>
             <backoff-multiplier>1.5</backoff-multiplier>
-            <host>172.21.121.11</host>
+            <host>11.11.11.11</host>
         </netconf-node>
     </node>
     <node>
@@ -417,7 +417,7 @@ The controller-side path uses [network-topology, revision 2013-10-21](https://gi
             <max-connection-attempts>0</max-connection-attempts>
             <min-backoff-millis>2000</min-backoff-millis>
             <backoff-multiplier>1.5</backoff-multiplier>
-            <host>172.21.121.13</host>
+            <host>13.13.13.13</host>
         </netconf-node>
     </node>
     <node>
@@ -437,7 +437,7 @@ The controller-side path uses [network-topology, revision 2013-10-21](https://gi
             <max-connection-attempts>0</max-connection-attempts>
             <min-backoff-millis>2000</min-backoff-millis>
             <backoff-multiplier>1.5</backoff-multiplier>
-            <host>172.21.121.14</host>
+            <host>14.14.14.14</host>
         </netconf-node>
     </node>
     <topology-types>
