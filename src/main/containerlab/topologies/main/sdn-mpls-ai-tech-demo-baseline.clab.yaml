@@ -110,7 +110,6 @@ topology:
       image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ubuntu-edge-tools:0.23.1-baseline
       mgmt-ipv4: 172.21.121.17
       image-pull-policy: Always
-      privileged: false
       cap-add:
         - NET_ADMIN
       exec: 
@@ -124,7 +123,6 @@ topology:
       image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-ubuntu-edge-tools:0.23.1-baseline
       mgmt-ipv4: 172.21.121.18
       image-pull-policy: Always
-      privileged: false
       cap-add:
         - NET_ADMIN
       exec:
@@ -217,6 +215,12 @@ topology:
         - sudo ip address replace 10.100.30.2/30 dev eth3
         - sudo ip link set dev eth4 up
         - sudo ip address replace 10.100.40.2/30 dev eth4
+        # Modifications: Changing from BGP on 10.100.X.X to 21.21.21.21 Cisco Style
+        - sudo ip address replace 21.21.21.21/30 dev lo
+        - sudo ip route replace 11.11.11.11/32 via 10.100.10.1
+        - sudo ip route replace 12.12.12.12/32 via 10.100.20.1
+        - sudo ip route replace 13.13.13.13/32 via 10.100.30.1
+        - sudo ip route replace 14.14.14.14/32 via 10.100.40.1
       binds:
         - ../../data-folders/karaf-csa-logs:/logs
       # stages:
@@ -237,7 +241,6 @@ topology:
       image-pull-policy: Always
       ports:
         - 33761:33761
-      privileged: false
       mgmt-ipv4: 172.21.121.200
       env:
         APP_NAME: sma-ml-api-kilo
