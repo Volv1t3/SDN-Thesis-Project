@@ -1,0 +1,2 @@
+count,min,max,mean,median,std,q1,q3,skew,kurtosis,total_rows,valid_port_count,genuine_null_count,non_numeric_count,infinite_count,non_integral_count,below_range_count,above_range_count,zero_count,well_known_count,registered_count,dynamic_count,unique_count,rare_values_count,iqr,iqr_lower,iqr_upper,outlier_count
+221564,0.0,60999.0,23806.91031936596,33076.0,23929.102073042348,443.0,46836.0,0.14817698944642757,-1.7773703209012672,221564,221564,0,0,0,0,0,0,305,108760,66595,46209,21964,5823,46393.0,-69146.5,116425.5,0

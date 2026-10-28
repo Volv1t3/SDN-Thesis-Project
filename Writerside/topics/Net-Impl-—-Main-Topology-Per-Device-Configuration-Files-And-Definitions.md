@@ -6,7 +6,9 @@ This page documents the device-level and service-level configuration that backs 
 
 ## Cisco Devices {id="per-device-cisco-devices"}
 
-<p>The four Cisco XRv nodes share the same baseline design: a <code>loopback router ID</code>, <code>OSPF area 0</code>, <code>MPLS-TE</code> on constrained core links, <code>RSVP</code> bandwidth constraints, <code>BGP-LS</code> sessions, <code>NETCONF/SSH</code> management, and <code>SNMP</code> monitoring. LSR1 Alpha and LSR4 Delta additionally define <code>delegated RSVP-TE</code> tunnels because they are the two headends controlled by the application workflow. </p>
+<p>The four Cisco XRv nodes share the same baseline design: a <code>loopback router ID</code>, <code>OSPF area 0</code>, <code>MPLS-TE</code> on constrained core links, <code>RSVP</code> bandwidth constraints, <code>BGP-LS</code> sessions, <code>NETCONF/SSH</code> management, and <code>SNMP</code> monitoring. LSR1 Alpha and LSR4 Delta additionally define <code>delegated RSVP-TE</code> tunnels because they are the two headends controlled by the application workflow.</p>
+
+<p>The configuration uses IOS XR control-plane resources for distinct jobs: the loopback is the stable protocol identity; OSPF with TE advertises the eligible core topology; RSVP makes the configured reservable bandwidth available to TE signalling; and BGP-LS distributes that topology to OpenDaylight. The descriptions below explain the role of each resource in this lab rather than treating an interface declaration as a tunnel by itself. The terminology and command families follow Cisco's <a href="https://www.cisco.com/c/en/us/support/ios-nx-os-software/ios-xr-software-end-of-sale/products-installation-and-configuration-guides-list.html#anchor110">IOS XR 6.6.x configuration-guide inventory</a>; the deployed XRv image is version <code>6.6.3</code>.</p>
 
 ### `sma-xrv-lsr1-alpha` {id="config-sma-xrv-lsr1-alpha"}
 
@@ -18,199 +20,65 @@ Full configuration source view:
 <def title="Hostname, Router ID, And Access Interface">
 <tabs group="lsr1-hostname-loopback-access">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-hostname sma-xrv-lsr1-alpha
-!
-interface Loopback0
- description PROTOCOL-ROUTER-ID
- ipv4 address 11.11.11.11 255.255.255.255
-!
-interface GigabitEthernet0/0/0/0
- description ACCESS-TO-SMA-OVS-PE1-ECHO
- ipv4 address 192.168.10.1 255.255.255.0
- no shutdown</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr1-alpha.cfg" include-lines="1-10"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The main configuration snippet defines two of the basic elements of the router, first it defines the <code>Loopback0 interface</code> used as the identifying interface for both RSVP-TE delegated tunnels, for the OSPF router identify and to establish the identity of this router in the BGP-LS mesh being created within the MPLS-TE core and the ODL controller.</p>
-<p>Second it defines the access interface for the left hand side of the network, describing the <code>192.168.10.1/24 network</code> which is representative of our first site to interconnect through this network. These two make up the basis of the router as they define its identity and its purpose to the user.</p>
+<p><code>Loopback0</code> is LSR1's stable protocol identity. Its <code>/32</code> address is reused as the OSPF router ID, MPLS-TE router ID, BGP-LS update source, and the unnumbered address of the delegated tunnel. Keeping these identities on a loopback prevents a core-link failure from changing the router identity that peers and controller records use.</p>
+<p><code>GigabitEthernet0/0/0/0</code> is an access-facing routed interface for the <code>192.168.10.0/24</code> site. It forwards user traffic into the LSR but is deliberately not an RSVP/MPLS-TE resource: it does not contribute an eligible core link to path computation.</p>
 </tab>
 </tabs>
 </def>
 <def title="Core And Control Interfaces">
 <tabs group="lsr1-core-control">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-interface GigabitEthernet0/0/0/1
- description CORE-TO-SMA-XRV-LSR2-BRAVO
- ipv4 address 10.0.11.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/2
- description CORE-TO-SMA-XRV-LSR3-CHARLIE
- ipv4 address 10.0.12.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/3
- description CONTROL-TO-ODL-ETH1
- ipv4 address 10.100.10.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/4
- description CORE-TO-SMA-XRV-LSR2-BRAVO-VARIANT-2
- ipv4 address 10.0.13.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/5
- description CORE-TO-SMA-XRV-LSR4-DELTA-VARIANT-2
- ipv4 address 10.0.14.1 255.255.255.252
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr1-alpha.cfg" include-lines="12-35"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The following snippet describes the interfaces that are defined within the core lsr1 router, describing both the <code>VARIANT-2</code> interfaces of the extended topology, and the <code>CORE</code> interfaces of the baseline topology. These are basic Gigabit Ethernet interfaces that are registered both here and in the topology file, these do not represent any tunnel yet.</p>
+<p>These Layer-3 point-to-point interfaces are the physical resources from which the TE graph is built. The baseline links reach LSR2 and LSR3; the <code>VARIANT-2</code> links add alternate LSR2 and LSR4 paths. Their IP addresses establish adjacency reachability only—none of them is an LSP or a tunnel until OSPF-TE, MPLS-TE, and RSVP enable the corresponding control-plane functions.</p>
 </tab>
 </tabs>
 </def>
 <def title="Delegated RSVP-TE Tunnel">
 <tabs group="lsr1-tunnel">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-interface tunnel-te110
- description SMA-DELEGATED-LSR1-TO-LSR4
- ipv4 unnumbered Loopback0
- signalled-name sma-lsr1-lsr4-delegated
- destination 14.14.14.14
- pce
-  delegation
- !
- path-option 10 dynamic
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr1-alpha.cfg" include-lines="37-45"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>This pre-created tunnel is the <code>forward delegated LSP</code> controlled by the <code>Controller Side Application</code>. Its implementation is important as it is described as being <code>delegated to the pce</code> directly, which means that this is one of the LSPs that the controller will receive and register in its own databases and allow us to handle directly through RESTCONF operations on the controller.</p>
-<p>Something important to mention is that it has been assigned the <code>ipv4 unnumbered Loopback0</code> address. This address has been used as the identity of the router in the OSPF IGP definition, the MPLS-TE definitions, and even in the BGP-LS mesh that has been created, so its use here is significant. The Loopback0 address that was defined initially creates a <b>static identity to the router</b> that can be used in multiple protocols as the identifier for the router. Its use follows what the requirements for <code>RSVP-TE tunnels define</code> as these tunnels need to be identified by a tunnel id, in this case <b>110</b> as well as the <code>destination IP</code> which in this case is <b>lsr4's stable loopback0 interface</b> and an source IP which in this  case is the <b>loopback of lsr1</b>. This means that in theory, these identifiers are not use to define the <i>routing of the MPLS LSP tunnels</i>, rather they are used to determine the convention of the <i>identifying parameters of the tunnel not its routing mechanism</i> as it is possible that the route this tunnel might follow changes constantly.</p>
+<p>This pre-created interface is the forward delegated LSP that the controller-side application identifies by its signalled name and tunnel interface. The <code>pce delegation</code> setting allows the stateful PCE workflow to take control of that LSP; it does not make every core interface PCEP-controlled.</p>
+<p><code>ipv4 unnumbered Loopback0</code> gives the tunnel a stable source identity without allocating a separate subnet. Tunnel <code>110</code> targets LSR4's loopback <code>14.14.14.14</code>; <code>path-option 10 dynamic</code> leaves the initial route to dynamic TE computation. Those identifiers name the LSP endpoints, while the selected ERO can change when the eligible topology or its constraints change.</p>
 </tab>
 </tabs>
 </def>
 <def title="OSPF Traffic Engineering">
 <tabs group="lsr1-ospf">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router ospf 100
- router-id 11.11.11.11
- mpls traffic-eng router-id Loopback0
- distribute link-state instance-id 36
- area 0
-  mpls traffic-eng
-  interface Loopback0
-   passive enable
-  !
-  interface GigabitEthernet0/0/0/0
-   passive enable
-  !
-  interface GigabitEthernet0/0/0/1
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/2
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/4
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/5
-   network point-to-point
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr1-alpha.cfg" include-lines="47-75"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>OSPF provides reachability and traffic-engineering link-state information. We define access and loopback interfaces as passive, while MPLS-TE core links are point-to-point OSPF adjacency. The distributed link-state instance feeds BGP-LS export. In this case, we determine that all of the MPLS-TE core links are part of the OSPF IGP protocol's definition such that these also form adjancencies with other OSPF instances in the network and generate a full view of the topology to distribute, through BGP-LS, to the controller.</p>
-<p>In addition to this, we define the identity of the router that the OSPF-TE Opaque LSAs  will communicate to other routers. This stable identity is used such that it can be associated with an MPLS-TE router allowing these routers to build topology and traffic engineering databases of the other router within the topology. By Cisco's documentation it is recommended to use <b>the same ID as the OSPF-TE ID for the MPLS-TE router ID</b>. </p>
-<p>A third interesting component worth mentioning is the configuration of the <code>distribute link-state instance-id XX</code> line which is a configuration required to <b>establish the OSPF-TE to BGP-LS link state information sharing link</b> where topological information from OSPF-TE can be registered into the <code>Link State Caches</code> of the BGP-LS instance running in the corresponding router (in this case lsr1) and later on distributed to ODL.</p>
+<p>OSPF supplies underlay reachability and carries the TE attributes for the core. The loopback and access interfaces are passive, so their prefixes are advertised without forming unnecessary OSPF neighbor relationships. The point-to-point core interfaces form the OSPF adjacencies from which the TE database is learned.</p>
+<p><code>mpls traffic-eng router-id Loopback0</code> deliberately reuses the stable loopback identity. <code>distribute link-state instance-id 36</code> enables this router's OSPF link-state information to be exported through the local BGP-LS instance, making the same topology consumable by OpenDaylight.</p>
 </tab>
 </tabs>
 </def>
 <def title="MPLS-TE, PCEP, And RSVP Bandwidth">
 <tabs group="lsr1-mpls-pce-rsvp">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-mpls traffic-eng interface GigabitEthernet0/0/0/1
-mpls traffic-eng interface GigabitEthernet0/0/0/2
-mpls traffic-eng interface GigabitEthernet0/0/0/4
-mpls traffic-eng interface GigabitEthernet0/0/0/5
-!
-mpls traffic-eng pce
- peer source ipv4 10.100.10.1
- peer ipv4 10.100.10.2
- stateful-client
-  instantiation
-  report
- !
- auto-tunnel pcc
-  tunnel-id min 300 max 399
- !
-!
-rsvp
- interface GigabitEthernet0/0/0/1
-  bandwidth 50000
- !
- interface GigabitEthernet0/0/0/2
-  bandwidth 75000
- !
- interface GigabitEthernet0/0/0/4
-  bandwidth 25000
- !
- interface GigabitEthernet0/0/0/5
-  bandwidth 10000
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr1-alpha.cfg" include-lines="76-105"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>MPLS-TE is enabled only on constrained core links excluding from the MPLS-TE network the core user facing interfaces and the management IP network which crucially has never appeared in any configurations. The PCEP peer points to ODL on <code>10.100.10.2</code> defining in this case the relationship of <code>lsr1 as the PCC and ODL as the PCE</code>, and RSVP bandwidth values mirror the Containerlab link metadata and netem bandwidth shaping. These values are the constraints consumed by path computation and signaled through OSPF-TE, picked up by BGP-LS and shared to ODL. While the configuration itself determines the split between ODL and lsr1 as PCE and PCC, at the beginning of the network, before the connection between the routers and ODL, each headend router performs a Constraint Shortest Path First Calculation to determine the initial route their tunnels will take over the network, a route that might be updated by ODL. </p>
+<p><code>mpls traffic-eng interface</code> marks only the core links as eligible for TE. The access and management networks remain outside the TE resource pool. Each RSVP <code>bandwidth</code> value is the reservable capacity advertised for that interface; it intentionally mirrors the Containerlab link and netem constraint assigned to that path.</p>
+<p>LSR1 is the PCC and peers with OpenDaylight at <code>10.100.10.2</code>, the PCE. Stateful-client reporting and instantiation let the controller observe and update delegated LSP state. Before a controller update is available, the dynamic path option permits a locally computed TE path; later controller updates use the same advertised topology and RSVP constraints.</p>
 </tab>
 </tabs>
 </def>
 <def title="BGP-LS, Static Routing, And Management Services">
 <tabs group="lsr1-bgpls-management">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router bgp 65000
- bgp router-id 11.11.11.11
- address-family link-state link-state
- !
- neighbor 12.12.12.12
-  remote-as 65000
-  description BGP-LS-MESH-LSR2-BRAVO
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 13.13.13.13
-  remote-as 65000
-  description BGP-LS-MESH-LSR3-CHARLIE
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 14.14.14.14
-  remote-as 65000
-  description BGP-LS-MESH-LSR4-DELTA
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 10.100.10.2
-  remote-as 65000
-  description BGP-LS-TO-ODL
-  address-family link-state link-state
-!
-router static
- address-family ipv4 unicast
-  192.168.20.0/24 tunnel-te110
-!
-netconf-yang agent ssh
-ssh server v2
-ssh server netconf vrf default
-snmp-server community sdn-mpls-ml-tech-demo-monitor RO
-snmp-server ifindex persist
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr1-alpha.cfg" include-lines="106-153"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>BGP-LS exports topology information to peer LSRs and ODL. The static route forces traffic toward the remote access subnet through the delegated tunnel. NETCONF/SSH keep the router manageable, while SNMP supports Prometheus collection through the SNMP exporter.</p>
+<p>The <code>link-state link-state</code> address family carries topology information rather than ordinary IPv4 reachability. Loopback-sourced peers keep the router mesh bound to stable identities; the dedicated ODL neighbor uses the directly attached control link. The static route makes the remote access prefix use the delegated tunnel.</p>
+<p><code>netconf-yang agent ssh</code> and the SSH server expose the NETCONF management transport used by the controller. <code>snmp-server community ... RO</code> grants the exporter read-only polling access, while <code>snmp-server ifindex persist</code> keeps interface-index values stable across restarts so time series retain their interface identity.</p>
 </tab>
 </tabs>
 </def>
@@ -226,168 +94,52 @@ Full configuration source view:
 <def title="Hostname, Router ID, And Core Interfaces">
 <tabs group="lsr2-core">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-hostname sma-xrv-lsr2-bravo
-!
-interface Loopback0
- description PROTOCOL-ROUTER-ID
- ipv4 address 12.12.12.12 255.255.255.255
-!
-interface GigabitEthernet0/0/0/0
- description CORE-TO-SMA-XRV-LSR4-DELTA
- ipv4 address 10.0.21.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/1
- description CORE-TO-SMA-XRV-LSR1-ALPHA
- ipv4 address 10.0.11.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/2
- description CORE-TO-SMA-XRV-LSR1-ALPHA-VARIANT-2
- ipv4 address 10.0.13.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/4
- description CORE-TO-SMA-XRV-LSR4-DELTA-VARIANT-2
- ipv4 address 10.0.24.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/5
- description CORE-TO-SMA-XRV-LSR3-CHARLIE-VARIANT-2
- ipv4 address 10.0.23.1 255.255.255.252
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr2-bravo.cfg" include-lines="1-20"/>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr2-bravo.cfg" include-lines="27-35"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>LSR2 is a transit router in the MPLS-TE graph. It has no access segment and no delegated tunnel headend role. Its interfaces define the upper diamond path, the alternate LSR1 link, the alternate LSR4 link, and the vertical LSR2-LSR3 constrained path.</p>
+<p>LSR2 is a transit router: it has no user-facing access subnet and no delegated tunnel headend. Its loopback supplies the stable OSPF, MPLS-TE, and BGP-LS identity; its point-to-point interfaces contribute the upper path, alternate LSR1 and LSR4 paths, and the deliberately constrained LSR2–LSR3 path to the TE resource graph.</p>
 </tab>
 </tabs>
 </def>
 <def title="Controller-Facing Interface">
 <tabs group="lsr2-control">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-interface GigabitEthernet0/0/0/3
- description CONTROL-TO-ODL-ETH2
- ipv4 address 10.100.20.1 255.255.255.252
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr2-bravo.cfg" include-lines="22-25"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>This interface gives ODL a dedicated control-plane path to LSR2 for BGP-LS exchange. It is not enabled for MPLS-TE or RSVP because it is not a traffic-engineered data-plane link. This is part of the BGP-LS mesh that was defined within the MPLS-TE core network, which connects all routers as <b>redundant topology information sources</b> in the event of failure of any of the devices.</p>
+<p>This interface gives OpenDaylight a dedicated control-plane path to LSR2 for BGP-LS exchange. It is not enabled for MPLS-TE or RSVP because it is not a traffic-engineered data-plane link. The direct controller session complements the loopback-based iBGP mesh, so each router remains an independently reachable topology source.</p>
 </tab>
 </tabs>
 </def>
 <def title="OSPF And MPLS-TE">
 <tabs group="lsr2-ospf-mpls">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="Plain Text">
-router ospf 100
- router-id 12.12.12.12
- mpls traffic-eng router-id Loopback0
- distribute link-state instance-id 35
- area 0
-  mpls traffic-eng
-  interface Loopback0
-   passive enable
-  !
-  interface GigabitEthernet0/0/0/0
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/1
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/2
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/4
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/5
-   network point-to-point
-!
-mpls traffic-eng interface GigabitEthernet0/0/0/0
-mpls traffic-eng interface GigabitEthernet0/0/0/1
-mpls traffic-eng interface GigabitEthernet0/0/0/2
-mpls traffic-eng interface GigabitEthernet0/0/0/4
-mpls traffic-eng interface GigabitEthernet0/0/0/5
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr2-bravo.cfg" include-lines="37-70"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>OSPF advertises the transit links as point-to-point adjacencies and enables TE attributes in area <code>0</code>. MPLS-TE is enabled on each constrained core interface so CSPF can consider them as viable TE links. This is of special importance given that previous testing showcased that there is a clear need to have <b>all links that will allow tunnels to be carried over it must be listed through mpls traffic-eng intervace ...</b> commands. As such, not only do we need to list the interfaces that participate in OSPF adjacency protocols, but also in MPLS-TE for tunnels to forward their traffic over.</p>
+<p>OSPF advertises the transit links as point-to-point adjacencies and carries their TE attributes in area <code>0</code>. The matching <code>mpls traffic-eng interface</code> declarations are the admission boundary: a core link must appear in both the OSPF topology and the MPLS-TE resource set before a computed RSVP-TE LSP can use it.</p>
 </tab>
 </tabs>
 </def>
 <def title="RSVP Bandwidth">
 <tabs group="lsr2-rsvp">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-rsvp
- interface GigabitEthernet0/0/0/0
-  bandwidth 50000
- !
- interface GigabitEthernet0/0/0/1
-  bandwidth 50000
- !
- interface GigabitEthernet0/0/0/2
-  bandwidth 25000
- !
- interface GigabitEthernet0/0/0/4
-  bandwidth 25000
- !
- interface GigabitEthernet0/0/0/5
-  bandwidth 10000
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr2-bravo.cfg" include-lines="72-87"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>These RSVP bandwidth values mirror the Containerlab link capacities. They are intentionally asymmetric across topology options so classifier-selected policies can produce different path choices. In this case what we are doing with this configuration is defining that the MPLS-TE core interfaces can be used for defining corresponding LSPs and what amount of bandwidth do these have.</p>
-<p>
-When working with RSVP, the main object that is transmitted initially is the <code>PATH object</code> which can define a <b>Explicit Route Object (ERO)</b> which is the approach we are using when we configure the tunnels from the controller or when we initially define the route that the local CSPF algorithm defined. All in all, RSVP requires first sending this PATH object which is a collection of <code>one IP address per LSR on the calculated path</code>, this means that the PATH is indicating only which routers it must reach, often through their Loopback addresses, and to get to those the IGP routing information is considered, using that information, which is transmitted through an <code>RSVP_HOP</code> message added to the corresponding PATH message through each jump it takes over the network, the routers in a given ERO can all register the path that their devices will take.
-</p>
+<p>These RSVP values are the reservable bandwidth advertised by LSR2's TE-capable links. They mirror the topology capacities and are deliberately asymmetric, so a bandwidth-aware path computation can distinguish the upper, alternate, and vertical paths.</p>
+<p>When an LSP is signalled, the selected route is represented by its RSVP-TE signalling state and, when supplied by the controller, an ERO. The figures here therefore model a resource constraint, not a fixed data rate forced onto all traffic on the interface.</p>
 </tab>
 </tabs>
 </def>
 <def title="BGP-LS And Management Services">
 <tabs group="lsr2-bgpls-management">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router bgp 65000
- bgp router-id 12.12.12.12
- address-family link-state link-state
- !
- neighbor 11.11.11.11
-  remote-as 65000
-  description BGP-LS-MESH-LSR1-ALPHA
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 13.13.13.13
-  remote-as 65000
-  description BGP-LS-MESH-LSR3-CHARLIE
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 14.14.14.14
-  remote-as 65000
-  description BGP-LS-MESH-LSR4-DELTA
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 10.100.20.2
-  remote-as 65000
-  description BGP-LS-TO-ODL
-  address-family link-state link-state
-!
-netconf-yang agent ssh
-ssh server v2
-ssh server netconf vrf default
-snmp-server ifindex persist
-snmp-server community sdn-mpls-ml-tech-demo-monitor RO
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr2-bravo.cfg" include-lines="89-133"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The iBGP link-state mesh allows LSR2 to contribute its TE links to the topology view. The ODL neighbor receives the same address family, and the management services keep the node reachable for inspection and telemetry. In this case, it is important to determine that the corresponding SNMP server configuration lines, similarly to the ones presented in all other routers correspond to the definition of a the allowed SNMPv2c protocol that is implemented between the routers and the SNMP exporter service to get bandwidth usage, throughput and interface information.</p>
+<p>The iBGP link-state mesh lets LSR2 contribute its TE links to the shared topology view, and the ODL neighbor receives the same link-state address family. NETCONF/SSH exposes the management plane. The read-only SNMPv2c community is consumed by the SNMP exporter to collect IF-MIB interface counters; it is not a write-capable device-management credential.</p>
 </tab>
 </tabs>
 </def>
@@ -403,142 +155,41 @@ Full configuration source view:
 <def title="Hostname, Router ID, And Core Interfaces">
 <tabs group="lsr3-core">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-hostname sma-xrv-lsr3-charlie
-!
-interface Loopback0
- description PROTOCOL-ROUTER-ID
- ipv4 address 13.13.13.13 255.255.255.255
-!
-interface GigabitEthernet0/0/0/0
- description CORE-TO-SMA-XRV-LSR4-DELTA-VARIANT-2
- ipv4 address 10.0.25.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/1
- description CORE-TO-SMA-XRV-LSR4-DELTA
- ipv4 address 10.0.22.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/2
- description CORE-TO-SMA-XRV-LSR1-ALPHA
- ipv4 address 10.0.12.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/4
- description CORE-TO-SMA-XRV-LSR2-BRAVO-VARIANT-2
- ipv4 address 10.0.23.2 255.255.255.252
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr3-charlie.cfg" include-lines="1-20"/>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr3-charlie.cfg" include-lines="27-30"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>LSR3 is the lower-path transit router. It connects to LSR1, LSR2, and LSR4 and provides one of the high-bandwidth paths into LSR4 through <code>10.0.25.0/30</code>. In this case, we define its identity to be <code>13.13.13.13/32</code> as the loopback address which is associated with OSPF-TE, MPLS-TE, and BGP-LS.</p>
+<p>LSR3 is the lower-path transit router. Its <code>13.13.13.13/32</code> loopback is the common OSPF, MPLS-TE, and BGP-LS identity. The core links make the lower route and its alternates visible to TE, including the high-capacity path into LSR4 over <code>10.0.25.0/30</code>.</p>
 </tab>
 </tabs>
 </def>
 <def title="Controller-Facing Interface">
 <tabs group="lsr3-control">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-interface GigabitEthernet0/0/0/3
- description CONTROL-TO-ODL-ETH3
- ipv4 address 10.100.30.1 255.255.255.252
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr3-charlie.cfg" include-lines="22-25"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The ODL-facing link carries BGP-LS control traffic from LSR3 to the controller. It is separate from the MPLS forwarding graph and does not participate in TE signalling.</p>
+<p>The ODL-facing link carries BGP-LS control traffic from LSR3 to the controller. It is intentionally outside the MPLS forwarding graph and receives no RSVP capacity, so a data-plane LSP cannot accidentally select the controller-management link.</p>
 </tab>
 </tabs>
 </def>
 <def title="OSPF, MPLS-TE, And RSVP">
 <tabs group="lsr3-ospf-mpls-rsvp">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router ospf 100
- router-id 13.13.13.13
- mpls traffic-eng router-id Loopback0
- distribute link-state instance-id 33
- area 0
-  mpls traffic-eng
-  interface Loopback0
-   passive enable
-  !
-  interface GigabitEthernet0/0/0/0
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/1
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/2
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/4
-   network point-to-point
-!
-mpls traffic-eng interface GigabitEthernet0/0/0/0
-mpls traffic-eng interface GigabitEthernet0/0/0/1
-mpls traffic-eng interface GigabitEthernet0/0/0/2
-mpls traffic-eng interface GigabitEthernet0/0/0/4
-!
-rsvp
- interface GigabitEthernet0/0/0/0
-  bandwidth 75000
- !
- interface GigabitEthernet0/0/0/1
-  bandwidth 75000
- !
- interface GigabitEthernet0/0/0/2
-  bandwidth 75000
- !
- interface GigabitEthernet0/0/0/4
-  bandwidth 10000</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr3-charlie.cfg" include-lines="32-75"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>LSR3 advertises its lower-path and extended-path links into the TE topology. RSVP bandwidth makes <code>10.0.23.0/30</code> intentionally constrained while keeping the LSR1 and LSR4 paths comparatively high capacity.</p>
+<p>OSPF and MPLS-TE advertise LSR3's lower and extended paths as eligible TE resources. RSVP reserves <code>10.0.23.0/30</code> as the constrained alternative while exposing the LSR1 and LSR4 links with comparatively higher reservable capacity. This makes the intended trade-off explicit to any CSPF calculation.</p>
 </tab>
 </tabs>
 </def>
 <def title="BGP-LS And Management Services">
 <tabs group="lsr3-bgpls-management">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router bgp 65000
- bgp router-id 13.13.13.13
- address-family link-state link-state
- !
- neighbor 11.11.11.11
-  remote-as 65000
-  description BGP-LS-MESH-LSR1-ALPHA
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 12.12.12.12
-  remote-as 65000
-  description BGP-LS-MESH-LSR2-BRAVO
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 14.14.14.14
-  remote-as 65000
-  description BGP-LS-MESH-LSR4-DELTA
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 10.100.30.2
-  remote-as 65000
-  description BGP-LS-TO-ODL
-  address-family link-state link-state
-!
-netconf-yang agent ssh
-ssh server v2
-ssh server netconf vrf default
-snmp-server ifindex persist
-snmp-server community sdn-mpls-ml-tech-demo-monitor RO
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr3-charlie.cfg" include-lines="77-121"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>BGP-LS publishes LSR3's lower-path and extended-path links to the topology consumers. NETCONF, SSH, and SNMP are enabled consistently with the other routers for management and telemetry.</p>
+<p>BGP-LS publishes LSR3's lower and extended links to topology consumers. NETCONF over SSH supports controller management; the read-only SNMP community and persistent interface indexes support stable exporter-based interface telemetry.</p>
 </tab>
 </tabs>
 </def>
@@ -554,194 +205,50 @@ Full configuration source view:
 <def title="Hostname, Router ID, And Access Interface">
 <tabs group="lsr4-hostname-loopback-access">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-hostname sma-xrv-lsr4-delta
-!
-interface Loopback0
- description PROTOCOL-ROUTER-ID
- ipv4 address 14.14.14.14 255.255.255.255
-!
-interface GigabitEthernet0/0/0/0
- description ACCESS-TO-SMA-OVS-PE2-FOXTROT
- ipv4 address 192.168.20.1 255.255.255.0
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr4-delta.cfg" include-lines="1-10"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The loopback address is the stable router ID and reverse LSP destination/source identity. The access interface connects LSR4 to <code>sma-ovs-pe2-foxtrot</code> and provides the default gateway for the Hotel host subnet.</p>
+<p>The loopback is the stable protocol identity and the source/destination identity of the reverse LSP. The access interface connects LSR4 to <code>sma-ovs-pe2-foxtrot</code> and provides the default gateway for the Hotel host subnet; like LSR1's access link, it is outside the RSVP/MPLS-TE resource set.</p>
 </tab>
 </tabs>
 </def>
 <def title="Core And Control Interfaces">
 <tabs group="lsr4-core-control">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-interface GigabitEthernet0/0/0/1
- description CORE-TO-SMA-XRV-LSR3-CHARLIE
- ipv4 address 10.0.22.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/2
- description CORE-TO-SMA-XRV-LSR2-BRAVO
- ipv4 address 10.0.21.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/3
- description CONTROL-TO-ODL-ETH4
- ipv4 address 10.100.40.1 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/4
- description CORE-TO-SMA-XRV-LSR2-BRAVO-VARIANT-2
- ipv4 address 10.0.24.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/5
- description CORE-TO-SMA-XRV-LSR3-CHARLIE-VARIANT-2
- ipv4 address 10.0.25.2 255.255.255.252
- no shutdown
-!
-interface GigabitEthernet0/0/0/6
- description CORE-TO-SMA-XRV-LSR1-ALPHA-VARIANT-2
- ipv4 address 10.0.14.2 255.255.255.252
- no shutdown
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr4-delta.cfg" include-lines="12-40"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>LSR4 terminates the right side of the MPLS core and has the largest number of core adjacencies. It connects to the baseline upper and lower paths, the alternate LSR2/LSR3 paths, and the constrained direct shortcut from LSR1. <code>Gi0/0/0/3</code> is reserved for ODL control-plane reachability.</p>
+<p>LSR4 terminates the right side of the MPLS core and has the largest number of TE-capable adjacencies. It exposes the baseline upper and lower paths, alternate LSR2/LSR3 paths, and the constrained direct LSR1 shortcut. <code>Gi0/0/0/3</code> is reserved for ODL control-plane reachability and is not a TE data-plane resource.</p>
 </tab>
 </tabs>
 </def>
 <def title="Delegated RSVP-TE Tunnel">
 <tabs group="lsr4-tunnel">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-interface tunnel-te410
- description SMA-DELEGATED-LSR4-TO-LSR1
- ipv4 unnumbered Loopback0
- signalled-name sma-lsr4-lsr1-delegated
- destination 11.11.11.11
- pce
-  delegation
- !
- path-option 10 dynamic
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr4-delta.cfg" include-lines="42-50"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>This is the reverse delegated LSP controlled by OpenDaylight. It mirrors the LSR1 tunnel role in the opposite direction and gives the controller a stable object to update when reverse-direction traffic policy changes. IN this case, the configuration option of <code>path-option 10 dynamic</code> that was also registered on the side of the lsr1 router, is determining that the lsp has to receive an initial dynamically and locally calculated LSP ERO and that it should be setup to allow for communication, our intended approach.</p>
+<p>This is the reverse delegated LSP controlled by OpenDaylight. It mirrors LSR1's tunnel in the opposite direction and gives the controller a stable object to update when reverse traffic policy changes. <code>path-option 10 dynamic</code> permits an initial locally computed TE route; subsequent controller updates can replace that route while retaining the same named, delegated LSP.</p>
 </tab>
 </tabs>
 </def>
 <def title="OSPF, MPLS-TE, PCEP, And RSVP">
 <tabs group="lsr4-ospf-mpls-pce-rsvp">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router ospf 100
- router-id 14.14.14.14
- mpls traffic-eng router-id Loopback0
- distribute link-state instance-id 34
- area 0
-  mpls traffic-eng
-  interface Loopback0
-   passive enable
-  !
-  interface GigabitEthernet0/0/0/0
-   passive enable
-  !
-  interface GigabitEthernet0/0/0/1
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/2
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/4
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/5
-   network point-to-point
-  !
-  interface GigabitEthernet0/0/0/6
-   network point-to-point
-!
-mpls traffic-eng interface GigabitEthernet0/0/0/1
-mpls traffic-eng interface GigabitEthernet0/0/0/2
-mpls traffic-eng interface GigabitEthernet0/0/0/4
-mpls traffic-eng interface GigabitEthernet0/0/0/5
-mpls traffic-eng interface GigabitEthernet0/0/0/6
-!
-mpls traffic-eng pce
- peer source ipv4 10.100.40.1
- peer ipv4 10.100.40.2
- stateful-client
-  instantiation
-  report
-!
-rsvp
- interface GigabitEthernet0/0/0/1
-  bandwidth 75000
- !
- interface GigabitEthernet0/0/0/2
-  bandwidth 50000
- !
- interface GigabitEthernet0/0/0/4
-  bandwidth 25000
- !
- interface GigabitEthernet0/0/0/5
-  bandwidth 75000
- !
- interface GigabitEthernet0/0/0/6
-  bandwidth 10000
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr4-delta.cfg" include-lines="52-116"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>LSR4 advertises all right-side and shortcut TE links, peers with ODL as a stateful PCC through <code>10.100.40.2</code>, and exposes RSVP bandwidth values that match the declared topology constraints.</p>
+<p>LSR4 advertises the right-side and shortcut TE links, peers with OpenDaylight as a stateful PCC through <code>10.100.40.2</code>, and exposes RSVP bandwidth values that match the topology constraints. As with LSR1, only the listed core interfaces form the TE resource pool; the access and controller-facing links remain excluded.</p>
 </tab>
 </tabs>
 </def>
 <def title="BGP-LS, Static Routing, And Management Services">
 <tabs group="lsr4-bgpls-management">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="text">
-router bgp 65000
- bgp router-id 14.14.14.14
- address-family link-state link-state
- !
- neighbor 11.11.11.11
-  remote-as 65000
-  description BGP-LS-MESH-LSR1-ALPHA
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 12.12.12.12
-  remote-as 65000
-  description BGP-LS-MESH-LSR2-BRAVO
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 13.13.13.13
-  remote-as 65000
-  description BGP-LS-MESH-LSR3-CHARLIE
-  update-source Loopback0
-  address-family link-state link-state
- !
- neighbor 10.100.40.2
-  remote-as 65000
-  description BGP-LS-TO-ODL
-  address-family link-state link-state
-!
-router static
- address-family ipv4 unicast
-  192.168.10.0/24 tunnel-te410
-!
-netconf-yang agent ssh
-ssh server v2
-ssh server netconf vrf default
-snmp-server ifindex persist
-snmp-server community sdn-mpls-ml-tech-demo-monitor RO
-</code-block>
+<code-block lang="text" src="../../src/main/containerlab/configurations/tech-demonstrator/sma-xrv-lsr4-delta.cfg" include-lines="118-165"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>BGP-LS makes LSR4's view of the topology visible to ODL. The static route sends remote left-site traffic through the reverse delegated tunnel, and the management services are enabled consistently for operations and telemetry.</p>
+<p>BGP-LS makes LSR4's view of the topology visible to OpenDaylight. The static route sends remote left-site traffic through the reverse delegated tunnel. NETCONF/SSH and read-only SNMP provide the same management and telemetry functions as on the other routers, including persistent IF-MIB interface identities.</p>
 </tab>
 </tabs>
 </def>
@@ -751,67 +258,37 @@ snmp-server community sdn-mpls-ml-tech-demo-monitor RO
 
 The controller configuration is injected through the `sma-odl-controller-india` environment variables in the Containerlab topology. 
 
+<deflist type="full" collapsible="true">
+<def title="Controller Image Runtime Identity and BGP Privileged-Port Binding">
+<tabs group="controller-image-runtime">
+<tab title="Image and topology settings" group-key="settings">
+<code-block lang="docker" src="../../src/main/java/baseline-odl/Dockerfile" include-lines="240-267"/>
+<code-block lang="yaml" src="../../src/main/containerlab/topologies/main/sdn-mpls-ai-tech-demo-baseline.clab.yaml" include-lines="206-220"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>The controller image creates <code>sma-karaf</code> with UID:GID <code>10002:10002</code>, grants the account passwordless <code>sudo</code>, and launches Karaf as that non-root identity. The Containerlab node grants <code>NET_BIND_SERVICE</code> and configures the controller-side interfaces.</p>
+<p>These settings are required by the BGP peer-acceptor configuration that binds <code>21.21.21.21:179</code> before the speaker and peer requests run. The image also exposes TCP port <code>179</code>. See [Configure the BGP peer acceptor](ODL-RESTCONF-—-BGP-LS-Requests.md#configure-bgp-peer-acceptor) for the RESTCONF resource and YANG model.</p>
+</tab>
+</tabs>
+</def>
+<def title="Container Logging Configuration">
+<tabs group="controller-container-logging">
+<tab title="Entrypoint source" group-key="source">
+<code-block lang="shell" src="../../src/main/java/baseline-odl/sma-odl-entrypoint.sh" include-lines="5-11"/>
+<code-block lang="shell" src="../../src/main/java/baseline-odl/sma-odl-entrypoint.sh" include-lines="40-78"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>The <code>SMA_LOG_*</code> values configure the Karaf logging runtime, not the Java <code>AppConfig</code> record. Before Karaf starts, the entrypoint validates the values, creates the rolling log file, and writes the <code>com.sma.sdn</code> logger configuration. This is why those variables remain in the Containerlab node even though <code>AppConfig.fromEnvironment()</code> does not read them.</p>
+</tab>
+</tabs>
+</def>
+</deflist>
+
 Full baseline controller environment view:
 
-<code-block lang="yaml" collapsible="true">
-sma-odl-controller-india:
-  kind: linux
-  image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-opendaylight:0.23.1-baseline
-  mgmt-ipv4: 172.21.121.100
-  memory: 6G
-  env:
-    JAVA_MIN_MEM: 4G
-    JAVA_MAX_MEM: 6G
-    # Corresponding Controller side application environment variables 
-    TUNNEL_CREATION_MODE: DELEGATED_TUNNEL_UPDATE
-    SMA_LOG_DIRECTORY: /logs
-    SMA_LOG_FILENAME: sdn_mpls_ml_controller.log
-    SMA_LOG_FILE_MAX_BYTES: 10485760
-    SMA_LOG_FILE_BACKUP_COUNT: 5
-    SMA_LOG_LEVEL: DEBUG
-    ODL_BGPLS_TOPOLOGY_ID: sma-bgp-linkstate-topology
-    ODL_PCEP_TOPOLOGY_ID: pcep-topology
-    ODL_PATH_COMPUTATION_GRAPH_NAME: ted://sma-bgp-linkstate-topology
-    SMA_HEADEND_RID: 11.11.11.11
-    SMA_HEADEND_PCC_NODE: pcc://10.100.10.1
-    SMA_TAILEND_RID: 14.14.14.14
-    SMA_TAILEND_PCC_NODE: pcc://10.100.40.1
-    SMA_FORWARD_LSP_NAME: sma-lsr1-lsr4-delegated
-    SMA_REVERSE_LSP_NAME: sma-lsr4-lsr1-delegated
-    SMA_FORWARD_TUNNEL_INTERFACE: tunnel-te110
-    SMA_REVERSE_TUNNEL_INTERFACE: tunnel-te410
-    SMA_FORWARD_DIRECTION_KEY: lsr1_to_lsr4
-    SMA_REVERSE_DIRECTION_KEY: lsr4_to_lsr1
-    SMA_HEADEND_TO_TAILEND_INGRESS: sma-ovs-pe1-echo|host-golf
-    SMA_TAILEND_TO_HEADEND_INGRESS: sma-ovs-pe2-foxtrot|host-hotel
-    ODL_RESTCONF_DATA_BASE_URL: http://127.0.0.1:8182/restconf/data
-    ODL_RESTS_OPERATIONS_BASE_URL: http://127.0.0.1:8181/rests/operations
-    ODL_USERNAME: admin
-    ODL_PASSWORD: admin
-    CLASSIFIER_BASE_URL: http://172.21.121.200:33761
-    CLASSIFIER_CLASSIFY_PATH: /api/v1/classify
-    CLASSIFICATION_CACHE_TTL_SECONDS: 3600
-    PATH_CACHE_TTL_SECONDS: 60
-    TOPOLOGY_CACHE_TTL_SECONDS: 300
-    ODL_OPERATIONAL_VALIDATION_TIMEOUT_SECONDS: 120
-    HTTP_REQUEST_TIMEOUT_SECONDS: 10
-    ODL_RETRY_INITIAL_DELAY_MS: 500
-    ODL_RETRY_MAX_DELAY_MS: 5000
-    ODL_RETRY_JITTER_PERCENT: 20
-    ODL_TOPOLOGY_DISCOVERY_MAX_ATTEMPTS: 5
-    SMA_OPENFLOW_BOOTSTRAP_ENABLED: true
-    SMA_OPENFLOW_TABLE_ID: 0
-    SMA_OVS_ECHO_MGMT_IP: 172.21.121.15
-    SMA_OVS_ECHO_HOST_PORT_NAME: host-golf
-    SMA_OVS_ECHO_CORE_PORT_NAME: core-lsr1
-    SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
-    SMA_OVS_FOXTROT_HOST_PORT_NAME: host-hotel
-    SMA_OVS_FOXTROT_CORE_PORT_NAME: core-lsr4
-    SMA_OPENFLOW_ARP_PRIORITY: 300
-    SMA_OPENFLOW_IPV4_PRIORITY: 200
-    SMA_OPENFLOW_INSTALL_DEFAULT_DROP: false
-    SMA_OPENFLOW_DEFAULT_DROP_PRIORITY: 
-</code-block>
+<p>This is a source inclusion of the deployed Containerlab node rather than a copied variable list. It is the authoritative set of deployment overrides; <code>AppConfig.fromEnvironment()</code> supplies validated defaults for settings not present here.</p>
+
+<code-block lang="yaml" src="../../src/main/containerlab/topologies/main/sdn-mpls-ai-tech-demo-baseline.clab.yaml" include-lines="137-221" collapsible="true"/>
 <deflist type="full" collapsible="true">
 <def title="Topology, PCEP, And Path Computation Identity">
 <tabs group="controller-topology">
@@ -827,9 +304,8 @@ SMA_TAILEND_PCC_NODE: pcc://10.100.40.1
 </code-block>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>This first snippet of documentation showcases the environment variables used to configure the BGPLS topology, PCEP Toplogy and Traffic Engineering Database that the controller side application needs to use to poll the corresponding internal state of the BGP-LS RIB database and Link State Caches, the PCEP inventory and the Traffic Engineering Database associated with the BGP-LS topology. With this information, components like the Graph Computation Algorithms used for Constraint Shortest Path First can learn the concrete state of the topology upon computation time and produce a workable ERO. Moreover, this information allows the internal state of the controller side application to mirror the state of the controller and keep local cached copies of nodes, LSPs, openflow nodes and connectors, and current topological information for fast recalculations</p>
-<p>In addition to this, the system must know exactly the headend and tailend router configurations, as these ids will be used to extract their information internally during the controller side operation. The information for the headend and tailend node information will also be used to 
-communicate directly towards these devices during <code>update_lsp calls</code>.</p>
+<p>These values identify the BGP-LS topology, PCEP topology, and TE graph that the controller-side application reads from OpenDaylight. The service uses them to locate operational nodes and delegated LSPs before it calculates or applies an LSP update; they do not create those controller resources.</p>
+<p>The router IDs and PCC node URIs select the two managed tunnel endpoints. They must match the loopbacks and PCEP control links declared by LSR1 and LSR4, because those identities are later used to locate the direction-specific LSP records.</p>
 </tab>
 </tabs>
 </def>
@@ -843,12 +319,10 @@ SMA_FORWARD_TUNNEL_INTERFACE: tunnel-te110
 SMA_REVERSE_TUNNEL_INTERFACE: tunnel-te410
 SMA_FORWARD_DIRECTION_KEY: lsr1_to_lsr4
 SMA_REVERSE_DIRECTION_KEY: lsr4_to_lsr1
-SMA_HEADEND_TO_TAILEND_INGRESS: sma-ovs-pe1-echo|host-golf
-SMA_TAILEND_TO_HEADEND_INGRESS: sma-ovs-pe2-foxtrot|host-hotel
 </code-block>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The application uses these names to correlate PacketIn ingress points, logical traffic directions, delegated LSP records, and tunnel interfaces. They must remain consistent with router configuration, OpenFlow connector names, and policy state.</p>
+<p>The application uses these names to correlate logical traffic directions, delegated LSP records, and tunnel interfaces. They must remain consistent with the LSR tunnel configuration and policy state. Ingress connector discovery is configured independently through the OVS management address and port-name variables below; the removed ingress-mapping variables are no longer part of <code>AppConfig</code>.</p>
 </tab>
 </tabs>
 </def>
@@ -871,7 +345,7 @@ ODL_OPERATIONAL_VALIDATION_TIMEOUT_SECONDS: 120
 </tab>
 </tabs>
 </def>
-<def title="Cache, Retry, Logging, And OpenFlow Bootstrap">
+<def title="Cache, Retry, And OpenFlow Bootstrap">
 <tabs group="controller-runtime">
 <tab title="Configuration snippet" group-key="snippet">
 <code-block lang="yaml">
@@ -882,7 +356,6 @@ ODL_RETRY_INITIAL_DELAY_MS: 500
 ODL_RETRY_MAX_DELAY_MS: 5000
 ODL_RETRY_JITTER_PERCENT: 20
 ODL_TOPOLOGY_DISCOVERY_MAX_ATTEMPTS: 5
-SMA_LOG_LEVEL: DEBUG
 SMA_OPENFLOW_BOOTSTRAP_ENABLED: true
 SMA_OPENFLOW_TABLE_ID: 0
 SMA_OVS_ECHO_MGMT_IP: 172.21.121.15
@@ -890,7 +363,8 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 </code-block>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>TTL settings determine when cached classification, path, and topology state must be refreshed. Retry settings protect ODL startup/discovery timing. The OpenFlow bootstrap settings let the Java application discover the runtime datapath IDs and program deterministic edge flows corresponding to the baseline rules of controller notification + push data towards MPLS core.</p>
+<p>TTL settings determine when cached classification, path, and topology state must be refreshed. Retry settings bound ODL startup and discovery attempts. The OpenFlow bootstrap settings let the Java application discover runtime datapath IDs and named edge connectors before it programs deterministic ARP and IPv4 access flows toward the MPLS core.</p>
+<p><code>SMA_LOG_LEVEL</code> is intentionally absent from this application-configuration group: the controller image entrypoint consumes the <code>SMA_LOG_*</code> variables to configure Karaf logging before the controller-side application calls <code>AppConfig.fromEnvironment()</code>.</p>
 </tab>
 </tabs>
 </def>
@@ -901,43 +375,54 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 <p>The controller must first receive its BGP-LS configuration, associate that RIB with a topology resource, and register the four NETCONF-managed routers. The controller-side application then reads the BGP-LS, graph, PCEP, and OpenFlow operational state that those subsystems publish. A successful configuration request records intended controller state. It does not by itself establish a BGP session, NETCONF session, PCEP session, or OpenFlow connection.</p>
 
 <deflist type="full" collapsible="true">
-<def title="1. Create the BGP-LS Speaker">
+<def title="1. Configure the BGP Peer Acceptor">
+<tabs group="controller-restconf-peer-acceptor">
+<tab title="Request" group-key="request">
+<code-block lang="http" src="../../src/main/postman/bgp-ls/configure-bgp-peer-acceptor-for-cisco.http"/>
+</tab>
+<tab title="Explanation" group-key="explanation">
+<p>Configure the default BGP peer acceptor before creating the BGP-LS speaker. The resource binds the controller's loopback address <code>21.21.21.21</code> to TCP port <code>179</code>, which allows Cisco IOS XR peers to establish inbound BGP sessions against the configured address.</p>
+<p>Port <code>179</code> is a privileged port. The baseline OpenDaylight image grants the Karaf runtime account passwordless <code>sudo</code>, and the Containerlab controller node receives <code>NET_BIND_SERVICE</code>, so the runtime can make this binding. See <a href="ODL-RESTCONF-—-BGP-LS-Requests.md#configure-bgp-peer-acceptor"></a>.</p>
+</tab>
+</tabs>
+</def>
+<def title="2. Create the BGP-LS Speaker">
 <tabs group="controller-restconf-speaker">
 <tab title="Request" group-key="request">
 <code-block lang="http" src="../../src/main/postman/bgp-ls/create-odl-bgp-ls-speaker.http"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>Create protocol <code>sma-bgp-ls</code> under <code>network-instance=global-bgp</code>. The request sets the controller router ID to <code>172.21.121.100</code>, local AS to <code>65000</code>, and the <code>LINKSTATE</code> AFI/SAFI. This establishes the BGPCEP RIB identity that later peer and topology requests reference.</p>
-<p>A new protocol entry is expected to return <code>201 Created</code>. The saved request contains no observed response. See [Create the OpenDaylight BGP-LS speaker](ODL-RESTCONF-—-BGP-LS-Requests.md#create-odl-bgpls-speaker) for the resource path, YANG keys, and payload mapping.</p>
+<p>Create protocol <code>sma-bgp-ls</code> under <code>network-instance=global-bgp</code>. The request sets the controller router ID to <code>21.21.21.21</code>, local AS to <code>65000</code>, and the <code>LINKSTATE</code> AFI/SAFI. This establishes the BGPCEP RIB identity that later peer and topology requests reference.</p>
+<p>A new protocol entry is expected to return <code>201 Created</code>. The saved request contains no observed response. See <a href="ODL-RESTCONF-—-BGP-LS-Requests.md#create-odl-bgpls-speaker"></a> for the resource path, YANG keys, and payload mapping.</p>
 </tab>
 </tabs>
 </def>
-<def title="2. Register the Four BGP-LS Peers">
+<def title="3. Register the Four BGP-LS Peers">
 <tabs group="controller-restconf-peers">
 <tab title="Requests" group-key="request">
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr1-as-a-bgp-ls-peer.http"/>
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr2-as-bgp-ls-peer.http"/>
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr3-as-bpg-ls-peer.http"/>
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr4-as-bgp-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr1-as-a-bgpls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr2-as-a-bgpls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr3-as-a-bgpls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr4-as-a-bgpls-peer.http"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>Each POST creates one <code>neighbor</code> list entry under the speaker's BGP augmentation. The peer key is its control-network address: LSR1 <code>10.100.10.1</code>, LSR2 <code>10.100.20.1</code>, LSR3 <code>10.100.30.1</code>, and LSR4 <code>10.100.40.1</code>. Every request enables the <code>LINKSTATE</code> AFI/SAFI for that peer.</p>
-<p>These writes make the peers available to BGPCEP. TCP and BGP session establishment, capability negotiation, and BGP-LS UPDATE reception occur later. The detailed [BGP-LS request catalog](ODL-RESTCONF-—-BGP-LS-Requests.md#add-lsr1-bgpls-peer) documents the shared resource structure and each individual request.</p>
+<p>Each POST creates one <code>neighbor</code> list entry under the speaker's BGP augmentation. The peer key is its loopback address: LSR1 <code>11.11.11.11</code>, LSR2 <code>12.12.12.12</code>, LSR3 <code>13.13.13.13</code>, and LSR4 <code>14.14.14.14</code>. Every request sets <code>local-address=21.21.21.21</code>, <code>remote-port=179</code>, <code>passive-mode=true</code>, and the <code>LINKSTATE</code> AFI/SAFI.</p>
+<p>These writes make the peers available to BGPCEP. TCP and BGP session establishment, capability negotiation, and BGP-LS UPDATE reception occur later. The detailed <a href="ODL-RESTCONF-—-BGP-LS-Requests.md#add-lsr1-bgpls-peer">BGP-LS request catalog</a> documents the shared resource structure and each individual request.</p>
 </tab>
 </tabs>
 </def>
-<def title="3. Create the BGP-LS Topology">
+<def title="4. Create the BGP-LS Topology">
 <tabs group="controller-restconf-bgpls-topology">
 <tab title="Request" group-key="request">
 <code-block lang="http" src="../../src/main/postman/bgp-ls/create-bgp-ls-link-state-topology.http"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
 <p>This request creates topology <code>sma-bgp-linkstate-topology</code>. Its BGP-LS topology marker and <code>rib-id=sma-bgp-ls</code> associate the topology provider with the speaker RIB. When BGP-LS routes are available, the provider maps their topology and traffic-engineering information into this resource.</p>
-<p>The operation configures the association. It does not prove that routes have already been received or that the topology contains nodes and links. See [Create the BGP-LS Link-State topology](ODL-RESTCONF-—-BGP-LS-Requests.md#create-bgpls-linkstate-topology).</p>
+<p>The operation configures the association. It does not prove that routes have already been received or that the topology contains nodes and links. See <a href="ODL-RESTCONF-—-BGP-LS-Requests.md#create-bgpls-linkstate-topology">Create the BGP-LS Link-State topology</a>.</p>
 </tab>
 </tabs>
 </def>
-<def title="4. Register the Four NETCONF Devices">
+<def title="5. Register the Four NETCONF Devices">
 <tabs group="controller-restconf-netconf-mounts">
 <tab title="Requests" group-key="request">
 <code-block lang="http" src="../../src/main/postman/netconf/mount-lsr1-through-netconf.http"/>
@@ -946,12 +431,12 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 <code-block lang="http" src="../../src/main/postman/netconf/mount-lsr4-through-netconf.http"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>Each PUT creates one <code>network-topology:topology[topology-id='topology-netconf']/node[node-id]</code> entry with a <code>netconf-node</code> connection configuration. The entries target LSR1 Alpha, LSR2 Bravo, LSR3 Charlie, and LSR4 Delta on NETCONF port <code>830</code>.</p>
-<p>OpenDaylight attempts the SSH NETCONF connection after the datastore write. Mount availability, device capabilities, and mounted-device data require a successful authenticated session. See [Required RESTCONF Calls for Controller Initialization](ODL-RESTCONF-—-NETCONF-Requests.md#netconf-required-initialization).</p>
+<p>Each PUT creates one <code>network-topology:topology[topology-id='topology-netconf']/node[node-id]</code> entry with a <code>netconf-node</code> connection configuration. The entries target the LSR loopback addresses <code>11.11.11.11</code>, <code>12.12.12.12</code>, <code>13.13.13.13</code>, and <code>14.14.14.14</code> on NETCONF port <code>830</code>.</p>
+<p>OpenDaylight attempts the SSH NETCONF connection after the datastore write. Mount availability, device capabilities, and mounted-device data require a successful authenticated session. See <a href="ODL-RESTCONF-—-NETCONF-Requests.md#netconf-required-initialization">Required RESTCONF Calls for Controller Initialization</a>.</p>
 </tab>
 </tabs>
 </def>
-<def title="5. Validate BGP-LS and Graph Availability">
+<def title="6. Validate BGP-LS and Graph Availability">
 <tabs group="controller-restconf-bgpls-reads">
 <tab title="Requests" group-key="request">
 <code-block lang="http" src="../../src/main/postman/bgp-ls/list-topologies.http"/>
@@ -959,11 +444,11 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 </tab>
 <tab title="Explanation" group-key="explanation">
 <p>The controller-side application uses the topology list to discover published topology resources. The graph read returns the named traffic-engineering graph <code>ted://sma-bgp-linkstate-topology</code>, including its keyed vertices, directed edges, prefixes, and per-class-type unreserved bandwidth.</p>
-<p>Both requests are read-only. Their successful response demonstrates controller-published state, while an empty collection or graph does not establish that the BGP-LS producer routers have converged. See [List topologies](ODL-RESTCONF-—-BGP-LS-Requests.md#list-topologies) and [Get topology graph information](ODL-RESTCONF-—-BGP-LS-Requests.md#get-topology-graph-information).</p>
+<p>Both requests are read-only. Their successful response demonstrates controller-published state, while an empty collection or graph does not establish that the BGP-LS producer routers have converged. See <a href="ODL-RESTCONF-—-BGP-LS-Requests.md#list-topologies">List topologies</a> and <a href="ODL-RESTCONF-—-BGP-LS-Requests.md#get-topology-graph-information">Get topology graph information</a>.</p>
 </tab>
 </tabs>
 </def>
-<def title="6. Read PCEP State Before Controller-Side Operations">
+<def title="7. Read PCEP State Before Controller-Side Operations">
 <tabs group="controller-restconf-pcep-reads">
 <tab title="Requests" group-key="request">
 <code-block lang="http" src="../../src/main/postman/pce/query-pcep-topology.http"/>
@@ -971,11 +456,11 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 </tab>
 <tab title="Explanation" group-key="explanation">
 <p>The controller-side application first reads <code>pcep-topology</code> and its PCC node identities. These reads identify the PCEP topology and delegated-LSP state that later path computation and LSP-update operations use. They do not configure a tunnel.</p>
-<p>The detailed [PCEP request catalog](ODL-RESTCONF-—-PCEP-Requests.md#pcep-query-topology) records the topology and PCC resource hierarchy. The CSA uses a <code>content=all</code> topology read when it needs both intended and operational state.</p>
+<p>The detailed <a href="ODL-RESTCONF-—-PCEP-Requests.md#pcep-query-topology">PCEP request catalog</a> records the topology and PCC resource hierarchy. The CSA uses a <code>content=all</code> topology read when it needs both intended and operational state.</p>
 </tab>
 </tabs>
 </def>
-<def title="7. Discover and Bootstrap OpenFlow Access Switches">
+<def title="8. Discover and Bootstrap OpenFlow Access Switches">
 <tabs group="controller-restconf-openflow-bootstrap">
 <tab title="Request pattern" group-key="request">
 <code-block lang="http" src="../../src/main/postman/openflow/read-openflow-node-inventory.http"/>
@@ -983,11 +468,11 @@ SMA_OVS_FOXTROT_MGMT_IP: 172.21.121.16
 </tab>
 <tab title="Explanation" group-key="explanation">
 <p><code>OpenflowBootstrapService</code> discovers ECHO and FOXTROT from operational inventory and resolves their current node and connector IDs. It then writes four flows for each switch: ARP host-to-core, ARP core-to-host, IPv4 host-to-core with a controller copy, and IPv4 core-to-host.</p>
-<p>The service verifies configured IDs and polls the operational table before it makes the control plane ready. The PUT is generated by the application, rather than stored as a static request, because runtime OpenFlow node IDs are dynamic. See [Controller-Side OpenFlow Flow Injection](ODL-RESTCONF-—-OpenFlow-Requests.md#openflow-controller-flow-injection).</p>
+<p>The service verifies configured IDs and polls the operational table before it makes the control plane ready. The PUT is generated by the application, rather than stored as a static request, because runtime OpenFlow node IDs are dynamic. See <a href="ODL-RESTCONF-—-OpenFlow-Requests.md#openflow-controller-flow-injection">Controller-Side OpenFlow Flow Injection</a>.</p>
 </tab>
 </tabs>
 </def>
-<def title="8. Compute and Apply a Delegated LSP When Requested">
+<def title="9. Compute and Apply a Delegated LSP When Requested">
 <tabs group="controller-restconf-pcep-operations">
 <tab title="Requests" group-key="request">
 <code-block lang="http" src="../../src/main/postman/pce/request-pcep-computed-path-from-lsr1-to-lsr4-test.http"/>
@@ -1474,7 +959,7 @@ sma-bootstrap-foxtrot-ipv4-core-to-host]]></code-block>
 
 ## Observability Stack {id="per-device-observability-stack"}
 
-The observability stack consists of Prometheus, Grafana, and SNMP exporter. Prometheus scrapes the classifier API, the controller-side application metrics endpoint, and the SNMP exporter target that proxies SNMP reads from the XRv routers.
+The implemented observability stack consists of Prometheus and the SNMP exporter. Prometheus scrapes the classifier API, the controller-side application metrics endpoint, and the SNMP exporter target that proxies SNMP reads from the XRv routers. Grafana is not yet deployed by this topology and is intentionally not documented as an active service here.
 
 ### Baseline Configuration Files
 
@@ -1485,101 +970,36 @@ The observability stack consists of Prometheus, Grafana, and SNMP exporter. Prom
 <tab title="SNMP exporter auth" group-key="snmp">
 <code-block lang="yaml" src="../../src/main/containerlab/configurations/tech-demonstrator/services/snmp-auth.yml"/>
 </tab>
-<tab title="Grafana datasource" group-key="datasource">
-<code-block lang="yaml" src="../../src/main/containerlab/configurations/tech-demonstrator/services/provisioning/datasources/datasources.yml"/>
-</tab>
-<tab title="Grafana dashboards" group-key="dashboards">
-<code-block lang="yaml" src="../../src/main/containerlab/configurations/tech-demonstrator/services/provisioning/dashboards/dashboard.yml"/>
-</tab>
 </tabs>
 
 <deflist type="full" collapsible="true">
 <def title="Prometheus Scrape Configuration">
 <tabs group="obs-prometheus">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="yaml"><![CDATA[global:
-  scrape_interval: 5s
-  scrape_timeout: 3s
-  evaluation_interval: 5s
-
-scrape_configs:
-  - job_name: sdn-mpls-ml-api-kilo
-    metrics_path: /metrics
-    static_configs:
-      - targets:
-          - 172.21.121.200:33761
-  - job_name: sdn-mpls-odl-csa-india
-    metrics_path: /csa/metrics
-    static_configs:
-      - targets:
-          - 172.21.121.100:8181]]></code-block>
+<code-block lang="yaml" src="../../src/main/containerlab/configurations/tech-demonstrator/services/prometheus.yml" include-lines="1-29"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>Prometheus scrapes both software subsystems directly: the Python classifier API on <code>/metrics</code> and the Java controller-side application on <code>/csa/metrics</code>. A short scrape interval makes control-cycle and update-lsp metrics visible during demonstrations.</p>
+<p>Prometheus scrapes both software subsystems directly: the Python classifier API on <code>/metrics</code> and the Java controller-side application on <code>/csa/metrics</code>. The five-second scrape and evaluation cadence is intentional for a demonstrator: it makes control-cycle and update-LSP metrics visible quickly. The three-second timeout is shorter than the scrape interval, so a slow target cannot overlap the next scheduled scrape.</p>
 </tab>
 </tabs>
 </def>
 <def title="XRv SNMP Scraping">
 <tabs group="obs-snmp-scrape">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="yaml"><![CDATA[- job_name: sdn-mpls-xrv-snmp
-  metrics_path: /snmp
-  params:
-    auth:
-      - sma_monitor_v2
-    module:
-      - if_mib
-  static_configs:
-    - targets:
-        - 172.21.121.11
-        - 172.21.121.12
-        - 172.21.121.13
-        - 172.21.121.14
-  relabel_configs:
-    - source_labels:
-        - __address__
-      target_label: __param_target
-    - target_label: __address__
-      replacement: 172.21.121.203:9116]]></code-block>
+<code-block lang="yaml" src="../../src/main/containerlab/configurations/tech-demonstrator/services/prometheus.yml" include-lines="30-72"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The XRv routers are not scraped directly by Prometheus. Prometheus sends SNMP scrape requests to the SNMP exporter at <code>172.21.121.203:9116</code>, passing the target router address through the <code>__param_target</code> relabeling rule.</p>
+<p>The XRv routers are not scraped directly by Prometheus. For each management address, relabelling copies the original target into <code>__param_target</code> and the <code>instance</code> label, then replaces the actual HTTP scrape address with the SNMP exporter at <code>172.21.121.203:9116</code>. The exporter receives the target, authentication profile, and <code>if_mib</code> module parameters and performs the SNMP request to the router. This preserves a per-router time series while using one HTTP exporter endpoint.</p>
 </tab>
 </tabs>
 </def>
 <def title="SNMP Authentication">
 <tabs group="obs-snmp-auth">
 <tab title="Configuration snippet" group-key="snippet">
-<code-block lang="yaml"><![CDATA[auths:
-  sma_monitor_v2:
-    version: 2
-    community: sdn-mpls-ml-tech-demo-monitor]]></code-block>
+<code-block lang="yaml" src="../../src/main/containerlab/configurations/tech-demonstrator/services/snmp-auth.yml"/>
 </tab>
 <tab title="Explanation" group-key="explanation">
-<p>The exporter uses SNMPv2 community authentication. The community string matches the read-only community configured on each XRv router, allowing interface counters and IF-MIB data to be collected.</p>
-</tab>
-</tabs>
-</def>
-<def title="Grafana Provisioning">
-<tabs group="obs-grafana">
-<tab title="Configuration snippet" group-key="snippet">
-<code-block lang="yaml"><![CDATA[datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://172.21.121.202:34762
-    isDefault: true
-
-providers:
-  - name: 'SDN-MPLS-ML Tech Demonstrator Dashboards'
-    folder: 'SDN-MPLS-ML Tech Demonstrator'
-    type: file
-    updateIntervalSeconds: 10
-    options:
-      path: /etc/grafana/provisioning/dashboards]]></code-block>
-</tab>
-<tab title="Explanation" group-key="explanation">
-<p>Grafana is provisioned with Prometheus as its default datasource and a dashboard provider folder for the demonstrator. This keeps dashboard loading deterministic when the Containerlab service starts.</p>
+<p>The exporter uses SNMPv2c community authentication. The community string matches the read-only community configured on each XRv router, allowing IF-MIB interface counters to be collected without granting SNMP write access. It is still a shared secret for this lab and must be replaced or externally managed before a non-demonstration deployment.</p>
 </tab>
 </tabs>
 </def>

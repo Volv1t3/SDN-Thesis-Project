@@ -1,6 +1,6 @@
-# Request: Add LSR1 as a BGP-LS Peer
+# Request: Add LSR3 as BPG-LS Peer
 # Technology: Initialize BGP-LS
-# Collection path: Initialize BGP-LS / Add LSR1 as a BGP-LS Peer
+# Collection path: Initialize BGP-LS / Add LSR3 as BPG-LS Peer
 # HTTP version: HTTP/1.1
 # Method: POST
 # Endpoint: http://172.21.121.100:8182/restconf/data/openconfig-network-instance:network-instances/network-instance=global-bgp/openconfig-network-instance:protocols/protocol=openconfig-policy-types:BGP,sma-bgp-ls/bgp-openconfig-extensions:bgp/neighbors
@@ -19,8 +19,14 @@ Accept: application/xml
 Content-Type: application/xml
 
 <neighbor xmlns="urn:opendaylight:params:xml:ns:yang:bgp:openconfig-extensions">
-    <neighbor-address>10.100.10.1</neighbor-address>
-
+    <neighbor-address>13.13.13.13</neighbor-address>
+    <transport>
+        <config>
+            <local-address>21.21.21.21</local-address>
+            <remote-port>179</remote-port>
+            <passive-mode>true</passive-mode>
+        </config>
+    </transport>
     <afi-safis>
         <afi-safi>
             <afi-safi-name>LINKSTATE</afi-safi-name>

@@ -1,0 +1,4 @@
+column,empty_strings,textual_null_markers,whitespace_only
+ipv4_src,0,0,0
+ipv4_dst,0,0,0
+Category,0,0,0

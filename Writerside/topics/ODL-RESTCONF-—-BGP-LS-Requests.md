@@ -6,9 +6,59 @@ This page documents the BGP-LS RESTCONF requests used to configure the OpenDayli
 
 ## Required RESTCONF Calls for Controller Initialization {id="bgpls-required-controller-initialization"}
 
-Create the BGP-LS speaker, configure its four peers, and associate its RIB with the BGP-LS topology before relying on topology data. The controller-side application reads the topology-list resource to discover available topologies. The graph request remains in this section because it is the collection's companion operational view for controller validation.
+Configure the BGP peer acceptor, create the BGP-LS speaker, configure its four peers, and associate its RIB with the BGP-LS topology before relying on topology data. The controller-side application reads the topology-list resource to discover available topologies. The graph request remains in this section because it is the collection's companion operational view for controller validation.
 
 The requests presented here corresponds to the compendium of both controller-side application request, and external RESTCONF requests used for configuring the controller for the environment to work properly. As mentioned above, the BGP-LS speaker, which establishes the BGP process identity and its configuration as a link state BGP extension rather than a normal BGP implementation. It is in the RIB formed by this process, defined under the name of <b><code>sma-bgp-ls</code></b> that will compile and create the corresponding information store for the incoming NLRIs from the peers that are being configured later on. From this topology, the internal graph is created and used to represent the topological information coming through the BGP-LS sessions from the MPLS-TE core towards the controller, as well as any traffic engineering attributes associated with received NLRIs into a single topology, representing the information received, devices as nodes and links as edges, for their use in the computation engine in later requests.
+
+### Configure the BGP peer acceptor for Cisco IOS XR {id="configure-bgp-peer-acceptor"}
+
+This request configures the controller's default inbound BGP acceptor before the BGP-LS speaker exists. It binds
+the address <code>21.21.21.21</code> to the well-known BGP port <code>179</code>, which gives the Cisco IOS XR peers a stable TCP endpoint for their sessions.
+
+#### Request {id="configure-bgp-peer-acceptor-request"}
+
+<code-block lang="http" src="../../src/main/postman/bgp-ls/configure-bgp-peer-acceptor-for-cisco.http"/>
+
+| Header | Value | Explanation |
+|---|---|---|
+| `Authorization` | `Basic {{odl_basic_auth}}` | Authenticates to RESTCONF without publishing a credential. |
+| `Accept` | `application/xml` | Requests XML if the controller returns a representation. |
+| `Content-Type` | `application/xml` | Declares the XML YANG payload. |
+
+The request has no query parameters. Its URI addresses the <code>bgp-peer-acceptor-config</code> list entry selected by <code>config-name=default</code>.
+
+#### RESTCONF resource and YANG objects {id="configure-bgp-peer-acceptor-yang"}
+
+The [ODL BGP peer-acceptor configuration model](https://github.com/opendaylight/bgpcep/blob/0.21.x/bgp/peer-acceptor/src/main/yang/odl-bgp-peer-acceptor-config.yang) defines the module-qualified top-level list. <code>config-name</code> is its key. The request replaces the selected <code>default</code> configuration with a concrete binding address and port.
+
+<compare type="top-bottom" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
+<code-block lang="xml">
+&lt;bgp-peer-acceptor-config xmlns="urn:opendaylight:params:xml:ns:yang:odl-bgp-peer-acceptor-config"&gt;
+  &lt;config-name&gt;default&lt;/config-name&gt;
+  &lt;binding-address&gt;21.21.21.21&lt;/binding-address&gt;
+  &lt;binding-port&gt;179&lt;/binding-port&gt;
+&lt;/bgp-peer-acceptor-config&gt;
+</code-block>
+<code-block lang="text">
+list bgp-peer-acceptor-config {
+  key "config-name";
+  leaf config-name     { type string; }
+  leaf binding-address { type inet:ip-address-no-zone; default "0.0.0.0"; }
+  leaf binding-port    { type inet:port-number; default "179"; }
+}
+</code-block>
+</compare>
+
+| Payload object or field | YANG role | Value in this request | Meaning |
+|---|---|---|---|
+| `bgp-peer-acceptor-config` | Keyed list entry | — | Configures one BGP listening endpoint. |
+| `config-name` | List key | `default` | Selects the controller's default acceptor configuration. |
+| `binding-address` | `inet:ip-address-no-zone` leaf | `21.21.21.21` | Local address on which the peer acceptor listens. |
+| `binding-port` | `inet:port-number` leaf | `179` | Local TCP port for inbound BGP sessions. |
+
+#### Effect and response {id="configure-bgp-peer-acceptor-effect"}
+
+The configuration datastore records the requested listener binding. It does not establish a BGP session by itself. As a PUT to a list-instance resource, [RFC 8040](https://www.rfc-editor.org/rfc/rfc8040.html#section-4.5) expects <code>201 Created</code> when the entry is created or <code>204 No Content</code> when it is replaced. The source request contains no observed response. Binding port <code>179</code> also requires the runtime permission described in the baseline controller image and Containerlab topology.
 
 ### Create the OpenDaylight BGP-LS speaker {id="create-odl-bgpls-speaker"}
 
@@ -38,7 +88,7 @@ The POST addresses the <code>protocols</code> collection under <code>network-ins
   &lt;name&gt;sma-bgp-ls&lt;/name&gt;
   &lt;identifier&gt;BGP&lt;/identifier&gt;
   &lt;bgp&gt;&lt;global&gt;&lt;config&gt;
-    &lt;router-id&gt;172.21.121.100&lt;/router-id&gt;&lt;as&gt;65000&lt;/as&gt;
+    &lt;router-id&gt;21.21.21.21&lt;/router-id&gt;&lt;as&gt;65000&lt;/as&gt;
   &lt;/config&gt;&lt;afi-safis&gt;&lt;afi-safi&gt;
     &lt;afi-safi-name&gt;LINKSTATE&lt;/afi-safi-name&gt;
   &lt;/afi-safi&gt;&lt;/afi-safis&gt;&lt;/global&gt;&lt;/bgp&gt;
@@ -75,7 +125,7 @@ The [ODL network-instance model](https://github.com/opendaylight/bgpcep/blob/50f
 |---|---|---|---|
 | `protocol` | List entry | — | Creates the named BGP protocol instance. |
 | `identifier` / `name` | Ordered protocol list keys | `BGP` / `sma-bgp-ls` | Identifies this BGP speaker/RIB instance. |
-| `router-id` | Global BGP configuration leaf | `172.21.121.100` | Controller-side IPv4 BGP router ID. |
+| `router-id` | Global BGP configuration leaf | `21.21.21.21` | Controller-side IPv4 BGP router ID and peer-acceptor binding address. |
 | `as` | Mandatory global configuration leaf | `65000` | Local autonomous-system number. |
 | `afi-safi-name` | AFI/SAFI identity key | `LINKSTATE` | Enables BGP-LS for the speaker. |
 
@@ -90,13 +140,13 @@ The request creates protocol-instance configuration and declares its global BGP 
 
 ### Add LSR1 as a BGP-LS peer {id="add-lsr1-bgpls-peer"}
 
-This request adds the controller-facing address of <code>sma-xrv-lsr1-alpha</code> (<code>10.100.10.1</code>) as a BGP neighbor of the previously created <code>sma-bgp-ls</code> BGP protocol. It configures the neighbor for the BGP Link-State address family so that, once the session is established, BGP-LS UPDATE messages can populate the speaker's RIB. 
+This request adds the loopback address of <code>sma-xrv-lsr1-alpha</code> (<code>11.11.11.11</code>) as a BGP neighbor of the previously created <code>sma-bgp-ls</code> BGP protocol. It configures the neighbor for the BGP Link-State address family and explicitly uses <code>21.21.21.21:179</code> as the controller-side transport endpoint.
 
 This is a crucial step in the creation of the underlying iBGP mesh that contains both the MPLS-TE core devices and the controller, allowing for the continuing transmission of data insofar as a at least one node maintains its session open.
 
 #### Request {id="add-lsr1-bgpls-peer-request"}
 
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr1-as-a-bgp-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr1-as-a-bgpls-peer.http"/>
 
 | Header | Value | Explanation |
 |---|---|---|
@@ -121,7 +171,7 @@ openconfig-network-instance:network-instances
       └─ protocol[identifier='openconfig-policy-types:BGP'][name='sma-bgp-ls']
          └─ bgp-openconfig-extensions:bgp
             └─ neighbors
-               └─ neighbor[neighbor-address='10.100.10.1']
+               └─ neighbor[neighbor-address='11.11.11.11']
 </code-block>
 <p>
 Within the <code>neighbors</code> container, <code>neighbor</code> is a list keyed by <code>neighbor-address</code>. Consequently, the address identifies this peer both when it is created and when it is later read or deleted. The <code>afi-safis</code> subtree makes the peer multiprotocol-aware; the selected <code>LINKSTATE</code> identity enables the BGP-LS AFI/SAFI rather than treating the value as an arbitrary string.
@@ -130,7 +180,12 @@ Within the <code>neighbors</code> container, <code>neighbor</code> is a list key
 <compare type="top-bottom" first-title="Request payload (XML)" second-title="YANG schema shape (abridged)">
 <code-block lang="xml">
 &lt;neighbor xmlns="urn:opendaylight:params:xml:ns:yang:bgp:openconfig-extensions"&gt;
-    &lt;neighbor-address&gt;10.100.10.1&lt;/neighbor-address&gt;
+    &lt;neighbor-address&gt;11.11.11.11&lt;/neighbor-address&gt;
+    &lt;transport&gt;&lt;config&gt;
+        &lt;local-address&gt;21.21.21.21&lt;/local-address&gt;
+        &lt;remote-port&gt;179&lt;/remote-port&gt;
+        &lt;passive-mode&gt;true&lt;/passive-mode&gt;
+    &lt;/config&gt;&lt;/transport&gt;
     &lt;afi-safis&gt;
         &lt;afi-safi&gt;
             &lt;afi-safi-name&gt;LINKSTATE&lt;/afi-safi-name&gt;
@@ -151,6 +206,11 @@ list neighbor {
   leaf neighbor-address {
     type inet:ip-address;
   }
+  container transport { container config {
+    leaf local-address { type inet:ip-address; }
+    leaf remote-port { type inet:port-number; }
+    leaf passive-mode { type boolean; }
+  }}
 }
 
 list afi-safi {
@@ -177,12 +237,15 @@ container bgp {
 
 The top panel is the exact XML list entry sent by this project. The bottom panel is an abridged schema shape, not a complete module: it isolates the objects that make the payload addressable and valid. In the JSON RESTCONF encoding, the <code>neighbor</code> and <code>afi-safi</code> YANG lists are represented as arrays while the XML represents this same list structure through repeatable child elements.
 
-The path prefix is supplied by the [OpenConfig network-instance model](https://github.com/openconfig/public/blob/master/release/models/network-instance/openconfig-network-instance.yang): <code>network-instance</code> is keyed by <code>name</code>, and <code>protocol</code> by <code>identifier name</code>. The [OpenDaylight BGPCEP augmentation](https://github.com/opendaylight/bgpcep/blob/50f3ac909751be46354c44619a989e2a940a4e2c/bgp/openconfig-api/src/main/yang/bgp-openconfig-extensions.yang) contributes <code>bgp-openconfig-extensions:bgp</code> by using the OpenConfig BGP top-level grouping; it does not redefine the peer list. The [OpenDaylight BGP-LS guide](https://docs.opendaylight.org/projects/bgpcep/en/latest/bgp/bgp-user-guide-linkstate-family.html) shows this same RESTCONF target and peer-creation structure. The [OpenConfig BGP neighbor model](https://github.com/openconfig/public/blob/master/release/models/bgp/openconfig-bgp-neighbor.yang) defines the canonical <code>neighbor</code> and <code>afi-safi</code> list relationships, while the [multiprotocol model](https://github.com/openconfig/public/blob/master/release/models/bgp/openconfig-bgp-common-multiprotocol.yang) resolves the AFI/SAFI identity type. Finally, the [OpenDaylight `LINKSTATE` identity](https://github.com/opendaylight/bgpcep/blob/50f3ac909751be46354c44619a989e2a940a4e2c/bgp/openconfig-api/src/main/yang/bgp-openconfig-extensions.yang) derives from that identity family and denotes BGP-LS (AFI/SAFI 16388/71), which is why <code>LINKSTATE</code> has protocol semantics rather than being an unconstrained label.
+The path prefix is supplied by the [OpenConfig network-instance model](https://github.com/openconfig/public/blob/master/release/models/network-instance/openconfig-network-instance.yang): <code>network-instance</code> is keyed by <code>name</code>, and <code>protocol</code> by <code>identifier name</code>. The [OpenDaylight BGPCEP augmentation](https://github.com/opendaylight/bgpcep/blob/50f3ac909751be46354c44619a989e2a940a4e2c/bgp/openconfig-api/src/main/yang/bgp-openconfig-extensions.yang) contributes <code>bgp-openconfig-extensions:bgp</code> and the <code>remote-port</code> transport leaf. The [OpenConfig BGP neighbor model](https://github.com/openconfig/public/blob/master/release/models/bgp/openconfig-bgp-neighbor.yang) defines the canonical <code>neighbor</code>, <code>local-address</code>, <code>passive-mode</code>, and <code>afi-safi</code> relationships. The [multiprotocol model](https://github.com/openconfig/public/blob/master/release/models/bgp/openconfig-bgp-common-multiprotocol.yang) resolves the AFI/SAFI identity type. Finally, the [OpenDaylight `LINKSTATE` identity](https://github.com/opendaylight/bgpcep/blob/50f3ac909751be46354c44619a989e2a940a4e2c/bgp/openconfig-api/src/main/yang/bgp-openconfig-extensions.yang) derives from that identity family and denotes BGP-LS (AFI/SAFI 16388/71).
 
 | Payload object or field | YANG role | Value in this request | Meaning |
 |---|---|---|---|
 | `neighbor` | List entry | — | Adds one remote BGP peer below the selected BGP protocol. |
-| `neighbor-address` | List key and IP-address leaf | `10.100.10.1` | The controller-facing BGP address of LSR1 Alpha; uniquely identifies this neighbor. |
+| `neighbor-address` | List key and IP-address leaf | `11.11.11.11` | The loopback BGP address of LSR1 Alpha; uniquely identifies this neighbor. |
+| `local-address` | Transport configuration leaf | `21.21.21.21` | Selects the controller address configured by the peer acceptor. |
+| `remote-port` | Transport configuration leaf | `179` | Uses the remote BGP service port. |
+| `passive-mode` | Transport configuration leaf | `true` | Configures the peer to accept the Cisco-initiated session. |
 | `afi-safis` | Container | — | Holds the address-family configuration enabled for this peer. |
 | `afi-safi` | List entry | — | Selects one AFI/SAFI configuration. |
 | `afi-safi-name` | Identity/key leaf | `LINKSTATE` | Selects the BGP Link-State AFI/SAFI, enabling the peer to exchange BGP-LS information. |
@@ -191,17 +254,17 @@ The surrounding <code>network-instance</code> and <code>protocol</code> objects 
 
 #### Effect and response {id="add-lsr1-bgpls-peer-effect-response"}
 
-On success, the configured data store contains a neighbor entry for <code>10.100.10.1</code> below <code>sma-bgp-ls</code>. Per [RFC 8040 POST semantics](https://www.rfc-editor.org/rfc/rfc8040.html#section-4.4.1), creating this child resource returns <code>201 Created</code>, no response body, and a <code>Location</code> header that identifies the created neighbor. The source Postman collection did not record an observed response. If the same neighbor key already exists, the request fails with <code>409 Conflict</code>.
+On success, the configured data store contains a neighbor entry for <code>11.11.11.11</code> below <code>sma-bgp-ls</code>. Per [RFC 8040 POST semantics](https://www.rfc-editor.org/rfc/rfc8040.html#section-4.4.1), creating this child resource returns <code>201 Created</code>, no response body, and a <code>Location</code> header that identifies the created neighbor. The source Postman collection did not record an observed response. If the same neighbor key already exists, the request fails with <code>409 Conflict</code>.
 
-The controller uses BGP's default destination port of <code>179</code> when no explicit transport override is configured. That default is model behavior; this request does not itself set a port, peer AS, timers, or transport parameters.
+The transport configuration gives the router's Cisco IOS XR implementation a concrete local listener, remote port, and passive connection role. The configured entry precedes TCP and BGP session establishment, capability negotiation, and BGP-LS UPDATE reception.
 
 ### Add LSR2 as a BGP-LS peer {id="add-lsr2-bgpls-peer"}
 
-This creates the neighbor entry for LSR2 Alpha's controller-facing address, <code>10.100.20.1</code>, below the existing <code>sma-bgp-ls</code> BGP protocol.
+This creates the neighbor entry for LSR2 Bravo's loopback address, <code>12.12.12.12</code>, below the existing <code>sma-bgp-ls</code> BGP protocol.
 
 #### Request {id="add-lsr2-bgpls-peer-request"}
 
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr2-as-bgp-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr2-as-a-bgpls-peer.http"/>
 
 | Header | Value | Explanation |
 |---|---|---|
@@ -218,7 +281,8 @@ The endpoint selects <code>network-instance[name='global-bgp']</code>, then <cod
 <compare type="left-right" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
 <code-block lang="xml">
 &lt;neighbor xmlns="urn:opendaylight:params:xml:ns:yang:bgp:openconfig-extensions"&gt;
-  &lt;neighbor-address&gt;10.100.20.1&lt;/neighbor-address&gt;
+  &lt;neighbor-address&gt;12.12.12.12&lt;/neighbor-address&gt;
+  &lt;transport&gt;&lt;config&gt;&lt;local-address&gt;21.21.21.21&lt;/local-address&gt;&lt;remote-port&gt;179&lt;/remote-port&gt;&lt;passive-mode&gt;true&lt;/passive-mode&gt;&lt;/config&gt;&lt;/transport&gt;
   &lt;afi-safis&gt;&lt;afi-safi&gt;&lt;afi-safi-name&gt;LINKSTATE&lt;/afi-safi-name&gt;&lt;/afi-safi&gt;&lt;/afi-safis&gt;
 &lt;/neighbor&gt;
 </code-block>
@@ -228,6 +292,11 @@ augment .../network-instance/protocols/protocol {
 }
 list neighbor { key "neighbor-address";
   leaf neighbor-address { type inet:ip-address; }
+  container transport { container config {
+    leaf local-address { type inet:ip-address; }
+    leaf remote-port { type inet:port-number; }
+    leaf passive-mode { type boolean; }
+  }}
 }
 list afi-safi { key "afi-safi-name"; }
 identity LINKSTATE { base afi-safi-type; } // AFI/SAFI 16388/71
@@ -239,7 +308,9 @@ OpenDaylight's [BGPCEP extension model](https://github.com/opendaylight/bgpcep/b
 | Payload object or field | YANG role | Value in this request | Meaning |
 |---|---|---|---|
 | `neighbor` | List entry | — | Creates one remote BGP peer. |
-| `neighbor-address` | List key; IP-address leaf | `10.100.20.1` | LSR2's controller-facing BGP address. |
+| `neighbor-address` | List key; IP-address leaf | `12.12.12.12` | LSR2's loopback BGP address. |
+| `transport/config` | Transport configuration container | — | Holds the local listener, remote port, and connection role. |
+| `local-address` / `remote-port` / `passive-mode` | Transport configuration leaves | `21.21.21.21` / `179` / `true` | Uses the configured controller listener and Cisco-initiated BGP session. |
 | `afi-safis` / `afi-safi` | Container / keyed list | — | Selects BGP multiprotocol families for this peer. |
 | `afi-safi-name` | AFI/SAFI identity key | `LINKSTATE` | Enables the BGP Link-State family. |
 
@@ -249,11 +320,11 @@ The configuration datastore gains the LSR2 neighbor under <code>sma-bgp-ls</code
 
 ### Add LSR3 as a BGP-LS peer {id="add-lsr3-bgpls-peer"}
 
-This creates the equivalent BGP-LS neighbor entry for LSR3 Charlie at <code>10.100.30.1</code>.
+This creates the equivalent BGP-LS neighbor entry for LSR3 Charlie at its loopback address, <code>13.13.13.13</code>.
 
 #### Request {id="add-lsr3-bgpls-peer-request"}
 
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr3-as-bpg-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr3-as-a-bgpls-peer.http"/>
 
 | Header | Value | Explanation |
 |---|---|---|
@@ -270,7 +341,8 @@ The resource hierarchy is the same as LSR2: the POST enters the ODL BGP augmenta
 <compare type="left-right" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
 <code-block lang="xml">
 &lt;neighbor xmlns="urn:opendaylight:params:xml:ns:yang:bgp:openconfig-extensions"&gt;
-  &lt;neighbor-address&gt;10.100.30.1&lt;/neighbor-address&gt;
+  &lt;neighbor-address&gt;13.13.13.13&lt;/neighbor-address&gt;
+  &lt;transport&gt;&lt;config&gt;&lt;local-address&gt;21.21.21.21&lt;/local-address&gt;&lt;remote-port&gt;179&lt;/remote-port&gt;&lt;passive-mode&gt;true&lt;/passive-mode&gt;&lt;/config&gt;&lt;/transport&gt;
   &lt;afi-safis&gt;&lt;afi-safi&gt;&lt;afi-safi-name&gt;LINKSTATE&lt;/afi-safi-name&gt;&lt;/afi-safi&gt;&lt;/afi-safis&gt;
 &lt;/neighbor&gt;
 </code-block>
@@ -283,6 +355,11 @@ container network-instances {
       container bgp {                         // ODL augmentation
         container neighbors { list neighbor [key: neighbor-address] {
           leaf neighbor-address { type inet:ip-address; }
+          container transport { container config {
+            leaf local-address { type inet:ip-address; }
+            leaf remote-port { type inet:port-number; }
+            leaf passive-mode { type boolean; }
+          }}
           container afi-safis { list afi-safi [key: afi-safi-name] {
             leaf afi-safi-name: identityref;  // LINKSTATE
           }}
@@ -299,7 +376,9 @@ The [ODL BGPCEP extension](https://github.com/opendaylight/bgpcep/blob/50f3ac909
 | Payload object or field | YANG role | Value in this request | Meaning |
 |---|---|---|---|
 | `neighbor` | List entry | — | Creates the remote-peer configuration. |
-| `neighbor-address` | List key and IP-address leaf | `10.100.30.1` | LSR3's controller-facing BGP address. |
+| `neighbor-address` | List key and IP-address leaf | `13.13.13.13` | LSR3's loopback BGP address. |
+| `transport/config` | Transport configuration container | — | Holds the local listener, remote port, and connection role. |
+| `local-address` / `remote-port` / `passive-mode` | Transport configuration leaves | `21.21.21.21` / `179` / `true` | Uses the configured controller listener and Cisco-initiated BGP session. |
 | `afi-safis` / `afi-safi` | Container / keyed list | — | Holds enabled per-peer address families. |
 | `afi-safi-name` | Identity key | `LINKSTATE` | Selects BGP-LS AFI/SAFI 16388/71. |
 
@@ -309,11 +388,11 @@ The request adds only configured peer data under <code>sma-bgp-ls</code>; sessio
 
 ### Add LSR4 as a BGP-LS peer {id="add-lsr4-bgpls-peer"}
 
-This creates the BGP-LS neighbor entry for LSR4 Delta at <code>10.100.40.1</code>.
+This creates the BGP-LS neighbor entry for LSR4 Delta at its loopback address, <code>14.14.14.14</code>.
 
 #### Request {id="add-lsr4-bgpls-peer-request"}
 
-<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr4-as-bgp-ls-peer.http"/>
+<code-block lang="http" src="../../src/main/postman/bgp-ls/add-lsr4-as-a-bgpls-peer.http"/>
 
 | Header | Value | Explanation |
 |---|---|---|
@@ -330,7 +409,8 @@ The POST targets the same <code>neighbors</code> collection under the existing <
 <compare type="left-right" first-title="Request payload (XML)" second-title="YANG model composition (abridged)">
 <code-block lang="xml">
 &lt;neighbor xmlns="urn:opendaylight:params:xml:ns:yang:bgp:openconfig-extensions"&gt;
-  &lt;neighbor-address&gt;10.100.40.1&lt;/neighbor-address&gt;
+  &lt;neighbor-address&gt;14.14.14.14&lt;/neighbor-address&gt;
+  &lt;transport&gt;&lt;config&gt;&lt;local-address&gt;21.21.21.21&lt;/local-address&gt;&lt;remote-port&gt;179&lt;/remote-port&gt;&lt;passive-mode&gt;true&lt;/passive-mode&gt;&lt;/config&gt;&lt;/transport&gt;
   &lt;afi-safis&gt;&lt;afi-safi&gt;&lt;afi-safi-name&gt;LINKSTATE&lt;/afi-safi-name&gt;&lt;/afi-safi&gt;&lt;/afi-safis&gt;
 &lt;/neighbor&gt;
 </code-block>
@@ -339,6 +419,11 @@ augment .../protocol { uses openconfig-bgp:bgp-top; }
 container neighbors {
   list neighbor { key "neighbor-address";
     leaf neighbor-address { type inet:ip-address; }
+    container transport { container config {
+      leaf local-address { type inet:ip-address; }
+      leaf remote-port { type inet:port-number; }
+      leaf passive-mode { type boolean; }
+    }}
   }
   list afi-safi { key "afi-safi-name"; }
 }
@@ -351,7 +436,9 @@ The precise ODL augmentation and <code>LINKSTATE</code> identity are declared in
 | Payload object or field | YANG role | Value in this request | Meaning |
 |---|---|---|---|
 | `neighbor` | List entry | — | Adds one remote BGP peer. |
-| `neighbor-address` | List key; IP-address leaf | `10.100.40.1` | LSR4's controller-facing BGP address. |
+| `neighbor-address` | List key; IP-address leaf | `14.14.14.14` | LSR4's loopback BGP address. |
+| `transport/config` | Transport configuration container | — | Holds the local listener, remote port, and connection role. |
+| `local-address` / `remote-port` / `passive-mode` | Transport configuration leaves | `21.21.21.21` / `179` / `true` | Uses the configured controller listener and Cisco-initiated BGP session. |
 | `afi-safis` / `afi-safi` | Container / keyed list | — | Enables a per-peer multiprotocol family. |
 | `afi-safi-name` | AFI/SAFI identity key | `LINKSTATE` | Selects BGP-LS information exchange. |
 

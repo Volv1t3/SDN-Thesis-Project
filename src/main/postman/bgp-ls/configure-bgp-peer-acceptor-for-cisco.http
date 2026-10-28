@@ -1,0 +1,27 @@
+# Request: Configure BGP Peer Acceptor Default Port and Address for Cisco IOS XR based Devices
+# Technology: Initialize BGP-LS
+# Collection path: Initialize BGP-LS / Configure BGP Peer Acceptor
+# HTTP version: HTTP/1.1
+# Method: PUT
+# Endpoint: http://172.21.121.100:8182/restconf/data/odl-bgp-peer-acceptor-config:bgp-peer-acceptor-config=default
+# Authentication: Basic authentication required; define {{odl_basic_auth}} outside version control.
+# Query parameters: none
+# Headers:
+# - Accept: application/xml
+# - Content-Type: application/xml
+# Request body: raw payload configures the endpoint and follows raw XML formatting in postman.
+# Expected response: not recorded in the source Postman collection. Should return a 201 Created
+# This one should be run before the create-bgp-ls-speaker request, not after.
+
+
+
+PUT http://172.21.121.100:8182/restconf/data/odl-bgp-peer-acceptor-config:bgp-peer-acceptor-config=default
+Authorization: Basic {{odl_basic_auth}}
+Accept: application/xml
+Content-Type: application/xml
+
+<bgp-peer-acceptor-config xmlns="urn:opendaylight:params:xml:ns:yang:odl-bgp-peer-acceptor-config">
+    <config-name>default</config-name>
+    <binding-address>21.21.21.21</binding-address>
+    <binding-port>179</binding-port>
+</bgp-peer-acceptor-config>

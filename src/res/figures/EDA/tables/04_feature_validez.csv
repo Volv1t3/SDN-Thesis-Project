@@ -1,0 +1,5 @@
+feature,genuine_nulls,empty_strings,textual_null_markers,numeric_strings,booleans,non_numeric_strings,infinite_values,converted_to_null,negative_values,above_range_values,non_integral_values,invalid_rows
+eth_type,0,0,0,0,0,0,0,0,0,0,0,0
+ip_proto,0,0,0,0,0,0,0,0,0,0,0,0
+src_port,0,0,0,0,0,0,0,0,0,0,0,0
+dst_port,0,0,0,0,0,0,0,0,0,0,0,0
