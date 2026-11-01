@@ -56,7 +56,7 @@
         <mdsal.version>15.0.4</mdsal.version>
         <openflowplugin.version>0.21.3</openflowplugin.version>
         <yangtools.version>14.0.23</yangtools.version>
-        <junit.jupiter.version>5.10.3</junit.jupiter.version>
+        <junit.jupiter.version>5.14.0</junit.jupiter.version>
     </properties>
 
     <repositories>

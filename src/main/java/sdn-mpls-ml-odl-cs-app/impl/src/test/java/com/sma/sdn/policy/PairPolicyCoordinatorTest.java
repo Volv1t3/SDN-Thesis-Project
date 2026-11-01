@@ -135,6 +135,24 @@ class PairPolicyCoordinatorTest {
     }
 
     @Test
+    void twentyNineRepeatedMatchingObservationsDoNotReapplyTheActivePolicy() {
+        final Harness harness = harness();
+        when(harness.lspService().applyPolicyToDirection(any(), any(), any()))
+                .thenAnswer(invocation -> record(invocation.getArgument(1), "UPDATED"));
+        harness.coordinator().handleEvidence(evidence("LEFT", "SSH", 2, 1), CONTEXT);
+        harness.coordinator().handleEvidence(evidence("RIGHT", "SSH", 2, 1), CONTEXT);
+        clearInvocations(harness.lspService());
+
+        for (int packet = 0; packet < 29; packet++) {
+            final var decision = harness.coordinator().handleEvidence(evidence("LEFT", "SSH", 2, 1), CONTEXT);
+            assertEquals(PolicyPreemptionDecisionType.SAME_POLICY_REFRESH, decision.preemptionDecision());
+            assertTrue(decision.applications().isEmpty());
+        }
+
+        verifyNoInteractions(harness.lspService());
+    }
+
+    @Test
     void preservingMatchingActiveHashDoesNotCountAsUnresolved() {
         final Harness harness = harness();
         when(harness.lspService().applyPolicyToDirection(any(), any(), any()))

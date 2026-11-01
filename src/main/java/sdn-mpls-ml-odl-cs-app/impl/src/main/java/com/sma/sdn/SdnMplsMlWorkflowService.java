@@ -127,12 +127,13 @@ public final class SdnMplsMlWorkflowService {
      * <ol>
      *   <li>Records the packet and stops if the control plane is not ready.</li>
      *   <li>Extracts IPv4 features, resolves ingress direction and checks topology usability.</li>
-     *   <li>Classifies the packet, records cache-hit metrics and builds directional evidence.</li>
+     *   <li>Classifies the packet and builds directional evidence. Classification caching is measured by the
+     *       classification service, independently of this control-cycle metric.</li>
      *   <li>Submits evidence to the coordinator and records a pending, deferred, successful or failed outcome.</li>
      *   <li>Records an unreported failure before propagating a runtime exception.</li>
      * </ol>
-     * <p>The coordinator owns consensus and may apply policy to one or more directions;
-     * a cached-hit control-cycle outcome is recorded before that decision.</p>
+     * <p>The coordinator owns consensus and may apply policy to one or more directions. This service records
+     * one terminal control-cycle outcome only after that decision completes or fails.</p>
      * @param notification packet notification emitted by OpenFlow Plugin
      * @throws RuntimeException if extraction, classification, coordination or a callback fails
      */
@@ -210,20 +211,14 @@ public final class SdnMplsMlWorkflowService {
             final ClassificationLookupResult lookup = classificationService.classifyOrGetCached(context);
             final ClassificationResult classification = lookup.classification();
             controlCycleClassName = classification.className();
-            if (lookup.cacheHit()) {
-                recordControlCycle("cached_hit", classification.className(), controlCycleStartedAt);
-                controlCycleRecorded = true;
-            }
             final WorkflowContext workflowContext = WorkflowContext.current();
             final DirectionalPolicyEvidence evidence = buildEvidence(context, ingressTunnelDirection, classification);
             final var decision = pairPolicyCoordinator.handleEvidence(evidence, workflowContext);
             if (decision.candidate().isEmpty()) {
                 final String outcome = decision.consensusStatus().name().equals("PENDING_ONE_SIDE")
                         ? "pending_consensus" : "deferred";
-                if (!lookup.cacheHit()) {
-                    recordControlCycle(outcome, classification.className(), controlCycleStartedAt);
-                    controlCycleRecorded = true;
-                }
+                recordControlCycle(outcome, classification.className(), controlCycleStartedAt);
+                controlCycleRecorded = true;
                 LOG.info("packet_workflow_pending_consensus", "handlePacket",
                         "La evidencia fue registrada, pero aun no existe una politica de par accionable.",
                         StructuredLogger.fields("pair_key", decision.pairKey(),
@@ -232,13 +227,11 @@ public final class SdnMplsMlWorkflowService {
                                 ingressTunnelDirection.directionKey()));
                 return;
             }
-            if (!lookup.cacheHit()) {
-                final boolean failed = decision.applications().stream()
-                        .anyMatch(application -> application.status().startsWith("FAILED"));
-                final String outcome = decision.applications().isEmpty() ? "deferred" : failed ? "failed" : "success";
-                recordControlCycle(outcome, classification.className(), controlCycleStartedAt);
-                controlCycleRecorded = true;
-            }
+            final boolean failed = decision.applications().stream()
+                    .anyMatch(application -> application.status().startsWith("FAILED"));
+            final String outcome = decision.applications().isEmpty() ? "deferred" : failed ? "failed" : "success";
+            recordControlCycle(outcome, classification.className(), controlCycleStartedAt);
+            controlCycleRecorded = true;
             LOG.info(
                     "packet_workflow_completed",
                     "handlePacket",
