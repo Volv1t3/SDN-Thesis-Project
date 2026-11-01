@@ -88,7 +88,7 @@ sequenceDiagram
     Scraper->>Http: GET /csa/metrics
     Http->>Registry: renderPrometheusText()
     Registry-->>Http: HELP, TYPE, and current samples
-    Http-->>Scraper: 200 text/plain; version=0.0.4; charset=utf-8
+    Http-->>Scraper: 200 text/plain version=0.0.4 charset=utf-8
 </code-block>
 
 ## Snapshot semantics under concurrent measurement {id="metrics-snapshot-semantics"}
