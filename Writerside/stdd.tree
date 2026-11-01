@@ -27,6 +27,18 @@
             </toc-element>
             <toc-element topic="Python-Inference-API-—-API-Request-Directory.md"/>
         </toc-element>
+        <toc-element toc-title="Java Controller Side Application — Implementation and Validation">
+            <toc-element topic="Java-Controller-Side-Application-—-Application-Construction.md">
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-PacketIn-Classification-Workflow.md"/>
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-Pair-Policy-Consensus-and-Preemption.md"/>
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-Topology-Discovery-and-Path-Computation.md"/>
+                <toc-element
+                        topic="Java-Controller-Side-Application-—-Application-Construction-Delegated-LSP-Lifecycle-and-Tunnel-Application.md"/>
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-OpenFlow-Bootstrap-and-Packet-Suppression.md"/>
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-External-Clients-Protocol-Payloads-and-Serialization.md"/>
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-Operational-State-Metrics-and-Structured-Logging.md"/>
+            </toc-element>
+        </toc-element>
         <toc-element toc-title="OpenDaylight RESTCONF Exploration and Configuration">
             <toc-element topic="ODL-RESTCONF-—-BGP-LS-Requests.md"/>
             <toc-element topic="ODL-RESTCONF-—-NETCONF-Requests.md"/>
