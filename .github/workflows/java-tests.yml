@@ -41,4 +41,4 @@ jobs:
 
       - name: Compile and run tests
         working-directory: src/main/java/sdn-mpls-ml-odl-cs-app
-        run: mvn clean test -Pq -Dcheckstyle.skip=true
+        run: mvn clean test -Dcheckstyle.skip=true
