@@ -44,6 +44,8 @@ jobs:
       #   * default       -> honors -Dodlparent.checkstyle.skip
       # SpotBugs also runs at compile phase (not verify), so it needs its own flag.
       # sft.skip disables the Karaf feature integration test, which is unrelated to unit tests.
+      # junit.jupiter.version must stay in sync with the junit-platform version managed by
+      # odlparent (1.14.0); jupiter 5.10.x crashes with NoSuchMethodError at runtime.
       - name: Compile and run unit tests
         working-directory: src/main/java/sdn-mpls-ml-odl-cs-app
         run: >
@@ -51,4 +53,6 @@ jobs:
           -Dcheckstyle.skip=true
           -Dodlparent.checkstyle.skip=true
           -Dodlparent.spotbugs.skip=true
-          -Dsft.skip=true -Dodlparent.checkstyle.skip=true -DskipTests=false -Djunit.jupiter.version=5.14.0
+          -Dsft.skip=true
+          -DskipTests=false
+          -Djunit.jupiter.version=5.14.0

@@ -42,7 +42,8 @@ class StructuredLoggerTest {
 
         assertTrue(event.startsWith("{"));
         assertTrue(event.contains("\"event\":\"test_event\""));
-        assertTrue(event.contains("Espa\\u00f1a"));
+        assertFalse(event.contains("Espa\u00f1a"));
+        assertTrue(event.chars().allMatch(character -> character <= 0x7f));
         assertTrue(event.contains("\"nullable\":null"));
         assertFalse(event.contains("\n"));
     }
