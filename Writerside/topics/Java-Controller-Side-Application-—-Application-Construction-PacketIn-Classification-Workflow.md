@@ -596,7 +596,7 @@ remain visible through their dedicated packet counters or the topology-stale out
 cache-hit, cache-miss, request, failure, and round-trip-duration metrics, which separate an inference problem from a
 decision problem that occurs after a valid result is available.
 
-<code-block lang="java" src="../../src/main/java/sdn-mpls-ml-odl-cs-app/impl/src/main/java/com/sma/sdn/SdnMplsMlWorkflowService.java" include-lines="327-334"/>
+<code-block lang="java" src="../../src/main/java/sdn-mpls-ml-odl-cs-app/impl/src/main/java/com/sma/sdn/SdnMplsMlWorkflowService.java" collapsible="true"/>
 
 <code-block lang="mermaid">
 flowchart TD
