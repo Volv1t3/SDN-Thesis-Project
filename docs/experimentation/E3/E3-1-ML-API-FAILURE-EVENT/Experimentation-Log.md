@@ -1,4 +1,4 @@
-# E4 Variant One Experimentation Log
+# E3 Variant One Experimentation Log
 
 ## Definition and Goals
 
