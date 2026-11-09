@@ -23,7 +23,7 @@
 
 # Runtime and operating-system artifacts
 **/logs/
-*.log
+!*.log
 .DS_Store
 
 # Local datasets and generated training artifacts

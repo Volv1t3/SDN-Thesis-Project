@@ -45,23 +45,33 @@ topology:
       exec:
         - mkdir -p /usr/local/etc/openvswitch
         - mkdir -p /usr/local/var/run/openvswitch
-        - sh -lc '[ -f /usr/local/etc/openvswitch/conf.db ] || ovsdb-tool create /usr/local/etc/openvswitch/conf.db /usr/local/share/openvswitch/vswitch.ovsschema'
-        - ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock --remote=db:Open_vSwitch,Open_vSwitch,manager_options --pidfile --detach
+        - sh -lc '[ -f /usr/local/etc/openvswitch/conf.db ] || ovsdb-tool create
+          /usr/local/etc/openvswitch/conf.db
+          /usr/local/share/openvswitch/vswitch.ovsschema'
+        - ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock
+          --remote=db:Open_vSwitch,Open_vSwitch,manager_options --pidfile
+          --detach
         - ovs-vsctl --no-wait init
-        - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile --detach
+        - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile
+          --detach
         - ovs-vsctl --may-exist add-br sma-ovs-pe1-echo
         - ovs-vsctl set bridge sma-ovs-pe1-echo datapath_type=netdev
-        - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo host-golf 
+        - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo host-golf
         - ovs-vsctl --may-exist add-port sma-ovs-pe1-echo core-lsr1
         - ovs-vsctl set-manager tcp:172.21.121.100:6640
         - ovs-vsctl set-controller sma-ovs-pe1-echo tcp:172.21.121.100:6653
         - ovs-vsctl set bridge sma-ovs-pe1-echo protocols=OpenFlow13
         - ovs-ofctl -O OpenFlow13 del-flows sma-ovs-pe1-echo
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=300,arp,in_port=host-golf,actions=output:core-lsr1"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=300,arp,in_port=core-lsr1,actions=output:host-golf"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=200,ip,in_port=host-golf,actions=CONTROLLER:65535,output:core-lsr1"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=200,ip,in_port=core-lsr1,actions=output:host-golf"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo "priority=0,actions=drop"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo
+          "priority=300,arp,in_port=host-golf,actions=output:core-lsr1"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo
+          "priority=300,arp,in_port=core-lsr1,actions=output:host-golf"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo
+          "priority=200,ip,in_port=host-golf,actions=CONTROLLER:65535,output:core-lsr1"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo
+          "priority=200,ip,in_port=core-lsr1,actions=output:host-golf"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe1-echo
+          "priority=0,actions=drop"
       # stages:
       #   create:
       #     wait-for:
@@ -80,10 +90,15 @@ topology:
       exec:
         - mkdir -p /usr/local/etc/openvswitch
         - mkdir -p /usr/local/var/run/openvswitch
-        - sh -lc '[ -f /usr/local/etc/openvswitch/conf.db ] || ovsdb-tool create /usr/local/etc/openvswitch/conf.db /usr/local/share/openvswitch/vswitch.ovsschema'
-        - ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock --remote=db:Open_vSwitch,Open_vSwitch,manager_options --pidfile --detach
+        - sh -lc '[ -f /usr/local/etc/openvswitch/conf.db ] || ovsdb-tool create
+          /usr/local/etc/openvswitch/conf.db
+          /usr/local/share/openvswitch/vswitch.ovsschema'
+        - ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock
+          --remote=db:Open_vSwitch,Open_vSwitch,manager_options --pidfile
+          --detach
         - ovs-vsctl --no-wait init
-        - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile --detach
+        - ovs-vswitchd unix:/usr/local/var/run/openvswitch/db.sock --pidfile
+          --detach
         - ovs-vsctl --may-exist add-br sma-ovs-pe2-foxtrot
         - ovs-vsctl set bridge sma-ovs-pe2-foxtrot datapath_type=netdev
         - ovs-vsctl --may-exist add-port sma-ovs-pe2-foxtrot host-hotel
@@ -92,18 +107,23 @@ topology:
         - ovs-vsctl set-controller sma-ovs-pe2-foxtrot tcp:172.21.121.100:6653
         - ovs-vsctl set bridge sma-ovs-pe2-foxtrot protocols=OpenFlow13
         - ovs-ofctl -O OpenFlow13 del-flows sma-ovs-pe2-foxtrot
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=300,arp,in_port=host-hotel,actions=output:core-lsr4"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=300,arp,in_port=core-lsr4,actions=output:host-hotel"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=200,ip,in_port=host-hotel,actions=CONTROLLER:65535,output:core-lsr4"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=200,ip,in_port=core-lsr4,actions=output:host-hotel"
-        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot "priority=0,actions=drop"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot
+          "priority=300,arp,in_port=host-hotel,actions=output:core-lsr4"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot
+          "priority=300,arp,in_port=core-lsr4,actions=output:host-hotel"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot
+          "priority=200,ip,in_port=host-hotel,actions=CONTROLLER:65535,output:core-lsr4"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot
+          "priority=200,ip,in_port=core-lsr4,actions=output:host-hotel"
+        - ovs-ofctl -O OpenFlow13 add-flow sma-ovs-pe2-foxtrot
+          "priority=0,actions=drop"
       # stages:
       #   create:
       #     wait-for:
       #       - node: sma-xrv-lsr4-delta
       #         stage: healthy
 
-      
+
 
     sma-ubuntu-edge-golf:
       kind: linux
@@ -112,7 +132,7 @@ topology:
       image-pull-policy: Always
       cap-add:
         - NET_ADMIN
-      exec: 
+      exec:
         - sudo ip addr add 192.168.10.10/24 dev eth1
         - sudo ip link set eth1 up
         - sudo ip link set dev eth1 mtu 1496
@@ -130,7 +150,6 @@ topology:
         - sudo ip link set eth1 up
         - sudo ip link set dev eth1 mtu 1496
         - sudo ip route add 192.168.10.0/24 via 192.168.20.1 dev eth1
-
 
     sma-odl-controller-india:
       kind: linux
@@ -187,7 +206,6 @@ topology:
         SMA_OPENFLOW_BOOTSTRAP_ENABLED: true
         SMA_OPENFLOW_TABLE_ID: 0
 
-        
         SMA_OVS_ECHO_MGMT_IP: 172.21.121.15
         SMA_OVS_ECHO_HOST_PORT_NAME: host-golf
         SMA_OVS_ECHO_CORE_PORT_NAME: core-lsr1
@@ -234,7 +252,7 @@ topology:
       #         stage: healthy
       #       - node: sma-xrv-lsr4-delta
       #         stage: healthy
-    
+
     sma-odl-ml-api-kilo:
       kind: linux
       image: docker.io/arellanosantiago/sdn-mpls-ai-tech-demo-python-inference-api:0.23.1-baseline
@@ -245,30 +263,29 @@ topology:
       env:
         APP_NAME: sma-ml-api-kilo
         APP_VERSION: 0.1.0
-        CLASSIFICATION_MODE: MODEL 
+        CLASSIFICATION_MODE: MODEL
         CONFIG_DIR: configs
         DETERMINISTIC_RULE_FILENAME: sdn_mpls_ml_traffic_class_deterministic_rules.json
         POLICY_FILENAME: sdn_mpls_ml_traffic_class_to_policy_mapping.json
         ENABLE_POLICY_MAPPING: true
         HOST: 0.0.0.0
         PORT: 33761
-        LOG_LEVEL: DEBUG   
-        MAX_REQUEST_BODY_BYTES: 16384 
+        LOG_LEVEL: DEBUG
+        MAX_REQUEST_BODY_BYTES: 16384
         MAX_TUNNEL_BANDWIDTH_KBPS: 75000
         MIN_TUNNEL_BANDWIDTH_KBPS: 10000
-        MIN_POLICY_CONFIDENCE: 0.75 
-        MODEL_DIR: models 
+        MIN_POLICY_CONFIDENCE: 0.75
+        MODEL_DIR: models
         MODEL_FILENAME: sdn_mpls_ml_model.json
         MODEL_METADATA_FILENAME: sdn_mpls_ml_model_meta.json
         PROBABILITY_TOLERANCE: 0.001
         REQUEST_TIMEOUT_SECONDS: 10
         LOG_DIRECTORY: logs
-        LOG_FILE_BACKUP_COUNT: 5 
+        LOG_FILE_BACKUP_COUNT: 5
         LOG_FILE_MAX_BYTES: 10485760
         LOG_FILENAME: sdn_mpls_ml_api.log
       binds:
         - ../../data-folders/ml-api-logs:/api/logs
-      
 
     sma-obs-grafana-lima:
       kind: linux
@@ -286,7 +303,6 @@ topology:
         - ../../data-folders/grafana-data:/var/lib/grafana
         - ../../configurations/tech-demonstrator/services/provisioning:/etc/grafana/provisioning:ro
 
-
     sma-obs-prometheus-mike:
       kind: linux
       image: docker.io/prom/prometheus:v3.13.2
@@ -299,8 +315,7 @@ topology:
         --storage.tsdb.path=/prometheus
         --web.console.libraries=/usr/share/prometheus/console_libraries
         --web.console.templates=/usr/share/prometheus/consoles
-        --storage.tsdb.retention.time=5d
-        --web.listen-address=0.0.0.0:34762
+        --storage.tsdb.retention.time=5d --web.listen-address=0.0.0.0:34762
       binds:
         - ../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
         - ../../data-folders/prometheus-data:/prometheus
@@ -319,8 +334,8 @@ topology:
         - ../../configurations/tech-demonstrator/services/snmp-auth.yml:/etc/snmp_exporter/snmp-auth.yml:ro
 
     sma-link-bandwidth-bootstrap:
-        kind: host
-        exec:
+      kind: host
+      exec:
         # ---------------------------------------------------------
         # MPLS LSR Core: Baseline rhombus links
         # ---------------------------------------------------------
@@ -328,26 +343,42 @@ topology:
         # LSR1 Alpha <-> LSR2 Bravo
         # Subnet: 10.0.11.0/30
         # Capacity: 50,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/1 --rate 50000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/1 --rate 50000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i
+          Gi0/0/0/1 --rate 50000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i
+          Gi0/0/0/1 --rate 50000
 
         # LSR1 Alpha <-> LSR3 Charlie
         # Subnet: 10.0.12.0/30
         # Revised Capacity: 75,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/2 --rate 75000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/2 --rate 75000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i
+          Gi0/0/0/2 --rate 75000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i
+          Gi0/0/0/2 --rate 75000
 
         # LSR2 Bravo <-> LSR4 Delta
         # Subnet: 10.0.21.0/30
         # Capacity: 50,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/0 --rate 50000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/2 --rate 50000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i
+          Gi0/0/0/0 --rate 50000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i
+          Gi0/0/0/2 --rate 50000
 
         # LSR3 Charlie <-> LSR4 Delta
         # Subnet: 10.0.22.0/30
         # Revised Capacity: 75,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/1 --rate 75000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/1 --rate 75000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i
+          Gi0/0/0/1 --rate 75000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i
+          Gi0/0/0/1 --rate 75000
 
         # ---------------------------------------------------------
         # Extended Topology Links: Additional constrained links
@@ -356,40 +387,64 @@ topology:
         # LSR1 Alpha <-> LSR2 Bravo additional diagonal
         # Subnet: 10.0.13.0/30
         # Capacity: 25,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/4 --rate 25000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/2 --rate 25000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i
+          Gi0/0/0/4 --rate 25000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i
+          Gi0/0/0/2 --rate 25000
 
         # LSR1 Alpha <-> LSR4 Delta direct constrained shortcut
         # Subnet: 10.0.14.0/30
         # Capacity: 10,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i Gi0/0/0/5 --rate 10000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/6 --rate 10000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha -i
+          Gi0/0/0/5 --rate 10000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i
+          Gi0/0/0/6 --rate 10000
 
         # LSR2 Bravo <-> LSR3 Charlie vertical interconnection
         # Subnet: 10.0.23.0/30
         # Capacity: 10,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/5 --rate 10000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/4 --rate 10000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i
+          Gi0/0/0/5 --rate 10000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i
+          Gi0/0/0/4 --rate 10000
 
         # LSR2 Bravo <-> LSR4 Delta additional diagonal
         # Subnet: 10.0.24.0/30
         # Capacity: 25,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i Gi0/0/0/4 --rate 25000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/4 --rate 25000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo -i
+          Gi0/0/0/4 --rate 25000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i
+          Gi0/0/0/4 --rate 25000
 
         # LSR3 Charlie <-> LSR4 Delta additional high-bandwidth path
         # Subnet: 10.0.25.0/30
         # Capacity: 75,000 kbps
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i Gi0/0/0/0 --rate 75000
-        - sudo containerlab tools netem set -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i Gi0/0/0/5 --rate 75000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie -i
+          Gi0/0/0/0 --rate 75000
+        - sudo containerlab tools netem set -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta -i
+          Gi0/0/0/5 --rate 75000
 
         # ---------------------------------------------------------
         # Verification
         # ---------------------------------------------------------
-        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha
-        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo
-        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie
-        - sudo containerlab tools netem show -n clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta
+        - sudo containerlab tools netem show -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr1-alpha
+        - sudo containerlab tools netem show -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr2-bravo
+        - sudo containerlab tools netem show -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr3-charlie
+        - sudo containerlab tools netem show -n
+          clab-sdn-mpls-ai-techdemonstrator-baseline-sma-xrv-lsr4-delta
 
   links:
     # ---------------------------------------------------------
