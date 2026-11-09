@@ -100,9 +100,13 @@ import org.osgi.service.http.NamespaceException;
  * <p>The <code>PacketReceived</code> listener is registered before remote readiness completes.
  * <code>controlPlaneReady</code> is therefore the admission flag used by the packet workflow:
  * packets received during discovery are observed and recorded, but do not trigger LSP updates.
- * A single daemon executor performs readiness attempts with bounded exponential backoff. Once the
- * initial BGP-LS topology, delegated PCEP LSPs, and OpenFlow bootstrap are available, the provider
- * starts periodic topology refresh and marks the control plane ready.</p>
+ * A single daemon executor performs readiness attempts with bounded exponential backoff. The
+ * OpenFlow bootstrap is deliberately attempted before BGP-LS and PCEP readiness. Once its access
+ * forwarding rules are installed and verified, baseline ARP and IPv4 traffic can continue in the
+ * data plane while BGP-LS or PCEP discovery is retried. The provider still withholds
+ * policy-driven PacketIn processing until the initial BGP-LS topology, delegated PCEP LSPs, and
+ * OpenFlow bootstrap are all available; it then starts periodic topology refresh and marks the
+ * control plane ready.</p>
  *
  * <p><strong>Concurrency:</strong> the readiness executor serializes readiness attempts, but
  * notification delivery and <code>close()</code> can run concurrently with that executor. The
@@ -496,12 +500,13 @@ public final class SDN_MPLS_ML_Provider
      *
      * <p>The cycle proceeds as follows:</p>
      * <ol>
+     *   <li><code>OpenflowBootstrapService</code> reads inventory, provisions access flows, and
+     *       verifies them before any BGP-LS dependency can delay baseline forwarding. A successful
+     *       bootstrap is retained across BGP-LS/PCEP retries.</li>
      *   <li><code>TopologyDiscoveryService</code> reads and validates the BGP-LS topology, filling
      *       the node registry used by path computation; refresh records the successful discovery.</li>
      *   <li><code>DelegatedLspService</code> discovers existing PCEP LSPs and verifies that the
      *       configured tunnels can be updated as delegated LSPs, unless shutdown was observed.</li>
-     *   <li><code>OpenflowBootstrapService</code> reads inventory, provisions access flows, and
-     *       verifies them before PacketIn processing is admitted.</li>
      *   <li>Start periodic topology refresh, mark readiness, and publish state after all phases succeed.</li>
      *   <li>On a runtime failure, clear readiness, publish state, and schedule a jittered retry if still open.</li>
      * </ol>
@@ -536,7 +541,23 @@ public final class SDN_MPLS_ML_Provider
                 "Se inicio un intento asincrono de disponibilidad del plano de control.",
                 StructuredLogger.fields("attempt", attempt));
         try {
-            // Path and LSP validation require a topology snapshot before they can run.
+            /*
+             * Baseline forwarding must not depend on the routing-control topology. In particular,
+             * a missing BGP-LS topology must not prevent the verified host/core ARP and IPv4 flows
+             * from reaching the switches. Keep an already verified bootstrap intact while later
+             * BGP-LS or PCEP attempts retry, rather than reinstalling the same flows every cycle.
+             */
+            if (!openflowBootstrapService.isReady()) {
+                openflowBootstrapService.initialize();
+            }
+            if (closed.get()) {
+                return;
+            }
+            if (!openflowBootstrapService.isReady()) {
+                throw new IllegalStateException("El bootstrap OpenFlow no confirmo su disponibilidad");
+            }
+
+            // Path and LSP validation require a topology snapshot, but baseline forwarding does not.
             topologyDiscoveryService.initialize();
             topologyRefreshService.markInitialDiscoverySuccessful();
             if (closed.get()) {
@@ -546,14 +567,6 @@ public final class SDN_MPLS_ML_Provider
             delegatedLspService.initialize();
             if (closed.get()) {
                 return;
-            }
-            // PacketIn ingress mappings depend on a ready OpenFlow inventory.
-            openflowBootstrapService.initialize();
-            if (closed.get()) {
-                return;
-            }
-            if (!openflowBootstrapService.isReady()) {
-                throw new IllegalStateException("El bootstrap OpenFlow no confirmo su disponibilidad");
             }
             // Periodic refresh begins only after a known-valid initial snapshot is available.
             topologyRefreshService.start();

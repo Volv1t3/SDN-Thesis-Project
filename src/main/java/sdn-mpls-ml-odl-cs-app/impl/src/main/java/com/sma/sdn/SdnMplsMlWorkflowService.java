@@ -281,6 +281,13 @@ public final class SdnMplsMlWorkflowService {
         final var pair = pairRegistry.requirePairForDirection(direction.directionKey());
         final String bandwidth = BandwidthTranslator.kbpsToPcepBandwidthBase64Float32(
                 classification.policy().pathConstraints().requestedBandwidthKbps());
+
+        /*This object is built to store the directiona evidence of everything that came in from a single corresponding
+        * packet, it includes its direction, its features, tis classification, its content, and it service key when
+        * determined through the corrsesponding resolver. The reason this element is created here is because there is a
+        * second hash step needed that takes in the partial evidence and augmentxs it with the required hash digest. We use
+        * SHA256 under the hood, and since we build DTOs most of the time we define this policyHash field and we use the
+        * previusly built object*/
         final DirectionalPolicyEvidence partial = new DirectionalPolicyEvidence(
                 pair.pairKey(), direction.directionKey(), context.ingressSwitchName(), context.ingressConnectorName(),
                 context.packetFeatures(), serviceKey, classification.className(), classification.policy().profileName(),
