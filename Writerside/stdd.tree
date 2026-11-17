@@ -21,6 +21,7 @@
                 <toc-element topic="Python-Inference-API-—-Application-Construction-Inference.md"/>
                 <toc-element topic="Python-Inference-API-—-Application-Construction-Middleware.md"/>
                 <toc-element topic="Python-Inference-API-—-Application-Construction-Observability.md"/>
+                <toc-element topic="Python-Inference-API-—-Application-Construction-Metrics-and-Operational-Signals.md"/>
                 <toc-element topic="Python-Inference-API-—-Application-Construction-Model-Runtime.md"/>
                 <toc-element topic="Python-Inference-API-—-Application-Construction-Policy.md"/>
                 <toc-element topic="Python-Inference-API-—-Application-Construction-Schemas.md"/>
@@ -37,6 +38,7 @@
                 <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-OpenFlow-Bootstrap-and-Packet-Suppression.md"/>
                 <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-External-Clients-Protocol-Payloads-and-Serialization.md"/>
                 <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-Operational-State-Metrics-and-Structured-Logging.md"/>
+                <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-Metrics-and-Operational-Signals.md"/>
             </toc-element>
         </toc-element>
         <toc-element toc-title="OpenDaylight RESTCONF Exploration and Configuration">
