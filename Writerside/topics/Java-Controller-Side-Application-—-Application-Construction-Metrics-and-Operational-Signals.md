@@ -19,18 +19,18 @@ The registry has three concurrent stores. `LongAdder` values back counters, `Dou
 <code-block lang="java" src="../../src/main/java/sdn-mpls-ml-odl-cs-app/impl/src/main/java/com/sma/sdn/metrics/PrometheusMetricsServlet.java" include-lines="58-64"/>
 
 <code-block lang="mermaid">
-sequenceDiagram
-    participant Service as CSA service
-    participant Registry as SdnMplsMlMetrics
-    participant Provider as CSA provider
-    participant Servlet as PrometheusMetricsServlet
-    participant Prometheus as Prometheus
-    Service->>Registry: increment, setGauge, or observeHistogram
-    Provider->>Servlet: register at /csa/metrics
-    Prometheus->>Servlet: GET /csa/metrics
-    Servlet->>Registry: renderPrometheusText()
-    Registry-->>Servlet: HELP, TYPE, and live samples
-    Servlet-->>Prometheus: 200 text/plain; version=0.0.4
+    sequenceDiagram
+        participant Service as CSA service
+        participant Registry as SdnMplsMlMetrics
+        participant Provider as CSA provider
+        participant Servlet as PrometheusMetricsServlet
+        participant Prometheus as Prometheus
+        Service->>Registry: increment, setGauge, or observeHistogram
+        Provider->>Servlet: register at /csa/metrics
+        Prometheus->>Servlet: GET /csa/metrics
+        Servlet->>Registry: renderPrometheusText()
+        Registry-->>Servlet: HELP, TYPE, and live samples
+        Servlet-->>Prometheus: 200 Prometheus exposition
 </code-block>
 
 The `Counter`, `Gauge`, and `Histogram` types in the catalog are Prometheus family types, not Java field types. Counters are monotonically incremented per normalized series. Gauges are replaced with the current `double` value. Histograms render `_bucket`, `_sum`, and `_count` samples with seconds as the unit for every duration family. The table below uses the metadata help text as the operational definition, so it covers families that have not yet received a sample in the current controller process.
