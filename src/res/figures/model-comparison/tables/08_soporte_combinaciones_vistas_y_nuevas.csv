@@ -1,0 +1,15 @@
+segmento,clase,soporte
+vista_en_entrenamiento,DNS,8070
+vista_en_entrenamiento,FTP,18
+vista_en_entrenamiento,HTTP,46257
+vista_en_entrenamiento,ICMP,92
+vista_en_entrenamiento,NTP,0
+vista_en_entrenamiento,SSH,340
+vista_en_entrenamiento,STREAMING,313
+nueva,DNS,7995
+nueva,FTP,9
+nueva,HTTP,3236
+nueva,ICMP,0
+nueva,NTP,7
+nueva,SSH,0
+nueva,STREAMING,133
