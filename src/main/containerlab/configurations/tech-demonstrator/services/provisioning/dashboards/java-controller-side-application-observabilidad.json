@@ -1,0 +1,455 @@
+{
+  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Anotaciones y alertas", "type": "dashboard"}]},
+  "description": "Vista operativa curada de la Controller-Side Application: ruta critica, confiabilidad, topologia, PCEP, LSP, flujo, caches y estados adversos.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"content": "# Controller-Side Application — Observabilidad operativa\n\n## SDN-MPLS-ML Tech Demonstrator\n\nLectura guiada del ciclo de decisión: **inferencia Python → clasificación completa → comunicación CSA/API → cálculo de camino → PCEP → convergencia operacional**. Los percentiles se calculan sobre histogramas acumulados; los estados pendientes o diferidos se presentan separados de los resultados terminales para no confundir espera de consenso con fallo.", "mode": "markdown"},
+      "pluginVersion": "13.1.2",
+      "title": "",
+      "type": "text"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "id": 2, "panels": [], "title": "Ruta Crítica — Inferencia, Clasificación y Ciclo de Control", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Percentil 95 acumulado del tiempo instrumentado alrededor de classifier.predict en la API Python.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 3, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.05}, {"color": "red", "value": 0.2}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 6}, "id": 3,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (sdn_mpls_ml_api_obs_inference_duration_seconds_bucket{job=\"$inference_job\",outcome=\"success\"})) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A"}],
+      "title": "Inferencia p95", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Percentil 95 acumulado del procesamiento de la ruta de clasificación Python, después de la validación de esquema.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 3, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.1}, {"color": "red", "value": 0.5}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 6}, "id": 4,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$inference_job\",outcome=\"success\"})) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A"}],
+      "title": "Clasif. p95", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Percentil 95 acumulado de la llamada HTTP completa desde la CSA hasta la API Python.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 3, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.25}, {"color": "red", "value": 1}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 6}, "id": 5,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (sma_classifier_round_trip_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"})) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A"}],
+      "title": "CSA/API p95", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Media acumulada exacta de los ciclos exitosos. Se usa sum/count porque el bucket finito máximo del histograma es 30 s y un percentil podría subestimar observaciones superiores.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 2, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 30}, {"color": "red", "value": 60}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 6}, "id": 6,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "(sum(sma_control_cycle_duration_seconds_sum{job=\"$csa_job\",outcome=\"success\"}) / clamp_min(sum(sma_control_cycle_duration_seconds_count{job=\"$csa_job\",outcome=\"success\"}), 1)) or vector(0)", "instant": true, "legendFormat": "media", "range": false, "refId": "A"}],
+      "title": "Ciclo · media", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Comparación de percentiles acumulados. Permite localizar en qué etapa se concentra la latencia.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "log", "log": 10}, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 12}, "id": 7,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sdn_mpls_ml_api_obs_inference_duration_seconds_bucket{job=\"$inference_job\",outcome=\"success\"}[$__rate_interval])))", "legendFormat": "Inferencia Python p95", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$inference_job\",outcome=\"success\"}[$__rate_interval])))", "legendFormat": "Clasificación Python p95", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sma_classifier_round_trip_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"}[$__rate_interval])))", "legendFormat": "CSA → API p95", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "sum(rate(sma_control_cycle_duration_seconds_sum{job=\"$csa_job\",outcome=\"success\"}[$__rate_interval])) / clamp_min(sum(rate(sma_control_cycle_duration_seconds_count{job=\"$csa_job\",outcome=\"success\"}[$__rate_interval])), 1e-12)", "legendFormat": "Ciclo completo · media", "range": true, "refId": "D"}
+      ],
+      "title": "Ruta crítica — Latencia por etapa", "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Distribución del ciclo completo exitoso en ventanas de cinco minutos.",
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-Blues"}, "custom": {"fillOpacity": 80, "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "scaleDistribution": {"type": "log"}}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 12}, "id": 8,
+      "options": {"calculate": false, "calculation": {}, "cellGap": 2, "color": {"exponent": 0.5, "fill": "dark-blue", "mode": "scheme", "reverse": false, "scale": "exponential", "scheme": "Blues", "steps": 12}, "filterValues": {"le": 0}, "legend": {"show": true}, "rowsFrame": {"layout": "auto"}, "tooltip": {"mode": "single", "showColorScale": true, "yHistogram": false}},
+      "targets": [{"editorMode": "code", "expr": "sum by (le) (increase(sma_control_cycle_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"}[5m]))", "format": "heatmap", "legendFormat": "{{le}}", "range": true, "refId": "A"}],
+      "title": "Distribución temporal — Ciclo exitoso", "type": "heatmap"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22}, "id": 9, "panels": [], "title": "Confiabilidad del Ciclo — Resultados Terminales, Espera y Clases", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Éxitos / (éxitos + fallos). Los estados pending_consensus y deferred se excluyen del denominador terminal.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 23}, "id": 10,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "(100 * sum(sma_control_cycle_total{job=\"$csa_job\",outcome=\"success\"}) / clamp_min(sum(sma_control_cycle_total{job=\"$csa_job\",outcome=~\"success|failed\"}), 1)) or vector(0)", "instant": true, "legendFormat": "confiabilidad", "range": false, "refId": "A"}],
+      "title": "Confiabilidad terminal", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "blue", "mode": "fixed"}, "decimals": 0, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 23}, "id": 11,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_control_cycle_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "ciclos", "range": false, "refId": "A"}],
+      "title": "Ciclos observados", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "green", "mode": "fixed"}, "decimals": 0, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 23}, "id": 12,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_control_cycle_total{job=\"$csa_job\",outcome=~\"success|failed\"}) or vector(0)", "instant": true, "legendFormat": "terminales", "range": false, "refId": "A"}],
+      "title": "Resultados terminales", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "orange", "mode": "fixed"}, "decimals": 0, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 23}, "id": 13,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_control_cycle_total{job=\"$csa_job\",outcome=~\"pending_consensus|deferred\"}) or vector(0)", "instant": true, "legendFormat": "espera", "range": false, "refId": "A"}],
+      "title": "Pendientes o diferidos", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 29}, "id": 14,
+      "options": {"displayMode": "lcd", "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false}, "maxVizHeight": 300, "minVizHeight": 16, "minVizWidth": 8, "namePlacement": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+      "targets": [{"editorMode": "code", "expr": "sum by (outcome) (sma_control_cycle_total{job=\"$csa_job\"})", "instant": true, "legendFormat": "{{outcome}}", "range": false, "refId": "A"}],
+      "title": "Ciclos acumulados por resultado", "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 29}, "id": 15,
+      "options": {"displayMode": "gradient", "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false}, "maxVizHeight": 300, "minVizHeight": 16, "minVizWidth": 8, "namePlacement": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+      "targets": [{"editorMode": "code", "expr": "sum by (class_name) (sma_control_cycle_total{job=\"$csa_job\"})", "instant": true, "legendFormat": "{{class_name}}", "range": false, "refId": "A"}],
+      "title": "Ciclos acumulados por clase", "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 20, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 38}, "id": 16,
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (outcome) (rate(sma_control_cycle_total{job=\"$csa_job\"}[$__rate_interval]))", "legendFormat": "{{outcome}}", "range": true, "refId": "A"}],
+      "title": "Ritmo de ciclos por resultado", "type": "timeseries"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 47}, "id": 17, "panels": [], "title": "Estado del Controlador — Readiness, Topología y Registros", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"color": "red", "text": "CAÍDO"}, "1": {"color": "green", "text": "ACTIVO"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 48}, "id": 18,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "max(up{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Servicio CSA", "range": false, "refId": "A"}],
+      "title": "Estado del servicio", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"color": "red", "text": "NO LISTO"}, "1": {"color": "green", "text": "LISTO"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 48}, "id": 19,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "max(sma_openflow_bootstrap_ready{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "OpenFlow", "range": false, "refId": "A"}],
+      "title": "Bootstrap OpenFlow", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"color": "red", "text": "CADUCADA"}, "1": {"color": "green", "text": "VIGENTE"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 48}, "id": 20,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "max(sma_bgpls_topology_fresh{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "BGP-LS", "range": false, "refId": "A"}],
+      "title": "Topología BGP-LS", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 300}, {"color": "red", "value": 600}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 48}, "id": 21,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "time() - max(sma_bgpls_topology_last_success_epoch_seconds{job=\"$csa_job\"})", "instant": true, "legendFormat": "antigüedad", "range": false, "refId": "A"}],
+      "title": "Edad de la topología", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlYlRd"}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 54}, "id": 22,
+      "options": {"displayMode": "gradient", "legend": {"showLegend": false}, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+      "targets": [
+        {"editorMode": "code", "expr": "sma_registry_openflow_switch_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Switches OpenFlow", "range": false, "refId": "A"},
+        {"editorMode": "code", "expr": "sma_registry_openflow_connector_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Conectores OpenFlow", "range": false, "refId": "B"},
+        {"editorMode": "code", "expr": "sma_registry_bgpls_node_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Nodos BGP-LS", "range": false, "refId": "C"},
+        {"editorMode": "code", "expr": "sma_registry_delegated_lsp_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "LSP delegados", "range": false, "refId": "D"}
+      ],
+      "title": "Inventario de red", "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlYlRd"}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 54}, "id": 23,
+      "options": {"displayMode": "gradient", "legend": {"showLegend": false}, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+      "targets": [
+        {"editorMode": "code", "expr": "sma_registry_classification_exact_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Clasificaciones exactas", "range": false, "refId": "A"},
+        {"editorMode": "code", "expr": "sma_registry_classification_service_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Clasificaciones por servicio", "range": false, "refId": "B"},
+        {"editorMode": "code", "expr": "sma_registry_calculated_path_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Caminos calculados", "range": false, "refId": "C"},
+        {"editorMode": "code", "expr": "sma_registry_active_pair_policy_entries{job=\"$csa_job\"}", "instant": true, "legendFormat": "Políticas activas", "range": false, "refId": "D"}
+      ],
+      "title": "Estado de cachés y políticas", "type": "bargauge"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 64}, "id": 24, "panels": [], "title": "PCEP y LSP — Cálculo, Aplicación, Verificación y Convergencia", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 3, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2.5}, {"color": "red", "value": 10}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 65}, "id": 25,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (sma_path_computation_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"})) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A"}],
+      "title": "Cálculo de camino · p95", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 3, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2.5}, {"color": "red", "value": 10}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 65}, "id": 26,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (sma_update_lsp_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"})) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A"}],
+      "title": "Interacción update-lsp · p95", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 2, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 30}, {"color": "red", "value": 60}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 65}, "id": 27,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (sma_lsp_convergence_duration_seconds_bucket{job=\"$csa_job\",outcome=\"confirmed\"})) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A"}],
+      "title": "Convergencia operacional · p95", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Comparaciones ERO solicitada frente a ERO operacional.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 65}, "id": 28,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "(100 * sum(sma_lsp_path_verification_total{job=\"$csa_job\",outcome=\"match\"}) / clamp_min(sum(sma_lsp_path_verification_total{job=\"$csa_job\"}), 1)) or vector(0)", "instant": true, "legendFormat": "coincidencia", "range": false, "refId": "A"}],
+      "title": "Verificación de camino", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 15, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "log", "log": 10}, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 71}, "id": 29,
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sma_path_computation_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"}[$__rate_interval])))", "legendFormat": "Cálculo p95", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sma_update_lsp_duration_seconds_bucket{job=\"$csa_job\",outcome=\"success\"}[$__rate_interval])))", "legendFormat": "update-lsp p95", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sma_lsp_convergence_duration_seconds_bucket{job=\"$csa_job\",outcome=\"confirmed\"}[$__rate_interval])))", "legendFormat": "Convergencia p95", "range": true, "refId": "C"}
+      ],
+      "title": "Latencia PCEP/LSP por componente", "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-Purples"}, "custom": {"fillOpacity": 80, "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "scaleDistribution": {"type": "log"}}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 71}, "id": 30,
+      "options": {"calculate": false, "cellGap": 2, "color": {"exponent": 0.5, "fill": "dark-purple", "mode": "scheme", "reverse": false, "scale": "exponential", "scheme": "Purples", "steps": 12}, "filterValues": {"le": 0}, "legend": {"show": true}, "rowsFrame": {"layout": "auto"}, "tooltip": {"mode": "single", "showColorScale": true}},
+      "targets": [{"editorMode": "code", "expr": "sum by (le) (increase(sma_lsp_convergence_duration_seconds_bucket{job=\"$csa_job\",outcome=\"confirmed\"}[5m]))", "format": "heatmap", "legendFormat": "{{le}}", "range": true, "refId": "A"}],
+      "title": "Distribución temporal — Convergencia LSP", "type": "heatmap"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 81}, "id": 31, "panels": [], "title": "Flujo y Cachés — Admisión, Clasificación, Caminos y Consenso", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 20, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 82}, "id": 32,
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "rate(sma_packet_in_total{job=\"$csa_job\"}[$__rate_interval])", "legendFormat": "PacketIn", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "rate(sma_classifier_request_total{job=\"$csa_job\"}[$__rate_interval])", "legendFormat": "Clasificador externo", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "rate(sma_path_computation_request_total{job=\"$csa_job\"}[$__rate_interval])", "legendFormat": "Cálculo de camino", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "rate(sma_update_lsp_request_total{job=\"$csa_job\"}[$__rate_interval])", "legendFormat": "update-lsp", "range": true, "refId": "D"}
+      ],
+      "title": "Ritmo de trabajo por etapa", "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 82}, "id": 33,
+      "options": {"displayMode": "gradient", "legend": {"showLegend": false}, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+      "targets": [
+        {"editorMode": "code", "expr": "sum by (decision) (sma_pair_consensus_decision_total{job=\"$csa_job\"})", "instant": true, "legendFormat": "{{decision}}", "range": false, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(sma_packet_workflow_pending_consensus_total{job=\"$csa_job\"})", "instant": true, "legendFormat": "Workflows pendientes", "range": false, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(sma_packet_workflow_deferred_total{job=\"$csa_job\"})", "instant": true, "legendFormat": "Workflows diferidos", "range": false, "refId": "C"}
+      ],
+      "title": "Decisiones de consenso", "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 50}, {"color": "green", "value": 80}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 92}, "id": 34,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "(100 * sum(sma_classification_cache_hit_total{job=\"$csa_job\"}) / clamp_min(sum(sma_classification_cache_hit_total{job=\"$csa_job\"}) + sum(sma_classification_cache_miss_total{job=\"$csa_job\"}), 1)) or vector(0)", "instant": true, "legendFormat": "hit ratio", "range": false, "refId": "A"}],
+      "title": "Efectividad de caché — Clasificación", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "mappings": [], "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 50}, {"color": "green", "value": 80}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 92}, "id": 35,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "(100 * sum(sma_path_cache_hit_total{job=\"$csa_job\"}) / clamp_min(sum(sma_path_cache_hit_total{job=\"$csa_job\"}) + sum(sma_path_cache_miss_total{job=\"$csa_job\"}), 1)) or vector(0)", "instant": true, "legendFormat": "hit ratio", "range": false, "refId": "A"}],
+      "title": "Efectividad de caché — Caminos", "type": "stat"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 98}, "id": 44, "panels": [], "title": "Políticas y Consenso — Estado Activo, Retención y Preempción", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Cantidad de políticas de par actualmente vigentes en el registro. La métrica no expone la clase ni el perfil de la política.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [{"options": {"0": {"color": "blue", "text": "SIN POLÍTICA"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}, {"color": "green", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 99}, "id": 45,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_registry_active_pair_policy_entries{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "activas", "range": false, "refId": "A"}],
+      "title": "Políticas activas", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Políticas instaladas o refrescadas como activas desde el arranque de la CSA.",
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "green", "mode": "fixed"}, "decimals": 0, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 99}, "id": 46,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_pair_policy_active_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "activaciones", "range": false, "refId": "A"}],
+      "title": "Activaciones", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Candidatos entrantes que reemplazaron la política activa por tener mayor prioridad.",
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "orange", "mode": "fixed"}, "decimals": 0, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 99}, "id": 47,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_pair_policy_preempted_by_priority_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "preempciones", "range": false, "refId": "A"}],
+      "title": "Preempciones", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Candidatos descartados porque la política activa tenía una prioridad superior.",
+      "fieldConfig": {"defaults": {"color": {"fixedColor": "blue", "mode": "fixed"}, "decimals": 0, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 99}, "id": 48,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_pair_policy_retained_stronger_active_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "retenidos", "range": false, "refId": "A"}],
+      "title": "Retenciones", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Resumen acumulado del ciclo de vida de políticas. Son contadores globales y no contienen etiquetas de clase.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 105}, "id": 49,
+      "options": {"displayMode": "gradient", "legend": {"showLegend": false}, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "sizing": "auto", "valueMode": "color"},
+      "targets": [
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_active_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Activada", "range": false, "refId": "A"},
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_refresh_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Refrescada", "range": false, "refId": "B"},
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_preempted_by_priority_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Preempción", "range": false, "refId": "C"},
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_retained_stronger_active_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Retención fuerte", "range": false, "refId": "D"},
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_retained_equal_priority_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Retención por empate", "range": false, "refId": "E"},
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_replaced_expired_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Reemplazo expirado", "range": false, "refId": "F"},
+        {"editorMode": "code", "expr": "sum(sma_pair_policy_deferred_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "Diferida", "range": false, "refId": "G"}
+      ],
+      "title": "Resultado acumulado de políticas", "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Estados de consenso etiquetados por la CSA. Esta es la única familia de política que actualmente conserva una dimensión de decisión.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 22, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 105}, "id": 50,
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (decision) (rate(sma_pair_consensus_decision_total{job=\"$csa_job\"}[$__rate_interval]))", "legendFormat": "{{decision}}", "range": true, "refId": "A"}],
+      "title": "Historial temporal de consenso", "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Ritmo de cambios y rechazos de política. La serie permite ubicar cuándo hubo actividad, pero no identificar las clases implicadas.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 18, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 115}, "id": 51,
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_active_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Activación", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_refresh_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Refresco", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_preempted_by_priority_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Preempción", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_retained_stronger_active_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Retención por prioridad", "range": true, "refId": "D"},
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_retained_equal_priority_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Retención por empate", "range": true, "refId": "E"},
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_replaced_expired_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Reemplazo por expiración", "range": true, "refId": "F"},
+        {"editorMode": "code", "expr": "rate(sma_pair_policy_deferred_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Diferida", "range": true, "refId": "G"}
+      ],
+      "title": "Actividad de políticas a través del tiempo", "type": "timeseries"
+    },
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 125}, "id": 36, "panels": [], "title": "Estados Adversos — Fallos de Componentes y Señales de Atención", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 126}, "id": 37,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_classifier_failure_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "fallos", "range": false, "refId": "A"}],
+      "title": "Fallos del clasificador", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 126}, "id": 38,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_path_computation_failure_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "fallos", "range": false, "refId": "A"}],
+      "title": "Fallos de cálculo de camino", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 126}, "id": 39,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_update_lsp_failure_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "fallos", "range": false, "refId": "A"}],
+      "title": "Fallos de update-lsp", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 132}, "id": 40,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_lsp_application_failed_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "fallos", "range": false, "refId": "A"}],
+      "title": "Fallos de aplicación LSP", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 132}, "id": 41,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_openflow_flow_install_failure_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "fallos", "range": false, "refId": "A"}],
+      "title": "Fallos de instalación OpenFlow", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 132}, "id": 42,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "sum(sma_controller_operational_state_publish_failure_total{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "fallos", "range": false, "refId": "A"}],
+      "title": "Fallos de publicación operacional", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 18, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": true}, "mappings": [], "unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 11, "w": 24, "x": 0, "y": 138}, "id": 43,
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"editorMode": "code", "expr": "rate(sma_classifier_failure_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Clasificador", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "rate(sma_path_computation_failure_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Cálculo", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "rate(sma_update_lsp_failure_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "update-lsp", "range": true, "refId": "C"},
+        {"editorMode": "code", "expr": "rate(sma_lsp_application_failed_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Aplicación LSP", "range": true, "refId": "D"},
+        {"editorMode": "code", "expr": "rate(sma_openflow_flow_install_failure_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "OpenFlow", "range": true, "refId": "E"},
+        {"editorMode": "code", "expr": "rate(sma_controller_operational_state_publish_failure_total{job=\"$csa_job\"}[$__rate_interval]) or vector(0)", "legendFormat": "Estado operacional", "range": true, "refId": "F"}
+      ],
+      "title": "Ritmo de fallos por componente", "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["SDN-MPLS-ML", "CSA", "Java", "Prometheus", "PCEP"],
+  "templating": {
+    "list": [
+      {"current": {"text": "Prometheus", "value": "PBFA97CFB590B2093"}, "includeAll": false, "label": "Fuente Prometheus", "name": "DS_PROMETHEUS", "options": [], "query": "prometheus", "refresh": 1, "regex": "", "type": "datasource"},
+      {"current": {"text": "sdn-mpls-odl-csa-india", "value": "sdn-mpls-odl-csa-india"}, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "definition": "label_values(up, job)", "includeAll": false, "label": "Controller-Side Application", "name": "csa_job", "options": [], "query": {"query": "label_values(up, job)", "refId": "PrometheusVariableQueryEditor-VariableQuery"}, "refresh": 1, "regex": "/sdn-mpls-odl-csa-.*/", "sort": 1, "type": "query"},
+      {"current": {"text": "sdn-mpls-ml-api-kilo", "value": "sdn-mpls-ml-api-kilo"}, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "definition": "label_values(up, job)", "includeAll": false, "label": "API de inferencia", "name": "inference_job", "options": [], "query": {"query": "label_values(up, job)", "refId": "PrometheusVariableQueryEditor-VariableQuery"}, "refresh": 1, "regex": "/sdn-mpls-ml-api-.*/", "sort": 1, "type": "query"}
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Controller-Side Application · Observabilidad Operativa",
+  "uid": "sdn-ml-csa-observabilidad",
+  "version": 1,
+  "weekStart": ""
+}

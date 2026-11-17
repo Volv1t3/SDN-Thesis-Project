@@ -298,7 +298,7 @@ topology:
         GF_SERVER_HTTP_PORT: 34761
         GF_SECURITY_ADMIN_USER: clab
         GF_SECURITY_ADMIN_PASSWORD: clab@123
-        GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource,tamirsuliman-weathermap-panel
+        GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource,tamirsuliman-weathermap-panel,esnet-networkmap-panel
       binds:
         - ../../data-folders/grafana-data:/var/lib/grafana
         - ../../configurations/tech-demonstrator/services/provisioning:/etc/grafana/provisioning:ro
@@ -318,6 +318,7 @@ topology:
         --storage.tsdb.retention.time=5d --web.listen-address=0.0.0.0:34762
       binds:
         - ../../configurations/tech-demonstrator/services/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        - ../../configurations/tech-demonstrator/services/prometheus-rules:/etc/prometheus/rules:ro
         - ../../data-folders/prometheus-data:/prometheus
 
     sma-obs-snmp-exporter-november:

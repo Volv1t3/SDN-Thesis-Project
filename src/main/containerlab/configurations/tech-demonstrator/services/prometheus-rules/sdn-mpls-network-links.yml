@@ -1,0 +1,319 @@
+groups:
+  - name: sdn_mpls_network_link_traffic
+    interval: 5s
+    rules:
+      # Each direction uses the transmitting endpoint as the canonical source.
+      # This avoids counting the same traffic again from the peer's RX counter.
+
+      # LSR1 <-> LSR2 primary (10.0.11.0/30, 50 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr2_primary
+          link_name: LSR1 — LSR2 principal
+          endpoint_a: LSR1
+          endpoint_z: LSR2
+          source: LSR1
+          destination: LSR2
+          source_interface: GigabitEthernet0/0/0/1
+          destination_interface: GigabitEthernet0/0/0/1
+          direction: a_to_z
+          subnet: 10.0.11.0/30
+          capacity_mbps: "50"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr1-alpha", ifName="GigabitEthernet0/0/0/1"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr2_primary
+          link_name: LSR1 — LSR2 principal
+          endpoint_a: LSR1
+          endpoint_z: LSR2
+          source: LSR2
+          destination: LSR1
+          source_interface: GigabitEthernet0/0/0/1
+          destination_interface: GigabitEthernet0/0/0/1
+          direction: z_to_a
+          subnet: 10.0.11.0/30
+          capacity_mbps: "50"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr2-bravo", ifName="GigabitEthernet0/0/0/1"}[1m])) * 8
+
+      # LSR1 <-> LSR3 primary (10.0.12.0/30, 75 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr3_primary
+          link_name: LSR1 — LSR3 principal
+          endpoint_a: LSR1
+          endpoint_z: LSR3
+          source: LSR1
+          destination: LSR3
+          source_interface: GigabitEthernet0/0/0/2
+          destination_interface: GigabitEthernet0/0/0/2
+          direction: a_to_z
+          subnet: 10.0.12.0/30
+          capacity_mbps: "75"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr1-alpha", ifName="GigabitEthernet0/0/0/2"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr3_primary
+          link_name: LSR1 — LSR3 principal
+          endpoint_a: LSR1
+          endpoint_z: LSR3
+          source: LSR3
+          destination: LSR1
+          source_interface: GigabitEthernet0/0/0/2
+          destination_interface: GigabitEthernet0/0/0/2
+          direction: z_to_a
+          subnet: 10.0.12.0/30
+          capacity_mbps: "75"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr3-charlie", ifName="GigabitEthernet0/0/0/2"}[1m])) * 8
+
+      # LSR2 <-> LSR4 primary (10.0.21.0/30, 50 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr2_lsr4_primary
+          link_name: LSR2 — LSR4 principal
+          endpoint_a: LSR2
+          endpoint_z: LSR4
+          source: LSR2
+          destination: LSR4
+          source_interface: GigabitEthernet0/0/0/0
+          destination_interface: GigabitEthernet0/0/0/2
+          direction: a_to_z
+          subnet: 10.0.21.0/30
+          capacity_mbps: "50"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr2-bravo", ifName="GigabitEthernet0/0/0/0"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr2_lsr4_primary
+          link_name: LSR2 — LSR4 principal
+          endpoint_a: LSR2
+          endpoint_z: LSR4
+          source: LSR4
+          destination: LSR2
+          source_interface: GigabitEthernet0/0/0/2
+          destination_interface: GigabitEthernet0/0/0/0
+          direction: z_to_a
+          subnet: 10.0.21.0/30
+          capacity_mbps: "50"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr4-delta", ifName="GigabitEthernet0/0/0/2"}[1m])) * 8
+
+      # LSR3 <-> LSR4 primary (10.0.22.0/30, 75 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr3_lsr4_primary
+          link_name: LSR3 — LSR4 principal
+          endpoint_a: LSR3
+          endpoint_z: LSR4
+          source: LSR3
+          destination: LSR4
+          source_interface: GigabitEthernet0/0/0/1
+          destination_interface: GigabitEthernet0/0/0/1
+          direction: a_to_z
+          subnet: 10.0.22.0/30
+          capacity_mbps: "75"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr3-charlie", ifName="GigabitEthernet0/0/0/1"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr3_lsr4_primary
+          link_name: LSR3 — LSR4 principal
+          endpoint_a: LSR3
+          endpoint_z: LSR4
+          source: LSR4
+          destination: LSR3
+          source_interface: GigabitEthernet0/0/0/1
+          destination_interface: GigabitEthernet0/0/0/1
+          direction: z_to_a
+          subnet: 10.0.22.0/30
+          capacity_mbps: "75"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr4-delta", ifName="GigabitEthernet0/0/0/1"}[1m])) * 8
+
+      # LSR1 <-> LSR2 alternative (10.0.13.0/30, 25 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr2_alternative
+          link_name: LSR1 — LSR2 alternativo
+          endpoint_a: LSR1
+          endpoint_z: LSR2
+          source: LSR1
+          destination: LSR2
+          source_interface: GigabitEthernet0/0/0/4
+          destination_interface: GigabitEthernet0/0/0/2
+          direction: a_to_z
+          subnet: 10.0.13.0/30
+          capacity_mbps: "25"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr1-alpha", ifName="GigabitEthernet0/0/0/4"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr2_alternative
+          link_name: LSR1 — LSR2 alternativo
+          endpoint_a: LSR1
+          endpoint_z: LSR2
+          source: LSR2
+          destination: LSR1
+          source_interface: GigabitEthernet0/0/0/2
+          destination_interface: GigabitEthernet0/0/0/4
+          direction: z_to_a
+          subnet: 10.0.13.0/30
+          capacity_mbps: "25"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr2-bravo", ifName="GigabitEthernet0/0/0/2"}[1m])) * 8
+
+      # LSR1 <-> LSR4 constrained shortcut (10.0.14.0/30, 10 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr4_direct
+          link_name: LSR1 — LSR4 directo
+          endpoint_a: LSR1
+          endpoint_z: LSR4
+          source: LSR1
+          destination: LSR4
+          source_interface: GigabitEthernet0/0/0/5
+          destination_interface: GigabitEthernet0/0/0/6
+          direction: a_to_z
+          subnet: 10.0.14.0/30
+          capacity_mbps: "10"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr1-alpha", ifName="GigabitEthernet0/0/0/5"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr1_lsr4_direct
+          link_name: LSR1 — LSR4 directo
+          endpoint_a: LSR1
+          endpoint_z: LSR4
+          source: LSR4
+          destination: LSR1
+          source_interface: GigabitEthernet0/0/0/6
+          destination_interface: GigabitEthernet0/0/0/5
+          direction: z_to_a
+          subnet: 10.0.14.0/30
+          capacity_mbps: "10"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr4-delta", ifName="GigabitEthernet0/0/0/6"}[1m])) * 8
+
+      # LSR2 <-> LSR3 vertical interconnection (10.0.23.0/30, 10 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr2_lsr3_vertical
+          link_name: LSR2 — LSR3 vertical
+          endpoint_a: LSR2
+          endpoint_z: LSR3
+          source: LSR2
+          destination: LSR3
+          source_interface: GigabitEthernet0/0/0/5
+          destination_interface: GigabitEthernet0/0/0/4
+          direction: a_to_z
+          subnet: 10.0.23.0/30
+          capacity_mbps: "10"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr2-bravo", ifName="GigabitEthernet0/0/0/5"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr2_lsr3_vertical
+          link_name: LSR2 — LSR3 vertical
+          endpoint_a: LSR2
+          endpoint_z: LSR3
+          source: LSR3
+          destination: LSR2
+          source_interface: GigabitEthernet0/0/0/4
+          destination_interface: GigabitEthernet0/0/0/5
+          direction: z_to_a
+          subnet: 10.0.23.0/30
+          capacity_mbps: "10"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr3-charlie", ifName="GigabitEthernet0/0/0/4"}[1m])) * 8
+
+      # LSR2 <-> LSR4 alternative (10.0.24.0/30, 25 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr2_lsr4_alternative
+          link_name: LSR2 — LSR4 alternativo
+          endpoint_a: LSR2
+          endpoint_z: LSR4
+          source: LSR2
+          destination: LSR4
+          source_interface: GigabitEthernet0/0/0/4
+          destination_interface: GigabitEthernet0/0/0/4
+          direction: a_to_z
+          subnet: 10.0.24.0/30
+          capacity_mbps: "25"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr2-bravo", ifName="GigabitEthernet0/0/0/4"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr2_lsr4_alternative
+          link_name: LSR2 — LSR4 alternativo
+          endpoint_a: LSR2
+          endpoint_z: LSR4
+          source: LSR4
+          destination: LSR2
+          source_interface: GigabitEthernet0/0/0/4
+          destination_interface: GigabitEthernet0/0/0/4
+          direction: z_to_a
+          subnet: 10.0.24.0/30
+          capacity_mbps: "25"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr4-delta", ifName="GigabitEthernet0/0/0/4"}[1m])) * 8
+
+      # LSR3 <-> LSR4 alternative (10.0.25.0/30, 75 Mbit/s)
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr3_lsr4_alternative
+          link_name: LSR3 — LSR4 alternativo
+          endpoint_a: LSR3
+          endpoint_z: LSR4
+          source: LSR3
+          destination: LSR4
+          source_interface: GigabitEthernet0/0/0/0
+          destination_interface: GigabitEthernet0/0/0/5
+          direction: a_to_z
+          subnet: 10.0.25.0/30
+          capacity_mbps: "75"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr3-charlie", ifName="GigabitEthernet0/0/0/0"}[1m])) * 8
+
+      - record: sma_network_link_transmit_bits_per_second
+        labels:
+          link_id: lsr3_lsr4_alternative
+          link_name: LSR3 — LSR4 alternativo
+          endpoint_a: LSR3
+          endpoint_z: LSR4
+          source: LSR4
+          destination: LSR3
+          source_interface: GigabitEthernet0/0/0/5
+          destination_interface: GigabitEthernet0/0/0/0
+          direction: z_to_a
+          subnet: 10.0.25.0/30
+          capacity_mbps: "75"
+        expr: |
+          sum(rate(ifHCOutOctets{job="sdn-mpls-xrv-snmp", router="sma-xrv-lsr4-delta", ifName="GigabitEthernet0/0/0/5"}[1m])) * 8
+
+      # Per-direction effective capacity, sourced from the enforced netem values.
+      - record: sma_network_link_capacity_bits_per_second
+        expr: |
+          (sma_network_link_transmit_bits_per_second{capacity_mbps="10"} * 0 + 10000000)
+          or (sma_network_link_transmit_bits_per_second{capacity_mbps="25"} * 0 + 25000000)
+          or (sma_network_link_transmit_bits_per_second{capacity_mbps="50"} * 0 + 50000000)
+          or (sma_network_link_transmit_bits_per_second{capacity_mbps="75"} * 0 + 75000000)
+
+      # Utilization intentionally remains unclamped so oversubscription is visible.
+      - record: sma_network_link_utilization_percent
+        expr: |
+          (sma_network_link_transmit_bits_per_second{capacity_mbps="10"} / 10000000 * 100)
+          or (sma_network_link_transmit_bits_per_second{capacity_mbps="25"} / 25000000 * 100)
+          or (sma_network_link_transmit_bits_per_second{capacity_mbps="50"} / 50000000 * 100)
+          or (sma_network_link_transmit_bits_per_second{capacity_mbps="75"} / 75000000 * 100)

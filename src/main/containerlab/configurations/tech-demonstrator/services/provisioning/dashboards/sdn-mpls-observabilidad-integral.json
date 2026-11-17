@@ -1,0 +1,507 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Anotaciones y alertas",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Vista integral del tráfico MPLS, utilización de enlaces, servicio de inferencia y Controller-Side Application.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Topología de Red — Tráfico MPLS en Vivo",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Topología lógica del núcleo MPLS. Cada enlace representa ambas direcciones y se colorea por utilización respecto a su límite netem. Seleccionar un enlace actualiza los extremos de origen y destino.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#4B5563", "value": null },
+              { "color": "green", "value": 0.00001 },
+              { "color": "blue", "value": 25 },
+              { "color": "yellow", "value": 50 },
+              { "color": "orange", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "background": "#111827",
+        "enableCustomEdgeTooltip": true,
+        "customEdgeTooltip": "<div class=\"flow-tooltip\"><strong>${forward.from} → ${forward.to}</strong><br/>Utilización: ${forward.dataPoint}</div><div class=\"flow-tooltip\"><strong>${reverse.from} → ${reverse.to}</strong><br/>Utilización: ${reverse.dataPoint}</div>",
+        "enableEdgeAnimation": true,
+        "enableEditing": false,
+        "enableNodeAnimation": true,
+        "enableScrolling": true,
+        "initialViewStrategy": "static",
+        "layerLimit": 1,
+        "layers": [
+          {
+            "color": "#4B5563",
+            "dashboardEdgeDstVar": "destination",
+            "dashboardEdgeSrcVar": "source",
+            "dashboardNodeVar": "node",
+            "dstFieldLabel": "Destino:",
+            "edgeWidth": 6,
+            "endpointId": "link_ids",
+        "inboundValueField": "Value #A",
+            "legend": true,
+            "mapjson": "{\"name\":\"Núcleo MPLS\",\"layer\":1,\"pathLayout\":\"curveCardinal\",\"edges\":[{\"name\":\"LSR1--LSR2-primary\",\"nodeA\":\"LSR1\",\"nodeZ\":\"LSR2\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr1_lsr2_primary\"],\"names\":[\"LSR1\",\"LSR2\"]}},\"coordinates\":[[0,-12],[8,0]],\"children\":[]},{\"name\":\"LSR1--LSR3-primary\",\"nodeA\":\"LSR1\",\"nodeZ\":\"LSR3\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr1_lsr3_primary\"],\"names\":[\"LSR1\",\"LSR3\"]}},\"coordinates\":[[0,-12],[-8,0]],\"children\":[]},{\"name\":\"LSR2--LSR4-primary\",\"nodeA\":\"LSR2\",\"nodeZ\":\"LSR4\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr2_lsr4_primary\"],\"names\":[\"LSR2\",\"LSR4\"]}},\"coordinates\":[[8,0],[0,12]],\"children\":[]},{\"name\":\"LSR3--LSR4-primary\",\"nodeA\":\"LSR3\",\"nodeZ\":\"LSR4\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr3_lsr4_primary\"],\"names\":[\"LSR3\",\"LSR4\"]}},\"coordinates\":[[-8,0],[0,12]],\"children\":[]},{\"name\":\"LSR1--LSR2-alternative\",\"nodeA\":\"LSR1\",\"nodeZ\":\"LSR2\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr1_lsr2_alternative\"],\"names\":[\"LSR1\",\"LSR2\"]}},\"coordinates\":[[0,-12],[5,-9],[9,-4],[8,0]],\"children\":[]},{\"name\":\"LSR1--LSR4-direct\",\"nodeA\":\"LSR1\",\"nodeZ\":\"LSR4\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr1_lsr4_direct\"],\"names\":[\"LSR1\",\"LSR4\"]}},\"coordinates\":[[0,-12],[0,0],[0,12]],\"children\":[]},{\"name\":\"LSR2--LSR3-vertical\",\"nodeA\":\"LSR2\",\"nodeZ\":\"LSR3\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr2_lsr3_vertical\"],\"names\":[\"LSR2\",\"LSR3\"]}},\"coordinates\":[[8,0],[0,0],[-8,0]],\"children\":[]},{\"name\":\"LSR2--LSR4-alternative\",\"nodeA\":\"LSR2\",\"nodeZ\":\"LSR4\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr2_lsr4_alternative\"],\"names\":[\"LSR2\",\"LSR4\"]}},\"coordinates\":[[8,0],[8,5],[5,10],[0,12]],\"children\":[]},{\"name\":\"LSR3--LSR4-alternative\",\"nodeA\":\"LSR3\",\"nodeZ\":\"LSR4\",\"meta\":{\"endpoint_identifiers\":{\"link_ids\":[\"lsr3_lsr4_alternative\"],\"names\":[\"LSR3\",\"LSR4\"]}},\"coordinates\":[[-8,0],[-8,5],[-5,10],[0,12]],\"children\":[]}],\"nodes\":[{\"name\":\"LSR1\",\"meta\":{\"display_name\":\"LSR1 · Alpha\",\"svg\":\"<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='47'/><text x='50' y='59' text-anchor='middle' fill='white' font-size='28' font-weight='700'>LSR1</text></svg>\",\"template\":\"\"},\"coordinate\":[0,-12]},{\"name\":\"LSR2\",\"meta\":{\"display_name\":\"LSR2 · Bravo\",\"svg\":\"<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='47'/><text x='50' y='59' text-anchor='middle' fill='white' font-size='28' font-weight='700'>LSR2</text></svg>\",\"template\":\"\"},\"coordinate\":[8,0]},{\"name\":\"LSR3\",\"meta\":{\"display_name\":\"LSR3 · Charlie\",\"svg\":\"<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='47'/><text x='50' y='59' text-anchor='middle' fill='white' font-size='28' font-weight='700'>LSR3</text></svg>\",\"template\":\"\"},\"coordinate\":[-8,0]},{\"name\":\"LSR4\",\"meta\":{\"display_name\":\"LSR4 · Delta\",\"svg\":\"<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='47'/><text x='50' y='59' text-anchor='middle' fill='white' font-size='28' font-weight='700'>LSR4</text></svg>\",\"template\":\"\"},\"coordinate\":[0,12]}]}",
+            "name": "Núcleo MPLS",
+            "nodeThresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "#73BF69", "value": null },
+                { "color": "#73BF69", "value": 0 }
+              ]
+            },
+            "nodeWidth": 15,
+        "outboundValueField": "Value #B",
+            "pathOffset": 5,
+            "srcField": "link_id",
+            "srcFieldLabel": "Enlace:",
+            "visible": true
+          },
+          {
+            "color": "#4B5563",
+            "dashboardEdgeDstVar": "destination",
+            "dashboardEdgeSrcVar": "source",
+            "dashboardNodeVar": "node",
+            "edgeWidth": 3,
+            "endpointId": "names",
+            "legend": false,
+            "mapjson": "{\"edges\":[],\"nodes\":[]}",
+            "name": "Capa auxiliar 2",
+            "nodeWidth": 5,
+            "pathOffset": 3,
+            "visible": false
+          },
+          {
+            "color": "#4B5563",
+            "dashboardEdgeDstVar": "destination",
+            "dashboardEdgeSrcVar": "source",
+            "dashboardNodeVar": "node",
+            "edgeWidth": 3,
+            "endpointId": "names",
+            "legend": false,
+            "mapjson": "{\"edges\":[],\"nodes\":[]}",
+            "name": "Capa auxiliar 3",
+            "nodeWidth": 5,
+            "pathOffset": 3,
+            "visible": false
+          }
+        ],
+        "legendColumnLength": 6,
+        "legendDefaultBehavior": "visible",
+        "legendPosition": "bottomleft",
+        "showLegend": true,
+        "showSidebar": false,
+        "showViewControls": true,
+        "thresholds": [
+          { "color": "#4B5563", "value": null },
+          { "color": "#73BF69", "value": 0.00001 },
+          { "color": "#5794F2", "value": 25 },
+          { "color": "#FADE2A", "value": 50 },
+          { "color": "#FF9830", "value": 75 },
+          { "color": "#F2495C", "value": 90 }
+        ],
+        "tileset": { "boundaries": "", "geographic": "", "labels": "" },
+        "topologySource": "json",
+        "viewport": { "center": { "lat": 0, "lng": 0 }, "zoom": 5 },
+        "zIndexBase": 200
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "sum by (link_id, endpoint_a, endpoint_z) (sma_network_link_utilization_percent{direction=\"a_to_z\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "az_utilization",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "sum by (link_id, endpoint_a, endpoint_z) (sma_network_link_utilization_percent{direction=\"z_to_a\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "za_utilization",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "Núcleo MPLS — Utilización Bidireccional por Enlace",
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "merge", "options": {} }
+      ],
+      "type": "esnet-networkmap-panel"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "id": 3,
+      "panels": [],
+      "title": "Tráfico y Ancho de Banda — Tasas, Capacidad y Calidad de Interfaces",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Disponibilidad actual de los cuatro objetivos SNMP.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "SIN DATOS" }, "1": { "color": "green", "text": "OPERATIVO" } }, "type": "value" }
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "id": 4,
+      "options": { "displayMode": "gradient", "minVizHeight": 20, "minVizWidth": 0, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "max by (router) (up{job=\"sdn-mpls-xrv-snmp\"})", "instant": true, "legendFormat": "{{router}}", "range": false, "refId": "A" }
+      ],
+      "title": "Disponibilidad de Routers",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Tasa de transmisión actual por dirección para los extremos seleccionados.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "continuous-GrYlRd" }, "mappings": [], "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "bps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "id": 5,
+      "options": { "displayMode": "gradient", "minVizHeight": 20, "minVizWidth": 0, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum by (link_id, source, destination) (sma_network_link_transmit_bits_per_second{endpoint_a=~\"$source\", endpoint_z=~\"$destination\", link_id=~\"$link\"})", "instant": true, "legendFormat": "{{link_id}} · {{source}} → {{destination}}", "range": false, "refId": "A" }
+      ],
+      "title": "TX Actual — Enlace Seleccionado",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Mayor utilización direccional de los enlaces que coinciden con la selección.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "max": 100, "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 25 }, { "color": "yellow", "value": 50 }, { "color": "orange", "value": 75 }, { "color": "red", "value": 90 }] }, "unit": "percent" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "id": 6,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "max(sma_network_link_utilization_percent{endpoint_a=~\"$source\", endpoint_z=~\"$destination\", link_id=~\"$link\"}) or vector(0)", "instant": true, "legendFormat": "Utilización máxima", "range": false, "refId": "A" }
+      ],
+      "title": "Utilización Actual — Selección",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Tasa de transmisión en ambas direcciones durante el intervalo visible.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "opacity", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "bps" }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 28 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sma_network_link_transmit_bits_per_second{endpoint_a=~\"$source\", endpoint_z=~\"$destination\", link_id=~\"$link\"}", "legendFormat": "{{link_id}} · {{source}} → {{destination}}", "range": true, "refId": "A" }
+      ],
+      "title": "Tráfico Bidireccional a Través del Tiempo",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Utilización direccional calculada contra los límites netem configurados.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 14, "gradientMode": "opacity", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" } }, "mappings": [], "max": 100, "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 90 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 28 },
+      "id": 8,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sma_network_link_utilization_percent{endpoint_a=~\"$source\", endpoint_z=~\"$destination\", link_id=~\"$link\"}", "legendFormat": "{{link_id}} · {{source}} → {{destination}}", "range": true, "refId": "A" }
+      ],
+      "title": "Utilización Contra Capacidad Configurada",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Mayor utilización direccional actual de cada enlace físico lógico.",
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "max": 100, "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 25 }, { "color": "yellow", "value": 50 }, { "color": "orange", "value": 75 }, { "color": "red", "value": 90 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 37 },
+      "id": 9,
+      "options": { "displayMode": "gradient", "minVizHeight": 24, "minVizWidth": 0, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "max by (link_id) (sma_network_link_utilization_percent)", "instant": true, "legendFormat": "{{link_id}}", "range": false, "refId": "A" }
+      ],
+      "title": "Utilización Actual de los Nueve Enlaces",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ritmo combinado de errores y descartes reportados por IF-MIB.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "opacity", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.01 }] }, "unit": "pps" }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 37 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum by (router, ifName) (rate(ifInErrors{job=\"sdn-mpls-xrv-snmp\"}[5m]) + rate(ifOutErrors{job=\"sdn-mpls-xrv-snmp\"}[5m]))", "legendFormat": "Errores · {{router}} · {{ifName}}", "range": true, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum by (router, ifName) (rate(ifInDiscards{job=\"sdn-mpls-xrv-snmp\"}[5m]) + rate(ifOutDiscards{job=\"sdn-mpls-xrv-snmp\"}[5m]))", "legendFormat": "Descartes · {{router}} · {{ifName}}", "range": true, "refId": "B" }
+      ],
+      "title": "Errores y Descartes de Interfaces",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "id": 11,
+      "panels": [],
+      "title": "Servicio de Inferencia — Estado, Carga, Pool y Latencia",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [{ "options": { "0": { "color": "red", "text": "CAÍDO" }, "1": { "color": "green", "text": "OPERATIVO" } }, "type": "value" }], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 48 },
+      "id": 12,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "max(up{job=\"$inference_job\"}) or vector(0)", "instant": true, "legendFormat": "API de inferencia", "range": false, "refId": "A" }],
+      "title": "Estado de la API",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "orange", "value": 100 }] }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 48 },
+      "id": 13,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum(rate(sdn_mpls_ml_api_obs_classification_requests_total{job=\"$inference_job\"}[$__rate_interval])) or vector(0)", "legendFormat": "Clasificaciones/s", "range": true, "refId": "A" }],
+      "title": "Carga de Clasificación",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 5 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 48 },
+      "id": 14,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum(sdn_mpls_ml_api_obs_classification_in_progress{job=\"$inference_job\"}) or vector(0)", "instant": true, "legendFormat": "En curso", "range": false, "refId": "A" }],
+      "title": "Clasificaciones en Curso",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "max": 100, "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "orange", "value": 80 }, { "color": "red", "value": 95 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 48 },
+      "id": 15,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "100 * sum(sdn_mpls_ml_api_obs_classifier_pool_borrowed{job=\"$inference_job\"}) / clamp_min(sum(sdn_mpls_ml_api_obs_classifier_pool_capacity{job=\"$inference_job\"}), 1)", "instant": true, "legendFormat": "Ocupación", "range": false, "refId": "A" }],
+      "title": "Ocupación del Pool",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 54 },
+      "id": 16,
+      "options": { "displayMode": "gradient", "minVizHeight": 24, "minVizWidth": 0, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum(sdn_mpls_ml_api_obs_classifier_pool_capacity{job=\"$inference_job\"})", "instant": true, "legendFormat": "Capacidad", "range": false, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum(sdn_mpls_ml_api_obs_classifier_pool_available{job=\"$inference_job\"})", "instant": true, "legendFormat": "Disponibles", "range": false, "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "sum(sdn_mpls_ml_api_obs_classifier_pool_borrowed{job=\"$inference_job\"})", "instant": true, "legendFormat": "Prestados", "range": false, "refId": "C" }
+      ],
+      "title": "Estado del Pool de Clasificadores",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 }] }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 54 },
+      "id": 17,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sdn_mpls_ml_api_obs_inference_duration_seconds_bucket{job=\"$inference_job\", outcome=\"success\"}[5m]))) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A" }],
+      "title": "Inferencia p95",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.02 }, { "color": "red", "value": 0.1 }] }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 54 },
+      "id": 18,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$inference_job\", outcome=\"success\"}[5m]))) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A" }],
+      "title": "Clasificación p95",
+      "type": "gauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 62 },
+      "id": 19,
+      "panels": [],
+      "title": "Controller-Side Application — Salud, Ruta Crítica y Confiabilidad",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [{ "options": { "0": { "color": "red", "text": "CAÍDA" }, "1": { "color": "green", "text": "OPERATIVA" } }, "type": "value" }], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 63 },
+      "id": 20,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "max(up{job=\"$csa_job\"}) or vector(0)", "instant": true, "legendFormat": "CSA", "range": false, "refId": "A" }],
+      "title": "Estado de la CSA",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.1 }, { "color": "red", "value": 0.5 }] }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 63 },
+      "id": 21,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(sma_classifier_round_trip_duration_seconds_bucket{job=\"$csa_job\", outcome=\"success\"}[5m]))) or vector(0)", "instant": true, "legendFormat": "p95", "range": false, "refId": "A" }],
+      "title": "CSA → API · p95",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 63 },
+      "id": 22,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "(sum(rate(sma_control_cycle_duration_seconds_sum{job=\"$csa_job\", outcome=\"success\"}[5m])) / clamp_min(sum(rate(sma_control_cycle_duration_seconds_count{job=\"$csa_job\", outcome=\"success\"}[5m])), 1e-12)) or vector(0)", "instant": true, "legendFormat": "Media reciente", "range": false, "refId": "A" }],
+      "title": "Ciclo de Control · Media",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "max": 100, "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 90 }, { "color": "green", "value": 99 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 63 },
+      "id": 23,
+      "options": { "minVizHeight": 75, "minVizWidth": 75, "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "editorMode": "code", "expr": "(100 * sum(sma_control_cycle_total{job=\"$csa_job\", outcome=\"success\"}) / clamp_min(sum(sma_control_cycle_total{job=\"$csa_job\", outcome=~\"success|failed\"}), 1)) or vector(0)", "instant": true, "legendFormat": "Éxito terminal", "range": false, "refId": "A" }],
+      "title": "Confiabilidad Terminal",
+      "type": "gauge"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["sdn", "mpls", "snmp", "prometheus", "network-map", "observabilidad"],
+  "templating": {
+    "list": [
+      {
+        "current": { "text": "Prometheus", "value": "PBFA97CFB590B2093" },
+        "includeAll": false,
+        "label": "Fuente Prometheus",
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
+        "current": { "selected": true, "text": ".*", "value": ".*" },
+        "hide": 0,
+        "label": "Router origen",
+        "name": "source",
+        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "query": ".*",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": { "selected": true, "text": ".*", "value": ".*" },
+        "hide": 0,
+        "label": "Router destino",
+        "name": "destination",
+        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "query": ".*",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": { "selected": true, "text": "Todos", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(sma_network_link_transmit_bits_per_second, link_id)",
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Enlace",
+        "multi": false,
+        "name": "link",
+        "options": [],
+        "query": { "query": "label_values(sma_network_link_transmit_bits_per_second, link_id)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "sdn-mpls-ml-api-kilo", "value": "sdn-mpls-ml-api-kilo" },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(up, job)",
+        "includeAll": false,
+        "label": "API de inferencia",
+        "name": "inference_job",
+        "options": [],
+        "query": { "query": "label_values(up, job)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 1,
+        "regex": "/sdn-mpls-ml-api-.*/",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "sdn-mpls-odl-csa-india", "value": "sdn-mpls-odl-csa-india" },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(up, job)",
+        "includeAll": false,
+        "label": "Controller-Side Application",
+        "name": "csa_job",
+        "options": [],
+        "query": { "query": "label_values(up, job)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 1,
+        "regex": "/sdn-mpls-odl-csa-.*/",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SDN-MPLS-ML · Observabilidad Integral de Red y Servicios",
+  "uid": "sdn-mpls-observabilidad-integral",
+  "version": 1,
+  "weekStart": ""
+}

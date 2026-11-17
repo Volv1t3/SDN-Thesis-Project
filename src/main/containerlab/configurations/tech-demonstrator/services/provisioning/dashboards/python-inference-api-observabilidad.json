@@ -5,8 +5,8 @@
     "name": "sdn-ml-api-observabilidad",
     "namespace": "default",
     "uid": "7e0e85f4-8d50-4004-9dc8-cbd3037fd676",
-    "resourceVersion": "1794894054462017",
-    "generation": 42,
+    "resourceVersion": "1794922614252993",
+    "generation": 46,
     "creationTimestamp": "2026-11-17T04:25:45Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "1351286757453824"
@@ -17,11 +17,11 @@
       "grafana.app/managerAllowsEdits": "true",
       "grafana.app/managerId": "SDN-MPLS-ML Tech Demonstrator Dashboards",
       "grafana.app/saved-from-ui": "Grafana v13.1.2 (7f247b37a4)",
-      "grafana.app/sourceChecksum": "3cba697d5e165a3f1929aa0a9074178c",
+      "grafana.app/sourceChecksum": "8c2dce0fca76ba0efac49198a447dbd6",
       "grafana.app/sourcePath": "/etc/grafana/provisioning/dashboards/python-inference-api-observabilidad.json",
-      "grafana.app/sourceTimestamp": "1794893064000",
+      "grafana.app/sourceTimestamp": "1794894888000",
       "grafana.app/updatedBy": "user:bfubrq23pxc00a",
-      "grafana.app/updatedTimestamp": "2026-11-17T05:40:54Z"
+      "grafana.app/updatedTimestamp": "2026-11-17T13:36:54Z"
     }
   },
   "spec": {
@@ -563,9 +563,11 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
+                        "editorMode": "code",
                         "expr": "sum by (class_name) (sdn_mpls_ml_api_obs_classification_results_total{job=\"$job\"})",
-                        "instant": true,
-                        "legendFormat": "{{class_name}}"
+                        "instant": false,
+                        "legendFormat": "{{class_name}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
@@ -795,9 +797,11 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
+                        "editorMode": "code",
                         "expr": "sum by (outcome) (sdn_mpls_ml_api_obs_classification_requests_total{job=\"$job\"})",
-                        "instant": true,
-                        "legendFormat": "{{outcome}}"
+                        "instant": false,
+                        "legendFormat": "{{outcome}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
@@ -905,9 +909,12 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
-                        "expr": "sum by (classification_mode, class_name) (sdn_mpls_ml_api_obs_classification_results_total{job=\"$job\"})",
-                        "instant": true,
-                        "legendFormat": "{{class_name}} · {{classification_mode}}"
+                        "editorMode": "code",
+                        "exemplar": false,
+                        "expr": "sum by(class_name, classification_mode) (sdn_mpls_ml_api_obs_classification_results_total{job=\"$job\"})",
+                        "instant": false,
+                        "legendFormat": "{{class_name}} · {{classification_mode}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
@@ -999,10 +1006,12 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
+                        "editorMode": "code",
                         "expr": "sum by (profile_name, fallback) (sdn_mpls_ml_api_obs_policy_selections_total{job=\"$job\"})",
                         "format": "table",
-                        "instant": true,
-                        "legendFormat": "{{profile_name}}"
+                        "instant": false,
+                        "legendFormat": "{{profile_name}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
