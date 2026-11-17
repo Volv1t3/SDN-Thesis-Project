@@ -1,0 +1,4 @@
+método,filas,repeticiones,mediana_ms,mediana_us_por_fila
+"Modelo XGBoost Entrenado, paquete",1000,3,416.42333299387246,416.42333299387246
+"Reglas, paquete",1000,3,0.5624159821309149,0.5624159821309149
+"Modelo XGBoost Entrenado, lote",1000,3,1.1490829638205469,1.1490829638205469

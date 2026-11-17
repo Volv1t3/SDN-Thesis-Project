@@ -30,8 +30,6 @@
 SDNFlow_Dataset/
 1406.0440.pdf
 /src/res/data/
-/src/res/data/processed/figures/
-/src/res/models/figures/
 /src/main/containerlab/data-folders/
 
 # Local/reference documentation assets; canonical documentation remains versioned.

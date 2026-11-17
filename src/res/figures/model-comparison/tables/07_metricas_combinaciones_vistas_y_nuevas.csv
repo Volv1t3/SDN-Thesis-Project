@@ -1,0 +1,5 @@
+método,segmento,filas,accuracy,macro_f1_7_clases
+Modelo XGBoost Entrenado,vista_en_entrenamiento,55090,0.9999818478852787,0.8569134706252278
+Modelo XGBoost Entrenado,nueva,11380,0.998066783831283,0.5932641584132174
+Reglas deterministas,vista_en_entrenamiento,55090,0.9951170811399528,0.7508648203628444
+Reglas deterministas,nueva,11380,0.9880492091388401,0.5500672525503667
