@@ -6,7 +6,9 @@ providers:
     folder: 'SDN-MPLS-ML Tech Demonstrator'
     type: file
     disableDeletion: false
-    updateIntervalSeconds: 10
+    # Values above 10 seconds force polling, which reliably detects updates
+    # to dashboard JSON files exposed through the Containerlab bind mount.
+    updateIntervalSeconds: 30
     allowUiUpdates: true
     options:
       path: /etc/grafana/provisioning/dashboards
