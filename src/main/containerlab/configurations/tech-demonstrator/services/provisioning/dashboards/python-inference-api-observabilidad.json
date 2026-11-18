@@ -5,8 +5,8 @@
     "name": "sdn-ml-api-observabilidad",
     "namespace": "default",
     "uid": "7e0e85f4-8d50-4004-9dc8-cbd3037fd676",
-    "resourceVersion": "1794922614252993",
-    "generation": 46,
+    "resourceVersion": "1794970440952018",
+    "generation": 102,
     "creationTimestamp": "2026-11-17T04:25:45Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "1351286757453824"
@@ -16,12 +16,11 @@
       "grafana.app/managedBy": "classic-file-provisioning",
       "grafana.app/managerAllowsEdits": "true",
       "grafana.app/managerId": "SDN-MPLS-ML Tech Demonstrator Dashboards",
-      "grafana.app/saved-from-ui": "Grafana v13.1.2 (7f247b37a4)",
-      "grafana.app/sourceChecksum": "8c2dce0fca76ba0efac49198a447dbd6",
+      "grafana.app/sourceChecksum": "d5f3f62db73f10aacac33acf38c7ebdb",
       "grafana.app/sourcePath": "/etc/grafana/provisioning/dashboards/python-inference-api-observabilidad.json",
-      "grafana.app/sourceTimestamp": "1794894888000",
-      "grafana.app/updatedBy": "user:bfubrq23pxc00a",
-      "grafana.app/updatedTimestamp": "2026-11-17T13:36:54Z"
+      "grafana.app/sourceTimestamp": "1794970379000",
+      "grafana.app/updatedBy": "access-policy:service",
+      "grafana.app/updatedTimestamp": "2026-11-18T02:54:00Z"
     }
   },
   "spec": {
@@ -332,7 +331,8 @@
                   "color": {
                     "mode": "fixed",
                     "fixedColor": "green"
-                  }
+                  },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo"
                 },
                 "overrides": []
               }
@@ -533,7 +533,8 @@
                   "color": {
                     "mode": "fixed",
                     "fixedColor": "#22C55E"
-                  }
+                  },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo"
                 },
                 "overrides": []
               }
@@ -658,7 +659,7 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
-                        "expr": "sum by (outcome) (rate(sdn_mpls_ml_api_obs_classification_requests_total{job=\"$job\"}[$__rate_interval]))",
+                        "expr": "sum by (outcome) (rate(sdn_mpls_ml_api_obs_classification_requests_total{job=\"$job\"}[$__rate_interval])) or on (outcome) label_replace(vector(0), \"outcome\", \"success\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"not_ready\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"rejected\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"capacity_timeout\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"inference_failed\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"output_invalid\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"policy_failed\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"cancelled\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"internal_error\", \"\", \"\")",
                         "legendFormat": "{{outcome}}"
                       }
                     },
@@ -688,10 +689,12 @@
                     "sum"
                   ],
                   "displayMode": "table",
-                  "enableFacetedFilter": false,
+                  "enableFacetedFilter": true,
                   "overflow": "ellipsis",
                   "placement": "bottom",
-                  "showLegend": true
+                  "showLegend": true,
+                  "sortBy": "Total",
+                  "sortDesc": true
                 },
                 "tooltip": {
                   "hideZeros": false,
@@ -708,10 +711,6 @@
                       {
                         "value": 0,
                         "color": "green"
-                      },
-                      {
-                        "value": 80,
-                        "color": "red"
                       }
                     ]
                   },
@@ -720,15 +719,16 @@
                   },
                   "custom": {
                     "axisBorderShow": false,
-                    "axisCenteredZero": true,
+                    "axisCenteredZero": false,
                     "axisColorMode": "text",
+                    "axisGridShow": true,
                     "axisLabel": "",
                     "axisPlacement": "auto",
                     "barAlignment": 0,
                     "barWidthFactor": 0.6,
                     "drawStyle": "line",
                     "fillOpacity": 20,
-                    "gradientMode": "opacity",
+                    "gradientMode": "none",
                     "hideFrom": {
                       "legend": false,
                       "tooltip": false,
@@ -736,6 +736,9 @@
                     },
                     "insertNulls": false,
                     "lineInterpolation": "smooth",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
                     "lineWidth": 2,
                     "pointSize": 5,
                     "scaleDistribution": {
@@ -751,7 +754,8 @@
                     "thresholdsStyle": {
                       "mode": "off"
                     }
-                  }
+                  },
+                  "fieldMinMax": false
                 },
                 "overrides": [
                   {
@@ -763,7 +767,127 @@
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "green",
+                          "fixedColor": "#73BF69",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "not_ready"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#F2CC0C",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "rejected"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#FF9830",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "capacity_timeout"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#8F3BB8",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "inference_failed"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#F2495C",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "output_invalid"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#E02FBC",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "policy_failed"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#C15C17",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "cancelled"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#7A7A7A",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "internal_error"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#C4162A",
                           "mode": "fixed"
                         }
                       }
@@ -798,7 +922,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (outcome) (sdn_mpls_ml_api_obs_classification_requests_total{job=\"$job\"})",
+                        "expr": "sum by (outcome) (sdn_mpls_ml_api_obs_classification_requests_total{job=\"$job\"}) or on (outcome) label_replace(vector(0), \"outcome\", \"not_ready\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"capacity_timeout\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"inference_failed\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"output_invalid\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"policy_failed\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"cancelled\", \"\", \"\") or on (outcome) label_replace(vector(0), \"outcome\", \"internal_error\", \"\", \"\")",
                         "instant": false,
                         "legendFormat": "{{outcome}}",
                         "range": true
@@ -831,7 +955,7 @@
                 "minVizHeight": 16,
                 "minVizWidth": 8,
                 "namePlacement": "auto",
-                "orientation": "vertical",
+                "orientation": "horizontal",
                 "reduceOptions": {
                   "calcs": [
                     "lastNotNull"
@@ -854,10 +978,6 @@
                       {
                         "value": 0,
                         "color": "green"
-                      },
-                      {
-                        "value": 80,
-                        "color": "red"
                       }
                     ]
                   },
@@ -875,7 +995,127 @@
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "green",
+                          "fixedColor": "#73BF69",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "not_ready"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#F2CC0C",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "rejected"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#FF9830",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "capacity_timeout"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#8F3BB8",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "inference_failed"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#F2495C",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "output_invalid"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#E02FBC",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "policy_failed"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#C15C17",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "cancelled"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#7A7A7A",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "internal_error"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#C4162A",
                           "mode": "fixed"
                         }
                       }
@@ -944,7 +1184,7 @@
                 "minVizHeight": 16,
                 "minVizWidth": 8,
                 "namePlacement": "auto",
-                "orientation": "vertical",
+                "orientation": "horizontal",
                 "reduceOptions": {
                   "calcs": [
                     "lastNotNull"
@@ -1095,7 +1335,7 @@
                       },
                       "spec": {
                         "expr": "histogram_quantile(0.50, sum by (le) (sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$job\"}))",
-                        "legendFormat": "p50 acumulado"
+                        "legendFormat": "P50 acumulado"
                       }
                     },
                     "refId": "A",
@@ -1114,7 +1354,7 @@
                       },
                       "spec": {
                         "expr": "histogram_quantile(0.95, sum by (le) (sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$job\"}))",
-                        "legendFormat": "p95 acumulado"
+                        "legendFormat": "P95 acumulado"
                       }
                     },
                     "refId": "B",
@@ -1133,7 +1373,7 @@
                       },
                       "spec": {
                         "expr": "histogram_quantile(0.99, sum by (le) (sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$job\"}))",
-                        "legendFormat": "p99 acumulado"
+                        "legendFormat": "P99 acumulado"
                       }
                     },
                     "refId": "C",
@@ -1231,7 +1471,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "p50 acumulado"
+                      "options": "P50 acumulado"
                     },
                     "properties": [
                       {
@@ -1246,7 +1486,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "p95 acumulado"
+                      "options": "P95 acumulado"
                     },
                     "properties": [
                       {
@@ -1261,13 +1501,13 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "p99 acumulado"
+                      "options": "P99 acumulado"
                     },
                     "properties": [
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "purple",
+                          "fixedColor": "red",
                           "mode": "fixed"
                         }
                       }
@@ -1302,7 +1542,7 @@
                       },
                       "spec": {
                         "expr": "histogram_quantile(0.50, sum by (le) (sdn_mpls_ml_api_obs_inference_duration_seconds_bucket{job=\"$job\"}))",
-                        "legendFormat": "p50 acumulado"
+                        "legendFormat": "P50 acumulado"
                       }
                     },
                     "refId": "A",
@@ -1321,7 +1561,7 @@
                       },
                       "spec": {
                         "expr": "histogram_quantile(0.95, sum by (le) (sdn_mpls_ml_api_obs_inference_duration_seconds_bucket{job=\"$job\"}))",
-                        "legendFormat": "p95 acumulado"
+                        "legendFormat": "P95 acumulado"
                       }
                     },
                     "refId": "B",
@@ -1340,7 +1580,7 @@
                       },
                       "spec": {
                         "expr": "histogram_quantile(0.99, sum by (le) (sdn_mpls_ml_api_obs_inference_duration_seconds_bucket{job=\"$job\"}))",
-                        "legendFormat": "p99 acumulado"
+                        "legendFormat": "P99 acumulado"
                       }
                     },
                     "refId": "C",
@@ -1438,7 +1678,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "p50 acumulado"
+                      "options": "P50 acumulado"
                     },
                     "properties": [
                       {
@@ -1453,7 +1693,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "p95 acumulado"
+                      "options": "P95 acumulado"
                     },
                     "properties": [
                       {
@@ -1468,13 +1708,13 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "p99 acumulado"
+                      "options": "P99 acumulado"
                     },
                     "properties": [
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "purple",
+                          "fixedColor": "red",
                           "mode": "fixed"
                         }
                       }
@@ -1491,7 +1731,7 @@
         "spec": {
           "id": 24,
           "title": "Histograma · ciclo completo",
-          "description": "Distribución acumulada por bucket de la duración total; permanece legible con tráfico intermitente.",
+          "description": "Distribución acumulada por bucket de la duración total.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1508,9 +1748,11 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
-                        "expr": "sum by (le) (sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$job\"})",
+                        "editorMode": "builder",
+                        "expr": "sum by(le) (sdn_mpls_ml_api_obs_classification_duration_seconds_bucket{job=\"$job\"})",
                         "format": "heatmap",
-                        "legendFormat": "{{le}}"
+                        "legendFormat": "{{le}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
@@ -1554,7 +1796,7 @@
                   "show": true
                 },
                 "rowsFrame": {
-                  "layout": "auto"
+                  "layout": "le"
                 },
                 "tooltip": {
                   "mode": "single",
@@ -1867,7 +2109,8 @@
                   "color": {
                     "mode": "fixed",
                     "fixedColor": "blue"
-                  }
+                  },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo"
                 },
                 "overrides": []
               }
@@ -1956,7 +2199,8 @@
                   "color": {
                     "mode": "fixed",
                     "fixedColor": "blue"
-                  }
+                  },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo"
                 },
                 "overrides": []
               }
@@ -2045,7 +2289,8 @@
                   "color": {
                     "mode": "fixed",
                     "fixedColor": "blue"
-                  }
+                  },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo"
                 },
                 "overrides": []
               }
@@ -2240,7 +2485,8 @@
                   "color": {
                     "mode": "fixed",
                     "fixedColor": "blue"
-                  }
+                  },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo"
                 },
                 "overrides": []
               }
@@ -3003,10 +3249,12 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
+                        "editorMode": "code",
                         "expr": "sum by (error_code, component) (sdn_mpls_ml_api_obs_request_errors_total{job=\"$job\"})",
                         "format": "table",
-                        "instant": true,
-                        "legendFormat": "{{error_code}} · {{component}}"
+                        "instant": false,
+                        "legendFormat": "{{error_code}} · {{component}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
@@ -3050,6 +3298,7 @@
                       }
                     ]
                   },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo",
                   "custom": {
                     "align": "auto",
                     "cellOptions": {
@@ -3215,6 +3464,7 @@
                       }
                     ]
                   },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo",
                   "custom": {
                     "align": "auto",
                     "cellOptions": {
@@ -3254,10 +3504,12 @@
                         "name": "${DS_PROMETHEUS}"
                       },
                       "spec": {
+                        "editorMode": "code",
                         "expr": "sum by (reason) (sdn_mpls_ml_api_obs_request_body_rejections_total{job=\"$job\"})",
                         "format": "table",
-                        "instant": true,
-                        "legendFormat": "{{reason}}"
+                        "instant": false,
+                        "legendFormat": "{{reason}}",
+                        "range": true
                       }
                     },
                     "refId": "A",
@@ -3296,6 +3548,7 @@
                       }
                     ]
                   },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo",
                   "custom": {
                     "align": "auto",
                     "cellOptions": {
@@ -3377,6 +3630,7 @@
                       }
                     ]
                   },
+                  "noValue": "No se han ejectuado procesos de inferencia en este periodo",
                   "custom": {
                     "align": "auto",
                     "cellOptions": {
@@ -3931,9 +4185,8 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "",
+              "title": "New tab",
               "collapse": false,
-              "hideHeader": true,
               "layout": {
                 "kind": "GridLayout",
                 "spec": {
@@ -4154,7 +4407,7 @@
                         "x": 0,
                         "y": 16,
                         "width": 12,
-                        "height": 10,
+                        "height": 12,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-17"
@@ -4167,7 +4420,7 @@
                         "x": 12,
                         "y": 16,
                         "width": 12,
-                        "height": 10,
+                        "height": 12,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-18"
@@ -4178,9 +4431,9 @@
                       "kind": "GridLayoutItem",
                       "spec": {
                         "x": 0,
-                        "y": 26,
+                        "y": 28,
                         "width": 12,
-                        "height": 8,
+                        "height": 11,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-19"
@@ -4191,9 +4444,9 @@
                       "kind": "GridLayoutItem",
                       "spec": {
                         "x": 12,
-                        "y": 26,
+                        "y": 28,
                         "width": 12,
-                        "height": 8,
+                        "height": 11,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-20"
@@ -4500,10 +4753,9 @@
     "liveNow": true,
     "preload": false,
     "tags": [
-      "sdn-mpls-ml",
-      "inferencia",
-      "prometheus",
-      "observabilidad"
+      "SDN-MPLS-ML Tech Demonstrator",
+      "Control Plane Service",
+      "Prometheus Enabled"
     ],
     "timeSettings": {
       "timezone": "browser",
