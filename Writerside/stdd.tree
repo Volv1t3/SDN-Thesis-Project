@@ -43,6 +43,9 @@
                 <toc-element topic="Java-Controller-Side-Application-—-Application-Construction-Reading-Structured-Logs.md"/>
             </toc-element>
         </toc-element>
+        <toc-element toc-title="Observability Layer Implementation — Grafana and Prometheus">
+            <toc-element topic="Observability-Layer-Implementation-—-Grafana-Implementation.md"/>
+        </toc-element>
         <toc-element toc-title="OpenDaylight RESTCONF Exploration and Configuration">
             <toc-element topic="ODL-RESTCONF-—-BGP-LS-Requests.md"/>
             <toc-element topic="ODL-RESTCONF-—-NETCONF-Requests.md"/>
