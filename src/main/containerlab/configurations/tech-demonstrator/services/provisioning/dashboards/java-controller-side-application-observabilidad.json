@@ -76,7 +76,7 @@
                   "showLineNumbers": false,
                   "showMiniMap": false
                 },
-                "content": "# SDN-MPLS-ML Tech Demonstrator\n\n## Santiago Arellano 00328370\n\nLa presente *dashboard* demuestra las capacidades de observabilidad de la \n`Controller-Side Application de Java` que implementa el mecanismo general de control \nprogramático del núcleo `MPLS-TE` mediante operaciones de tipo `RESTCONF` dirigadas hacia el \ncontrolador OpenDaylight para su traducción a operaciones específicas dirigadas a los dispositivos de red.\n\nEsta *dashboard* demuestra las métricas generales y más importantes del proceso de control de la aplicación, \nasí como aquellas métricas definidas como claves para la evaluación del ciclo de procesamiento en la planificación\ndel proyecto. ",
+                "content": "# SDN-MPLS-ML Tech Demonstrator\n\n## Santiago Arellano 00328370\n\nLa presente *dashboard* demuestra las capacidades de observabilidad de la \n`Controller-Side Application de Java` que implementa el mecanismo general de control \nprogramático del núcleo `MPLS-TE` mediante operaciones de tipo `RESTCONF` dirigadas hacia el \ncontrolador OpenDaylight para su traducción a operaciones específicas dirigadas a los dispositivos de red.\n\nEsta *dashboard* demuestra las métricas generales y más importantes del proceso de control de la aplicación, \nasí como aquellas métricas definidas como claves para evaluar el ciclo de decisión.\nLos resultados `success` de la CSA no equivalen a la confirmación operacional del ancho de banda en los routers. ",
                 "mode": "markdown"
               },
               "fieldConfig": {
@@ -91,8 +91,8 @@
         "kind": "Panel",
         "spec": {
           "id": 10,
-          "title": "Confiabilidad del ciclo de control",
-          "description": "Porcentaje de resultados terminales exitosos: success / (success + failed). success confirma que la decisión se materializó; failed indica que el flujo terminó con error. pending_consensus, deferred y topology_stale no forman parte del denominador terminal.",
+          "title": "Ciclos de decisión sin fallo (%)",
+          "description": "Porcentaje de resultados terminales sin fallo reportado por la CSA: success / (success + failed). success puede incluir una actualización PCEP aceptada con ancho de banda aún no confirmado; esta proporción no mide éxito extremo a extremo en los routers. pending_consensus, deferred y topology_stale quedan fuera del denominador.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -276,7 +276,7 @@
         "spec": {
           "id": 12,
           "title": "Resultados terminales",
-          "description": "Total acumulado de ciclos terminales. success representa una decisión aplicada correctamente y failed un ciclo que terminó con error; no incluye espera de consenso ni diferimientos.",
+          "description": "Total acumulado de ciclos terminales de la CSA. success indica aplicaciones sin estado de fallo, incluso si el ancho de banda aún no está confirmado; failed indica un error de procesamiento o aplicación. Excluye espera de consenso y diferimientos.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -454,7 +454,7 @@
         "spec": {
           "id": 14,
           "title": "Ciclos acumulados por resultado",
-          "description": "Desglosa el contador de ciclos por outcome: success aplicado, failed fallido, pending_consensus esperando la otra dirección, deferred aplazado por política y topology_stale rechazado por topología BGP-LS no vigente.",
+          "description": "Desglosa el contador de ciclos por outcome: success sin fallo reportado por la CSA, failed con error, pending_consensus esperando la otra dirección, deferred aplazado por política y topology_stale rechazado por topología BGP-LS no vigente. success no confirma por sí solo el estado final del router.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -738,7 +738,7 @@
         "spec": {
           "id": 16,
           "title": "Ritmo de ciclos por resultado",
-          "description": "Tasa por segundo de ciclos, agregada por outcome. Permite distinguir procesamiento exitoso, fallos, espera de consenso, diferimientos y rechazos por topología no vigente.",
+          "description": "Tasa por segundo de ciclos de la CSA, agregada por outcome. success significa finalización sin fallo reportado por la aplicación, no confirmación extremo a extremo del LSP; las demás series representan errores, espera de consenso, diferimientos y topología no vigente.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -5047,8 +5047,8 @@
         "kind": "Panel",
         "spec": {
           "id": 6,
-          "title": "Tiempo medio del ciclo de control",
-          "description": "Media acumulada de los ciclos con outcome success, desde la aceptación del PacketIn hasta confirmar la decisión sobre el LSP. Se calcula como suma/count para incluir correctamente observaciones por encima del último bucket finito.",
+          "title": "Tiempo medio hasta la decisión de control",
+          "description": "Media acumulada de ciclos con outcome success, desde el inicio de la clasificación y decisión tras validar dirección y topología hasta registrar el resultado de la CSA. No incluye la confirmación independiente del ancho de banda en IOS XRv. Se calcula como suma/count para incluir observaciones por encima del último bucket finito.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -5141,7 +5141,7 @@
         "spec": {
           "id": 7,
           "title": "Ruta crítica — P95 y media móvil por etapa (15 min)",
-          "description": "Presenta las mismas cuatro métricas de los Stat superiores, recalculadas continuamente con los datos de la ventana móvil anterior de 15 minutos. P95 del proceso de inferencia, P95 del proceso de clasificación y P95 de la solicitud HTTP de clasificación son percentiles móviles para outcome=success; Tiempo medio del ciclo de control es la media móvil de los ciclos con outcome=success. Por ello, estos valores describen el comportamiento reciente y no tienen que coincidir con los valores acumulados de los Stat.",
+          "description": "Presenta las mismas cuatro métricas de los Stat superiores, recalculadas continuamente con los datos de la ventana móvil anterior de 15 minutos. P95 del proceso de inferencia, P95 del proceso de clasificación y P95 de la solicitud HTTP de clasificación son percentiles móviles para outcome=success; Tiempo medio hasta la decisión de control es la media móvil de los ciclos con outcome=success. Por ello, estos valores describen el comportamiento reciente y no tienen que coincidir con los valores acumulados de los Stat.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -5326,8 +5326,8 @@
         "kind": "Panel",
         "spec": {
           "id": 8,
-          "title": "Distribución temporal — Ciclo de control exitoso",
-          "description": "Mapa de calor de ciclos de control con outcome success. Cada celda cuenta observaciones de los últimos 15 minutos por bucket de duración; los tonos más intensos representan más ciclos dentro de ese intervalo temporal.",
+          "title": "Distribución temporal — decisión sin fallo",
+          "description": "Mapa de calor de ciclos de la CSA con outcome success. La duración termina al registrar la decisión de la aplicación y no incluye la confirmación independiente del LSP en el router. Cada celda cuenta observaciones de los últimos 15 minutos por bucket de duración.",
           "links": [],
           "data": {
             "kind": "QueryGroup",

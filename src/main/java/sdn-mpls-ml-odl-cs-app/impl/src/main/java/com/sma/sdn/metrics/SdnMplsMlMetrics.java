@@ -533,7 +533,7 @@ public final class SdnMplsMlMetrics {
         counter(values, "sma_lsp_application_bandwidth_unconfirmed_total",
                 "Directional LSP bandwidth mismatches after update.");
         counter(values, "sma_lsp_application_failed_total", "Directional LSP application failures.");
-        counter(values, "sma_control_cycle_total", "End-to-end control cycles by outcome and class.");
+        counter(values, "sma_control_cycle_total", "Controller decision cycles by outcome and class.");
         counter(values, "sma_lsp_path_verification_total", "Requested ERO versus operational ERO comparisons.");
         gauge(values, "sma_openflow_bootstrap_ready", "OpenFlow bootstrap readiness.");
         gauge(values, "sma_openflow_bootstrap_last_success_timestamp", "Last successful OpenFlow bootstrap time.");
@@ -562,7 +562,7 @@ public final class SdnMplsMlMetrics {
         histogram(values, "sma_update_lsp_duration_seconds", "PCEP update-lsp interaction duration.", DEFAULT_BUCKETS);
         histogram(values, "sma_lsp_convergence_duration_seconds", "PCEP LSP convergence duration.",
                 CONVERGENCE_BUCKETS);
-        histogram(values, "sma_control_cycle_duration_seconds", "Accepted PacketIn to LSP decision duration.",
+        histogram(values, "sma_control_cycle_duration_seconds", "Classification and policy decision duration after topology checks.",
                 DEFAULT_BUCKETS);
         return Map.copyOf(values);
     }
